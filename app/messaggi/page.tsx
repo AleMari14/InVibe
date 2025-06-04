@@ -12,7 +12,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChatWindow } from "@/components/chat/chat-window"
 import { format } from "date-fns"
 import { it } from "date-fns/locale"
-import { toast } from "sonner"
 
 interface Conversation {
   _id: string
@@ -52,35 +51,43 @@ export default function MessaggiPage() {
 
   const fetchConversations = async () => {
     try {
-      // Fetch conversations from the new API endpoint
-      const response = await fetch("/api/user/conversations")
+      const response = await fetch("/api/socket")
       if (!response.ok) throw new Error("Errore nel caricamento delle conversazioni")
       const data = await response.json()
-      
-      if (Array.isArray(data)) {
-        setConversations(data)
-      } else {
-        console.error("Invalid data format for conversations:", data)
-        setConversations([])
-        toast.error("Formato dati conversazioni non valido.")
-      }
+      setConversations(data.conversations)
     } catch (error) {
       console.error("Error fetching conversations:", error)
-      toast.error("Errore nel caricamento delle conversazioni")
-      setConversations([]) // Set to empty on error
     } finally {
       setIsLoading(false)
     }
   }
 
-  // This function might be used to start a *new* chat, not list existing ones.
-  // We might need a different approach for initiating new chats if needed.
   const handleStartChat = async (email: string) => {
-    // This logic seems to be incomplete or intended for starting a new chat
-    // rather than selecting an existing one from the list.
-    console.log("Attempted to start chat with:", email)
-    // For now, we'll rely on clicking the conversation list item to open chat.
-    // You might need a separate UI element/flow to initiate a chat with a new user.
+    try {
+      const response = await fetch("/api/socket", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ receiverId: email }),
+      })
+
+      if (!response.ok) throw new Error("Errore nella creazione della chat")
+      const { roomId } = await response.json()
+
+      const conversation = conversations.find(
+        (conv) => conv.otherUser.email === email
+      )
+
+      if (conversation) {
+        setSelectedChat({
+          roomId,
+          otherUser: conversation.otherUser,
+        })
+      }
+    } catch (error) {
+      console.error("Error starting chat:", error)
+    }
   }
 
   if (status === "loading" || isLoading) {
@@ -116,7 +123,7 @@ export default function MessaggiPage() {
         </div>
       </div>
 
-      <div className="flex h-[calc(100vh-57px)]">
+      <div className="flex h-[calc(100vh-4rem)]">
         {/* Conversations List */}
         <div className="w-80 border-r border-border flex flex-col">
           <div className="p-4">
@@ -152,25 +159,23 @@ export default function MessaggiPage() {
                       {conversation.otherUser.name[0]}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="flex-1 overflow-hidden">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between">
                       <h3 className="font-medium truncate">
                         {conversation.otherUser.name}
                       </h3>
-                      {conversation.lastMessage?.createdAt && (
-                         <span className="text-xs text-muted-foreground flex-shrink-0">
-                           {format(new Date(conversation.lastMessage.createdAt), "HH:mm", {
-                             locale: it,
-                           })}
-                         </span>
-                      )}
+                      <span className="text-xs text-muted-foreground">
+                        {format(new Date(conversation.lastMessage.createdAt), "HH:mm", {
+                          locale: it,
+                        })}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2">
                       <p className="text-sm text-muted-foreground truncate">
-                        {conversation.lastMessage?.content || "Nessun messaggio"}
+                        {conversation.lastMessage.content}
                       </p>
                       {conversation.unreadCount > 0 && (
-                        <Badge variant="default" className="ml-auto flex-shrink-0">
+                        <Badge variant="default" className="ml-auto">
                           {conversation.unreadCount}
                         </Badge>
                       )}
@@ -178,9 +183,6 @@ export default function MessaggiPage() {
                   </div>
                 </button>
               ))}
-              {filteredConversations.length === 0 && !isLoading && (
-                 <div className="text-center text-muted-foreground p-4">Nessuna conversazione trovata.</div>
-              )}
             </div>
           </ScrollArea>
         </div>
