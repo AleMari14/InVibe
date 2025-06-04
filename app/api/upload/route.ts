@@ -38,4 +38,4 @@ export async function POST(request: Request) {
     console.error("Errore nel caricamento del file:", error)
     return NextResponse.json({ error: "Errore nel caricamento del file" }, { status: 500 })
   }
-} 
+}

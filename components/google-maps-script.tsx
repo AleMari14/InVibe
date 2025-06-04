@@ -1,25 +1,50 @@
 "use client"
 
-import Script from 'next/script'
+import { useEffect, useState } from "react"
+import Script from "next/script"
 
 declare global {
   interface Window {
-    google: typeof google
+    google: any
   }
 }
 
 export function GoogleMapsScript() {
-  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+  const [scriptUrl, setScriptUrl] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
-  if (!apiKey) {
-    console.warn("Google Maps API key is not defined. Maps functionality will be limited.")
+  useEffect(() => {
+    async function fetchMapsScriptUrl() {
+      try {
+        const response = await fetch("/api/maps")
+
+        if (!response.ok) {
+          throw new Error("Failed to fetch Google Maps script URL")
+        }
+
+        const data = await response.json()
+        setScriptUrl(data.url)
+      } catch (err) {
+        console.error("Error loading Google Maps:", err)
+        setError("Failed to load Google Maps")
+      }
+    }
+
+    fetchMapsScriptUrl()
+  }, [])
+
+  if (error) {
+    console.warn("Google Maps API could not be loaded:", error)
     return null
   }
 
-  return (
+  return scriptUrl ? (
     <Script
-      src={`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`}
+      src={scriptUrl}
       strategy="afterInteractive"
+      onError={(e) => {
+        console.error("Google Maps script failed to load", e)
+      }}
     />
-  )
-} 
+  ) : null
+}

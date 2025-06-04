@@ -33,4 +33,4 @@ app.prepare().then(() => {
       process.exit(1)
     }
   })
-}) 
+})

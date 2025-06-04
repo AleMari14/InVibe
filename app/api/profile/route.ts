@@ -162,4 +162,4 @@ export async function PUT(req: Request) {
     console.error("Error updating profile:", error)
     return new NextResponse("Internal Server Error", { status: 500 })
   }
-} 
+}

@@ -202,4 +202,4 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
       </form>
     </div>
   )
-} 
+}

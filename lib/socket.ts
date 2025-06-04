@@ -66,4 +66,4 @@ export const initSocket = (res: NextApiResponseWithSocket) => {
     res.socket.server.io = io
   }
   return res.socket.server.io
-} 
+}

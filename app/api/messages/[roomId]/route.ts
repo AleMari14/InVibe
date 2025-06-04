@@ -110,4 +110,4 @@ export async function POST(
     console.error("Error sending message:", error)
     return new NextResponse("Internal Server Error", { status: 500 })
   }
-} 
+}
