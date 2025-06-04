@@ -5,7 +5,18 @@ if (!process.env.MONGODB_URI) {
 }
 
 const uri = process.env.MONGODB_URI
-const options = {}
+const options = {
+  ssl: true,
+  tls: true,
+  tlsInsecure: true,
+  retryWrites: true,
+  w: 'majority' as const,
+  maxPoolSize: 10,
+  minPoolSize: 5,
+  maxIdleTimeMS: 60000,
+  connectTimeoutMS: 10000,
+  socketTimeoutMS: 45000
+}
 
 let client
 let clientPromise: Promise<MongoClient>
@@ -29,21 +40,26 @@ if (process.env.NODE_ENV === "development") {
 }
 
 export async function connectToDatabase() {
-  const client = await clientPromise
-  const db = client.db()
+  try {
+    const client = await clientPromise
+    const db = client.db()
 
-  // Ensure required collections exist
-  const collections = ['users', 'events', 'bookings', 'reviews', 'messages']
-  for (const collection of collections) {
-    try {
-      await db.createCollection(collection)
-    } catch (error) {
-      // Collection might already exist, which is fine
-      console.log(`Collection ${collection} already exists or error:`, error)
+    // Ensure required collections exist
+    const collections = ['users', 'events', 'bookings', 'reviews', 'messages']
+    for (const collection of collections) {
+      try {
+        await db.createCollection(collection)
+      } catch (error) {
+        // Collection might already exist, which is fine
+        console.log(`Collection ${collection} already exists or error:`, error)
+      }
     }
-  }
 
-  return { client, db }
+    return { client, db }
+  } catch (error) {
+    console.error('Failed to connect to MongoDB:', error)
+    throw error
+  }
 }
 
 // Export a module-scoped MongoClient promise. By doing this in a

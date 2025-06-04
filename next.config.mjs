@@ -1,9 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    serverExternalPackages: ['ws', 'mongodb'],
     serverActions: {
-      allowedOrigins: ['localhost:3000'],
+      allowedOrigins: ['http://localhost:3000'],
     },
   },
   eslint: {

@@ -1,158 +1,47 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { ObjectId } from "mongodb"
-import { connectToDatabase } from "@/lib/mongodb"
-import { authOptions } from "@/lib/auth"
+import { Server as SocketIOServer } from 'socket.io';
+import { NextResponse } from 'next/server';
+import { connectToDatabase } from '@/lib/mongodb';
 
-export async function GET() {
-  try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
+let io: SocketIOServer;
 
-    const { db } = await connectToDatabase()
+export async function GET(req: Request) {
+  if (!io) {
+    io = new SocketIOServer({
+      path: '/api/socket',
+      addTrailingSlash: false,
+    });
 
-    // Recupera tutte le conversazioni dell'utente
-    const conversations = await db
-      .collection("messages")
-      .aggregate([
-        {
-          $match: {
-            participants: session.user.email,
-          },
-        },
-        {
-          $lookup: {
-            from: "users",
-            let: { otherParticipant: { $arrayElemAt: ["$participants", 1] } },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ["$email", "$$otherParticipant"] },
-                },
-              },
-              {
-                $project: {
-                  _id: 0,
-                  name: 1,
-                  email: 1,
-                  image: 1,
-                },
-              },
-            ],
-            as: "otherUser",
-          },
-        },
-        {
-          $unwind: "$otherUser",
-        },
-        {
-          $lookup: {
-            from: "messages",
-            let: { roomId: "$_id" },
-            pipeline: [
-              {
-                $match: {
-                  $expr: { $eq: ["$roomId", "$$roomId"] },
-                },
-              },
-              {
-                $sort: { createdAt: -1 },
-              },
-              {
-                $limit: 1,
-              },
-            ],
-            as: "lastMessage",
-          },
-        },
-        {
-          $unwind: "$lastMessage",
-        },
-        {
-          $project: {
-            _id: 1,
-            otherUser: 1,
-            lastMessage: {
-              content: 1,
-              createdAt: 1,
-              senderId: 1,
-            },
-            unreadCount: {
-              $size: {
-                $filter: {
-                  input: "$messages",
-                  as: "message",
-                  cond: {
-                    $and: [
-                      { $ne: ["$$message.senderId", session.user.email] },
-                      { $not: { $in: [session.user.email, "$$message.readBy"] } },
-                    ],
-                  },
-                },
-              },
-            },
-          },
-        },
-      ])
-      .toArray()
+    io.on('connection', async (socket) => {
+      console.log('Client connected:', socket.id);
 
-    return NextResponse.json({ conversations })
-  } catch (error) {
-    console.error("Error fetching conversations:", error)
-    return new NextResponse("Internal Server Error", { status: 500 })
+      socket.on('join_room', (roomId: string) => {
+        socket.join(roomId);
+        console.log(`User ${socket.id} joined room ${roomId}`);
+      });
+
+      socket.on('send_message', async (data) => {
+        try {
+          const { db } = await connectToDatabase();
+          const result = await db.collection('messages').insertOne({
+            ...data,
+            createdAt: new Date(),
+          });
+          
+          io.to(data.roomId).emit('receive_message', {
+            ...data,
+            _id: result.insertedId,
+            createdAt: new Date(),
+          });
+        } catch (error) {
+          console.error('Error saving message:', error);
+        }
+      });
+    });
   }
+
+  return new NextResponse('WebSocket server is running', { status: 200 });
 }
 
 export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return new NextResponse("Unauthorized", { status: 401 })
-    }
-
-    const { receiverId } = await req.json()
-    if (!receiverId) {
-      return new NextResponse("Receiver ID is required", { status: 400 })
-    }
-
-    const { db } = await connectToDatabase()
-
-    // Verifica che l'utente ricevente esista
-    const receiver = await db.collection("users").findOne({ email: receiverId })
-    if (!receiver) {
-      return new NextResponse("Receiver not found", { status: 404 })
-    }
-
-    // Cerca una conversazione esistente
-    let conversation = await db.collection("messages").findOne({
-      participants: {
-        $all: [session.user.email, receiverId],
-      },
-    })
-
-    // Se non esiste, crea una nuova conversazione
-    if (!conversation) {
-      const result = await db.collection("messages").insertOne({
-        participants: [session.user.email, receiverId],
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      })
-
-      conversation = {
-        _id: result.insertedId,
-        participants: [session.user.email, receiverId],
-        messages: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-    }
-
-    return NextResponse.json({ roomId: conversation._id })
-  } catch (error) {
-    console.error("Error creating conversation:", error)
-    return new NextResponse("Internal Server Error", { status: 500 })
-  }
+  return GET(req);
 } 

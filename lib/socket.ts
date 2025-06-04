@@ -37,7 +37,7 @@ export const initSocket = (res: NextApiResponseWithSocket) => {
 
         // Salva il messaggio nel database
         try {
-          const { db } = await import("./mongodb")
+          const { db } = await import("./mongodb").then(m => m.connectToDatabase())
           await db.collection("messages").insertOne({
             roomId,
             senderId,
