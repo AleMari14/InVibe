@@ -5,26 +5,15 @@ if (!process.env.MONGODB_URI) {
 }
 
 const uri = process.env.MONGODB_URI
-const options = {
-  ssl: true,
-  tls: true,
-  tlsInsecure: true,
-  retryWrites: true,
-  w: 'majority' as const,
-  maxPoolSize: 10,
-  minPoolSize: 5,
-  maxIdleTimeMS: 60000,
-  connectTimeoutMS: 10000,
-  socketTimeoutMS: 45000
-}
+const options = {}
 
-let client
+let client: MongoClient
 let clientPromise: Promise<MongoClient>
 
 if (process.env.NODE_ENV === "development") {
   // In development mode, use a global variable so that the value
   // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  let globalWithMongo = global as typeof globalThis & {
+  const globalWithMongo = global as typeof global & {
     _mongoClientPromise?: Promise<MongoClient>
   }
 
@@ -45,7 +34,7 @@ export async function connectToDatabase() {
     const db = client.db()
 
     // Ensure required collections exist
-    const collections = ['users', 'events', 'bookings', 'reviews', 'messages']
+    const collections = ["users", "events", "bookings", "reviews", "messages"]
     for (const collection of collections) {
       try {
         await db.createCollection(collection)
@@ -57,7 +46,7 @@ export async function connectToDatabase() {
 
     return { client, db }
   } catch (error) {
-    console.error('Failed to connect to MongoDB:', error)
+    console.error("Failed to connect to MongoDB:", error)
     throw error
   }
 }

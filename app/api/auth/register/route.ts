@@ -14,7 +14,8 @@ export async function POST(request: NextRequest) {
         {
           error: "Errore di connessione al database",
           success: false,
-          details: process.env.NODE_ENV === "development" ? dbTest.error : undefined,
+          details: dbTest.error,
+          message: "Verifica che la variabile d'ambiente MONGODB_URI sia configurata correttamente",
         },
         { status: 503 },
       )
@@ -30,9 +31,16 @@ export async function POST(request: NextRequest) {
         email: body.email,
         password: body.password ? "***" : "missing",
       })
-    } catch (parseError) {
+    } catch (parseError: any) {
       console.error("💥 Error parsing request body:", parseError)
-      return NextResponse.json({ error: "Formato richiesta non valido", success: false }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Formato richiesta non valido",
+          success: false,
+          details: parseError.message,
+        },
+        { status: 400 },
+      )
     }
 
     const { name, email, password } = body
@@ -83,13 +91,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "Un utente con questa email esiste già", success: false }, { status: 409 })
       }
       console.log("✅ User does not exist, proceeding with creation")
-    } catch (error) {
+    } catch (error: any) {
       console.error("💥 Error checking existing user:", error)
       return NextResponse.json(
         {
           error: "Errore durante la verifica dell'utente",
           success: false,
-          details: process.env.NODE_ENV === "development" ? error.message : undefined,
+          details: error.message,
         },
         { status: 500 },
       )
@@ -121,25 +129,26 @@ export async function POST(request: NextRequest) {
         },
         { status: 201 },
       )
-    } catch (createError) {
+    } catch (createError: any) {
       console.error("💥 Error creating user:", createError)
 
       return NextResponse.json(
         {
           error: "Errore durante la creazione dell'utente",
           success: false,
-          details: process.env.NODE_ENV === "development" ? createError.message : undefined,
+          details: createError.message,
         },
         { status: 500 },
       )
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Unexpected registration error:", error)
     return NextResponse.json(
       {
         error: "Errore interno del server",
         success: false,
-        details: process.env.NODE_ENV === "development" ? error.message : undefined,
+        details: error.message,
+        stack: error.stack,
       },
       { status: 500 },
     )

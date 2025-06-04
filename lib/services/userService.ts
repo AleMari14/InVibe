@@ -41,7 +41,7 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     console.log("✅ Query executed, user found:", !!user)
 
     return user as User | null
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Error in getUserByEmail:", error)
     console.error("❌ Error details:", {
       message: error.message,
@@ -91,7 +91,7 @@ export async function createUser(userData: {
       password: hashedPassword,
       image: userData.image || null,
       emailVerified: userData.provider === "google" ? new Date() : null,
-      verified: userData.provider === "google",
+      verified: userData.provider === "google" ? true : false,
       rating: 0,
       reviewCount: 0,
       joinDate: new Date(),
@@ -110,7 +110,7 @@ export async function createUser(userData: {
       insertedId: result.insertedId,
       user: { ...newUser, _id: result.insertedId },
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Error in createUser:", error)
     console.error("❌ Error details:", {
       message: error.message,
@@ -144,7 +144,7 @@ export async function getUserById(id: string): Promise<User | null> {
     console.log("✅ User found by ID:", !!user)
 
     return user as User | null
-  } catch (error) {
+  } catch (error: any) {
     console.error("❌ Error in getUserById:", error)
     return null
   }
@@ -155,18 +155,50 @@ export async function getUserById(id: string): Promise<User | null> {
  */
 export async function testDatabaseConnection() {
   try {
+    console.log("🔍 Testing database connection...")
+    console.log("🔍 MONGODB_URI exists:", !!process.env.MONGODB_URI)
+
+    if (!process.env.MONGODB_URI) {
+      throw new Error("MONGODB_URI environment variable is not defined")
+    }
+
     const client = await clientPromise
-    const db = client.db()
-    
+    console.log("✅ MongoDB client connected successfully")
+
+    const db = client.db("invibe")
+    console.log("✅ Database selected:", db.databaseName)
+
     // Test the connection by running a simple command
-    await db.command({ ping: 1 })
-    
+    const pingResult = await db.command({ ping: 1 })
+    console.log("✅ Database ping result:", pingResult)
+
+    // Check if users collection exists
+    const collections = await db.listCollections({ name: "users" }).toArray()
+    console.log("✅ Users collection exists:", collections.length > 0)
+
+    if (collections.length === 0) {
+      // Create users collection if it doesn't exist
+      await db.createCollection("users")
+      console.log("✅ Users collection created")
+    }
+
     return {
       success: true,
       message: "Successfully connected to MongoDB",
-      database: db.databaseName
+      database: db.databaseName,
     }
   } catch (error: any) {
-    throw new Error(`Failed to connect to MongoDB: ${error.message}`)
+    console.error("❌ Database connection test failed:", error)
+    console.error("❌ Error details:", {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+    })
+
+    return {
+      success: false,
+      error: error.message,
+      details: error.stack,
+    }
   }
 }

@@ -53,6 +53,7 @@
     "framer-motion": "latest",
     "fs": "latest",
     "gcp-metadata": "latest",
+    "googlemaps": "latest",
     "http": "latest",
     "input-otp": "1.4.1",
     "kerberos": "latest",
