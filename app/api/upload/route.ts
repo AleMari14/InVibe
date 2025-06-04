@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-// import { writeFile } from "fs/promises" // Commented out file writing
-// import { join } from "path" // Commented out path join
+import { writeFile } from "fs/promises"
+import { join } from "path"
 import { v4 as uuidv4 } from "uuid"
 
 export async function POST(request: Request) {
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     const fileName = `${uniqueId}.${extension}`
     console.log(`✅ /api/upload: Generated file name: ${fileName}`)
 
+<<<<<<< HEAD
     // Salva il file nella cartella public/uploads (COMMENTATO TEMPORANEAMENTE)
     // const uploadDir = join(process.cwd(), "public", "uploads")
     // const filePath = join(uploadDir, fileName)
@@ -67,5 +68,18 @@ export async function POST(request: Request) {
       error: "Errore interno del server durante il caricamento del file", 
       details: errorDetails
     }, { status: 500 })
+=======
+    // Salva il file nella cartella public/uploads
+    const uploadDir = join(process.cwd(), "public", "uploads")
+    const filePath = join(uploadDir, fileName)
+    await writeFile(filePath, buffer)
+
+    // Restituisci l'URL del file
+    const fileUrl = `/uploads/${fileName}`
+    return NextResponse.json({ url: fileUrl })
+  } catch (error) {
+    console.error("Errore nel caricamento del file:", error)
+    return NextResponse.json({ error: "Errore nel caricamento del file" }, { status: 500 })
+>>>>>>> bc524329d7575d8d2ec2813d1abbe4de54bc6892
   }
 }
