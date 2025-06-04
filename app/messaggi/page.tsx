@@ -30,6 +30,7 @@ interface Conversation {
 }
 
 export default function MessaggiPage() {
+  console.log("📦 MessaggiPage component rendering...")
   const { data: session, status } = useSession()
   const router = useRouter()
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -45,18 +46,27 @@ export default function MessaggiPage() {
   } | null>(null)
 
   useEffect(() => {
+    console.log("✨ MessaggiPage useEffect triggered. Session status:", status)
     if (session) {
+      console.log("🔑 Session found, fetching conversations...")
       fetchConversations()
+    } else if (status !== "loading") {
+       console.log("❌ No session found, redirecting to login...")
+       router.push("/auth/login")
     }
-  }, [session])
+  }, [session, status]) // Added status to dependency array
 
   const fetchConversations = async () => {
+    console.log("fetching conversations...")
     try {
       // Fetch conversations from the new API endpoint
       const response = await fetch("/api/user/conversations")
+      console.log("Fetch conversations response status:", response.status)
+
       if (!response.ok) throw new Error("Errore nel caricamento delle conversazioni")
       const data = await response.json()
-      
+      console.log("Conversations data received:", Array.isArray(data) ? data.length : data)
+
       if (Array.isArray(data)) {
         setConversations(data)
       } else {
@@ -70,6 +80,7 @@ export default function MessaggiPage() {
       setConversations([]) // Set to empty on error
     } finally {
       setIsLoading(false)
+      console.log("Finished fetching conversations. isLoading set to false.")
     }
   }
 
@@ -83,7 +94,10 @@ export default function MessaggiPage() {
     // You might need a separate UI element/flow to initiate a chat with a new user.
   }
 
+  console.log("Rendering MessaggiPage - isLoading:", isLoading, "session:", !!session)
+
   if (status === "loading" || isLoading) {
+    console.log("Displaying loading state...")
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin" />
@@ -92,13 +106,15 @@ export default function MessaggiPage() {
   }
 
   if (!session) {
-    router.push("/auth/login")
-    return null
+     console.log("Session not found, middleware should handle redirect.")
+     return null; // Middleware should handle redirect, but this prevents rendering protected content
   }
 
   const filteredConversations = conversations.filter((conv) =>
     conv.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase())
   )
+
+  console.log("Displaying conversations list.", filteredConversations.length, "found.")
 
   return (
     <div className="min-h-screen bg-background">
@@ -178,7 +194,7 @@ export default function MessaggiPage() {
                   </div>
                 </button>
               ))}
-              {filteredConversations.length === 0 && !isLoading && (
+              {filteredConversations.length === 0 && !isLoading && ( // Add condition for !isLoading
                  <div className="text-center text-muted-foreground p-4">Nessuna conversazione trovata.</div>
               )}
             </div>

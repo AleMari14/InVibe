@@ -7,39 +7,65 @@ import { v4 as uuidv4 } from "uuid"
 
 export async function POST(request: Request) {
   try {
+    console.log("📝 /api/upload POST called")
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
+      console.log("❌ /api/upload: Unauthorized access")
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
+    console.log("✅ /api/upload: User authenticated")
 
     const formData = await request.formData()
+    console.log("✅ /api/upload: Form data parsed")
+
     const file = formData.get("file") as File
     if (!file) {
+      console.log("⚠️ /api/upload: No file uploaded")
+      // This should return 400 if no file is uploaded, not 500.
       return NextResponse.json({ error: "Nessun file caricato" }, { status: 400 })
     }
+    console.log(`✅ /api/upload: File received - name: ${file.name}, size: ${file.size}`)
 
     const bytes = await file.arrayBuffer()
+    console.log("✅ /api/upload: File bytes read")
+
     const buffer = Buffer.from(bytes)
+    console.log("✅ /api/upload: Buffer created from bytes")
 
     // Genera un nome file univoco
     const uniqueId = uuidv4()
     const extension = file.name.split(".").pop()
     const fileName = `${uniqueId}.${extension}`
+    console.log(`✅ /api/upload: Generated file name: ${fileName}`)
 
     // Salva il file nella cartella public/uploads (COMMENTATO TEMPORANEAMENTE)
     // const uploadDir = join(process.cwd(), "public", "uploads")
     // const filePath = join(uploadDir, fileName)
     // await writeFile(filePath, buffer)
+    // console.log("⚠️ /api/upload: File writing commented out")
 
     // Restituisci l'URL del file (temporaneo - il file non viene salvato)
     const fileUrl = `/uploads/${fileName}` // This URL will not work as file is not saved
-    console.warn("⚠️ File upload skipped: Writing to filesystem is not supported on Vercel. File was not saved.")
+    console.warn("⚠️ /api/upload skipped: Writing to filesystem is not supported on Vercel. File was not saved.")
+    console.log("✅ /api/upload: Returning success response (file not saved)")
     return NextResponse.json({
       url: fileUrl,
       message: "File processed, but not saved (filesystem is read-only). Implement cloud storage for production."
     }, { status: 200 })
-  } catch (error) {
-    console.error("Errore nel caricamento del file:", error)
-    return NextResponse.json({ error: "Errore nel caricamento del file" }, { status: 500 })
+  } catch (error: any) {
+    console.error("💥 Errore nel caricamento del file in /api/upload:", error)
+    // Capture more details about the error in development
+    const errorDetails = process.env.NODE_ENV === "development" ? {
+      message: error.message,
+      stack: error.stack,
+      name: error.name,
+      // Include other relevant error properties if available
+      ...(error.code && { code: error.code }),
+    } : undefined;
+    
+    return NextResponse.json({ 
+      error: "Errore interno del server durante il caricamento del file", 
+      details: errorDetails
+    }, { status: 500 })
   }
 }
