@@ -134,9 +134,27 @@ export default function RegistratiPage() {
       if (response.ok && data.success) {
         console.log("🎉 Registration successful")
         setSuccess(true)
-        setTimeout(() => {
-          router.push("/auth/login?message=registration-success")
-        }, 2000)
+
+        
+        // Automatically sign in the user after successful registration
+        const signInResult = await signIn("credentials", {
+          email: formData.email.toLowerCase().trim(),
+          password: formData.password,
+          redirect: false,
+        })
+
+        if (signInResult?.error) {
+          console.error("❌ Auto-login failed:", signInResult.error)
+          setError("Registrazione completata ma login automatico fallito. Effettua il login manualmente.")
+          setTimeout(() => {
+            router.push("/auth/login")
+          }, 2000)
+        } else {
+          console.log("✅ Auto-login successful")
+          setTimeout(() => {
+            router.push("/")
+          }, 1000)
+        }
       } else {
         console.error("❌ Registration failed:", data)
         setError(data.error || `Errore durante la registrazione (${response.status})`)

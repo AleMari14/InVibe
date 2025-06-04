@@ -155,27 +155,18 @@ export async function getUserById(id: string): Promise<User | null> {
  */
 export async function testDatabaseConnection() {
   try {
-    console.log("🧪 Testing database connection...")
     const client = await clientPromise
-    console.log("✅ Client connected")
-
-    const db = client.db("invibe")
-    console.log("✅ Database selected")
-
-    // Test ping
-    await db.admin().ping()
-    console.log("✅ Database ping successful")
-
-    // Test collection access
-    const collections = await db.listCollections().toArray()
-    console.log(
-      "✅ Collections accessible:",
-      collections.map((c) => c.name),
-    )
-
-    return { success: true, message: "Database connection successful" }
-  } catch (error) {
-    console.error("❌ Database connection test failed:", error)
-    return { success: false, error: error.message }
+    const db = client.db()
+    
+    // Test the connection by running a simple command
+    await db.command({ ping: 1 })
+    
+    return {
+      success: true,
+      message: "Successfully connected to MongoDB",
+      database: db.databaseName
+    }
+  } catch (error: any) {
+    throw new Error(`Failed to connect to MongoDB: ${error.message}`)
   }
 }

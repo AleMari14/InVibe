@@ -1,21 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft, Bell, Shield, Globe, CreditCard, HelpCircle, LogOut, Sun, UserCheck } from "lucide-react"
+import { ArrowLeft, Shield, Globe, CreditCard, HelpCircle, LogOut, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
 import { motion } from "framer-motion"
+import { ThemeSettings } from "@/components/profile/theme-settings"
+import { NotificationSettings } from "@/components/profile/notification-settings"
+import { toast } from "sonner"
 
 export default function ImpostazioniPage() {
   const { data: session } = useSession()
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
-  const [emailMarketing, setEmailMarketing] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" })
@@ -45,66 +43,18 @@ export default function ImpostazioniPage() {
       </div>
 
       <div className="px-4 py-4 space-y-4">
-        {/* Notifiche */}
+        {/* Theme Settings */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+          <ThemeSettings />
+        </motion.div>
+
+        {/* Notification Settings */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <Card className="border-border bg-card/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                Notifiche
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <Label className="text-sm font-medium">Notifiche Push</Label>
-                    <p className="text-xs text-muted-foreground">Ricevi notifiche per nuovi eventi e prenotazioni</p>
-                  </div>
-                </div>
-                <Switch checked={notificationsEnabled} onCheckedChange={setNotificationsEnabled} />
-              </div>
-
-              <Separator />
-
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <Label className="text-sm font-medium">Email Marketing</Label>
-                    <p className="text-xs text-muted-foreground">Ricevi offerte e novità via email</p>
-                  </div>
-                </div>
-                <Switch checked={emailMarketing} onCheckedChange={setEmailMarketing} />
-              </div>
-            </CardContent>
-          </Card>
+          <NotificationSettings />
         </motion.div>
 
-        {/* Aspetto */}
+        {/* Account Settings */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <Card className="border-border bg-card/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Sun className="h-5 w-5" />
-                Aspetto
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div>
-                    <Label className="text-sm font-medium">Tema Scuro</Label>
-                    <p className="text-xs text-muted-foreground">Attiva/disattiva il tema scuro</p>
-                  </div>
-                </div>
-                <Switch checked={darkMode} onCheckedChange={setDarkMode} />
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        {/* Account e Sicurezza */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="border-border bg-card/80 backdrop-blur-sm">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -112,7 +62,7 @@ export default function ImpostazioniPage() {
                 Account e Sicurezza
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <Button variant="outline" className="w-full justify-start border-border hover:bg-accent">
                 <CreditCard className="h-4 w-4 mr-3" />
                 Metodi di Pagamento
@@ -127,44 +77,17 @@ export default function ImpostazioniPage() {
                 <Globe className="h-4 w-4 mr-3" />
                 Lingua: Italiano
               </Button>
-            </CardContent>
-          </Card>
-        </motion.div>
 
-        {/* Supporto */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <Card className="border-border bg-card/80 backdrop-blur-sm">
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <HelpCircle className="h-5 w-5" />
-                Supporto
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
               <Button variant="outline" className="w-full justify-start border-border hover:bg-accent">
                 <HelpCircle className="h-4 w-4 mr-3" />
                 Aiuto e Supporto
               </Button>
-
-              <Link href="/termini">
-                <Button variant="outline" className="w-full justify-start border-border hover:bg-accent">
-                  <Shield className="h-4 w-4 mr-3" />
-                  Termini di Servizio
-                </Button>
-              </Link>
-
-              <Link href="/privacy">
-                <Button variant="outline" className="w-full justify-start border-border hover:bg-accent">
-                  <Shield className="h-4 w-4 mr-3" />
-                  Privacy Policy
-                </Button>
-              </Link>
             </CardContent>
           </Card>
         </motion.div>
 
-        {/* Azioni Account */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+        {/* Account Actions */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="border-border bg-card/80 backdrop-blur-sm">
             <CardContent className="pt-6 space-y-3">
               <Button
