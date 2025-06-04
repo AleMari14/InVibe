@@ -19,23 +19,10 @@ NEXTAUTH_URL_INTERNAL=http://localhost:3000
 GOOGLE_CLIENT_ID=your_google_client_id
 GOOGLE_CLIENT_SECRET=your_google_client_secret
 
-# Google Maps API (server-side only)
-GOOGLE_MAPS_API_KEY=your_google_maps_api_key
-
 # WebSocket
 NEXT_PUBLIC_WS_URL=ws://localhost:3001
 PORT=3000
 \`\`\`
-
-### Google Maps API Setup
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project or select an existing one
-3. Enable the Google Maps JavaScript API and Places API
-4. Create an API key
-5. Add the API key as `GOOGLE_MAPS_API_KEY` in your environment variables
-
-**Important**: Do NOT use the `NEXT_PUBLIC_` prefix for the Google Maps API key as it contains sensitive information that should not be exposed to the client.
 
 ### Google OAuth Setup
 

@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "./providers"
-import { GoogleMapsScript } from "@/components/google-maps-script"
 import { cn } from "@/lib/utils"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -30,7 +29,6 @@ export default function RootLayout({
   return (
     <html lang="it" suppressHydrationWarning>
       <body className={cn("min-h-screen bg-background font-sans antialiased", inter.className)}>
-        <GoogleMapsScript />
         <Providers>{children}</Providers>
       </body>
     </html>
