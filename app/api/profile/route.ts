@@ -163,3 +163,8 @@ export async function PUT(req: Request) {
     return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
+
+// Add PATCH handler that reuses PUT logic
+export async function PATCH(req: Request) {
+  return PUT(req)
+}
