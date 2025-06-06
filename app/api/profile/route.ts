@@ -30,7 +30,16 @@ export async function GET() {
         location: user.location,
         preferences: user.preferences,
         createdAt: user.createdAt,
+        verified: user.verified || false,
+        joinDate: user.createdAt,
       },
+      stats: {
+        recensioni: user.reviewCount || 0,
+        eventiPartecipati: user.participatedEvents?.length || 0,
+        eventiOrganizzati: user.organizedEvents?.length || 0,
+      },
+      eventi: user.organizedEvents || [],
+      prenotazioni: user.bookings || [],
     })
   } catch (error) {
     console.error("Errore nel recupero del profilo:", error)
