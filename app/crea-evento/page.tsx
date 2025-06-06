@@ -17,6 +17,7 @@ import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
+import { LocationPicker } from "@/components/ui/location-picker"
 
 export default function CreaEventoPage() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -24,6 +25,7 @@ export default function CreaEventoPage() {
   const [titolo, setTitolo] = useState("")
   const [descrizione, setDescrizione] = useState("")
   const [location, setLocation] = useState("")
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null)
   const [dataInizio, setDataInizio] = useState("")
   const [dataFine, setDataFine] = useState("")
   const [postiTotali, setPostiTotali] = useState("")
@@ -33,6 +35,7 @@ export default function CreaEventoPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
+  const [locationError, setLocationError] = useState("")
 
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -126,27 +129,69 @@ export default function CreaEventoPage() {
     }
   }
 
+  const handleLocationChange = (newLocation: string, newCoordinates: { lat: number; lng: number }) => {
+    setLocation(newLocation)
+    setCoordinates(newCoordinates)
+    setLocationError("")
+  }
+
+  const validateForm = () => {
+    if (!coordinates) {
+      setLocationError("Seleziona una località valida sulla mappa")
+      return false
+    }
+    if (!titolo.trim()) {
+      setError("Il titolo è obbligatorio")
+      return false
+    }
+    if (!descrizione.trim()) {
+      setError("La descrizione è obbligatoria")
+      return false
+    }
+    if (!dataInizio) {
+      setError("La data di inizio è obbligatoria")
+      return false
+    }
+    if (dataFine && new Date(dataFine) < new Date(dataInizio)) {
+      setError("La data di fine deve essere successiva alla data di inizio")
+      return false
+    }
+    if (!postiTotali || parseInt(postiTotali) < 2) {
+      setError("Il numero di posti deve essere almeno 2")
+      return false
+    }
+    if (!prezzo || parseFloat(prezzo) <= 0) {
+      setError("Il prezzo deve essere maggiore di 0")
+      return false
+    }
+    return true
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setIsSubmitting(true)
     setError("")
+    
+    if (!validateForm()) {
+      return
+    }
+
+    setIsSubmitting(true)
 
     try {
       const eventData = {
-        title: titolo,
-        description: descrizione,
+        title: titolo.trim(),
+        description: descrizione.trim(),
         category: categoria,
         location: location,
-        price: prezzo,
+        coordinates: coordinates,
+        price: parseFloat(prezzo),
         dateStart: dataInizio,
         dateEnd: dataFine || null,
-        totalSpots: postiTotali,
+        totalSpots: parseInt(postiTotali),
         amenities: servizi,
-        bookingLink: bookingLink,
+        bookingLink: bookingLink.trim(),
         images: [],
       }
-
-      console.log("📝 Submitting event data:", eventData)
 
       const response = await fetch("/api/events", {
         method: "POST",
@@ -155,7 +200,6 @@ export default function CreaEventoPage() {
       })
 
       const result = await response.json()
-      console.log("📋 Server response:", result)
 
       if (response.ok && result.success) {
         setSuccess(true)
@@ -166,8 +210,8 @@ export default function CreaEventoPage() {
         throw new Error(result.error || "Errore nella creazione dell'evento")
       }
     } catch (error) {
-      console.error("💥 Error creating event:", error)
-      setError(error instanceof Error ? error.message : "Errore nella creazione dell'evento. Riprova.")
+      console.error("Error creating event:", error)
+      setError(error instanceof Error ? error.message : "Errore nella creazione dell'evento")
     } finally {
       setIsSubmitting(false)
     }
@@ -319,20 +363,11 @@ export default function CreaEventoPage() {
                       required
                     />
                   </div>
-                  <div>
-                    <Label htmlFor="location">Località *</Label>
-                    <div className="relative mt-1">
-                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        id="location"
-                        placeholder="es. Chianti, Toscana"
-                        value={location}
-                        onChange={(e) => setLocation(e.target.value)}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-                  </div>
+                  <LocationPicker
+                    value={location}
+                    onChange={handleLocationChange}
+                    error={locationError}
+                  />
                 </CardContent>
               </Card>
             </motion.div>

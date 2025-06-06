@@ -1,15 +1,11 @@
 import { MongoClient } from "mongodb"
 
 if (!process.env.MONGODB_URI) {
-  throw new Error("Please add your Mongo URI to .env.local")
+  throw new Error('Invalid/Missing environment variable: "MONGODB_URI"')
 }
 
 const uri = process.env.MONGODB_URI
-const options = {
-  maxPoolSize: 10,
-  serverSelectionTimeoutMS: 5000,
-  socketTimeoutMS: 45000,
-}
+const options = {}
 
 let client: MongoClient
 let clientPromise: Promise<MongoClient>
@@ -30,6 +26,29 @@ if (process.env.NODE_ENV === "development") {
   // In production mode, it's best to not use a global variable.
   client = new MongoClient(uri, options)
   clientPromise = client.connect()
+}
+
+export async function connectToDatabase() {
+  try {
+    const client = await clientPromise
+    const db = client.db()
+
+    // Ensure required collections exist
+    const collections = ["users", "events", "bookings", "reviews", "messages"]
+    for (const collection of collections) {
+      try {
+        await db.createCollection(collection)
+      } catch (error) {
+        // Collection might already exist, which is fine
+        console.log(`Collection ${collection} already exists or error:`, error)
+      }
+    }
+
+    return { client, db }
+  } catch (error) {
+    console.error("Failed to connect to MongoDB:", error)
+    throw error
+  }
 }
 
 // Export a module-scoped MongoClient promise. By doing this in a

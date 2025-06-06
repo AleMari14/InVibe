@@ -48,7 +48,7 @@ export default function PreferitiPage() {
       return
     }
 
-    if (session?.user?.id) {
+    if (session?.user?.email) {
       fetchFavorites()
     }
   }, [session, status, router])
@@ -88,10 +88,8 @@ export default function PreferitiPage() {
   const removeFavorite = async (eventId: string) => {
     try {
       console.log("💔 Removing favorite:", eventId)
-      const response = await fetch("/api/favorites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId }),
+      const response = await fetch(`/api/favorites?eventId=${eventId}`, {
+        method: "DELETE",
       })
 
       if (response.ok) {

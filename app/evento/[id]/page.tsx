@@ -63,7 +63,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     fetchEvent()
-    if (session?.user?.id) {
+    if (session?.user?.email) {
       checkFavoriteStatus()
     }
   }, [params.id, session])
@@ -92,7 +92,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   }
 
   const toggleFavorite = async () => {
-    if (!session?.user?.id) return
+    if (!session?.user?.email) return
 
     try {
       setFavoriteLoading(true)

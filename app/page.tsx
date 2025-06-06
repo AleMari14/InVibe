@@ -57,7 +57,7 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchEvents()
-    if (session?.user?.id) {
+    if (session?.user?.email) {
       fetchFavorites()
     }
   }, [selectedCategory, searchQuery, session])
@@ -124,7 +124,7 @@ export default function HomePage() {
   }
 
   const toggleFavorite = async (eventId: string) => {
-    if (!session?.user?.id) return
+    if (!session?.user?.email) return
 
     try {
       const response = await fetch("/api/favorites", {

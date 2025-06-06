@@ -24,6 +24,10 @@ export interface Event {
   description: string
   category: "casa" | "viaggio" | "evento" | "esperienza"
   location: string
+  coordinates: {
+    lat: number
+    lng: number
+  }
   price: number
   dateStart: Date
   dateEnd?: Date
