@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Filter, MapPin, Calendar, Users, Star, Heart, Plus, Sparkles, TrendingUp } from "lucide-react"
+import { Search, Filter, MapPin, Calendar, Users, Star, Heart, Plus, Sparkles, TrendingUp, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -563,6 +563,12 @@ export default function HomePage() {
               <Calendar className="h-5 w-5 text-muted-foreground group-hover:text-blue-500 transition-colors" />
             </motion.div>
             <span className="text-xs text-muted-foreground">Prenotazioni</span>
+          </Link>
+          <Link href="/messaggi" className="flex flex-col items-center p-2 min-w-0 group">
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <MessageSquare className="h-5 w-5 text-muted-foreground group-hover:text-blue-500 transition-colors" />
+            </motion.div>
+            <span className="text-xs text-muted-foreground">Messaggi</span>
           </Link>
           <Link href="/profile" className="flex flex-col items-center p-2 min-w-0 group">
             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
