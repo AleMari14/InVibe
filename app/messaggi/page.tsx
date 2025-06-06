@@ -13,6 +13,7 @@ import { ChatWindow } from "@/components/chat/chat-window"
 import { format } from "date-fns"
 import { it } from "date-fns/locale"
 import { toast } from "sonner"
+
 interface Conversation {
   _id: string
   lastMessage: {
@@ -72,6 +73,8 @@ export default function MessaggiPage() {
       }
     } catch (error) {
       console.error("Error fetching conversations:", error)
+      toast.error("Errore nel caricamento delle conversazioni")
+      setConversations([]) // Set to empty on error
     } finally {
       setIsLoading(false)
       console.log("Finished fetching conversations. isLoading set to false.")
