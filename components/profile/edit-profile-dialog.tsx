@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
@@ -56,6 +56,18 @@ export function EditProfileDialog() {
     },
   })
 
+  // Update form values when session changes
+  useEffect(() => {
+    if (session?.user) {
+      form.reset({
+        name: session.user.name || "",
+        bio: "",
+        phone: "",
+        location: "",
+      })
+    }
+  }, [session, form])
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -102,7 +114,7 @@ export function EditProfileDialog() {
         throw new Error(error.message || "Errore nell'aggiornamento del profilo")
       }
 
-      // Update session
+      // Update session with new data
       await update({
         ...session,
         user: {
@@ -112,6 +124,10 @@ export function EditProfileDialog() {
         },
       })
 
+      // Reset form and preview
+      setAvatarFile(null)
+      setAvatarPreview(null)
+      
       toast.success("Profilo aggiornato con successo")
       setOpen(false)
     } catch (error) {

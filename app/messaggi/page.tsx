@@ -1,23 +1,94 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowLeft, MessageSquare, Search } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { ArrowLeft, MessageSquare, Search, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { motion } from "framer-motion"
+import { format } from "date-fns"
+import { it } from "date-fns/locale"
+import { toast } from "sonner"
+
+interface ChatRoom {
+  _id: string
+  eventId: string
+  eventTitle: string
+  participants: string[]
+  lastMessage: {
+    content: string
+    senderId: string
+    createdAt: string
+  } | null
+  unreadCount: number
+  archived: boolean
+  otherUser: {
+    name: string
+    image: string
+  }
+}
 
 export default function MessaggiPage() {
+  const { data: session } = useSession()
   const [activeTab, setActiveTab] = useState("all")
   const [searchQuery, setSearchQuery] = useState("")
-  const [unreadCount, setUnreadCount] = useState(0) // This would be fetched from your backend
+  const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [unreadCount, setUnreadCount] = useState(0)
 
-  const markAllAsRead = () => {
-    // Implement mark all as read functionality
-    setUnreadCount(0)
+  useEffect(() => {
+    if (session) {
+      fetchChatRooms()
+    }
+  }, [session])
+
+  const fetchChatRooms = async () => {
+    try {
+      const response = await fetch("/api/messages/rooms")
+      if (!response.ok) throw new Error("Errore nel caricamento delle chat")
+      const data = await response.json()
+      setChatRooms(data.rooms)
+      setUnreadCount(data.rooms.reduce((acc: number, room: ChatRoom) => acc + room.unreadCount, 0))
+    } catch (error) {
+      toast.error("Errore nel caricamento delle chat")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const markAllAsRead = async () => {
+    try {
+      const response = await fetch("/api/messages/read-all", {
+        method: "POST",
+      })
+      if (!response.ok) throw new Error("Errore nell'aggiornamento dei messaggi")
+      setUnreadCount(0)
+      setChatRooms(rooms => rooms.map(room => ({ ...room, unreadCount: 0 })))
+    } catch (error) {
+      toast.error("Errore nell'aggiornamento dei messaggi")
+    }
+  }
+
+  const filteredRooms = chatRooms.filter(room => {
+    const matchesSearch = room.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      room.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase())
+    
+    if (activeTab === "unread") return matchesSearch && room.unreadCount > 0
+    if (activeTab === "archived") return matchesSearch && room.archived
+    return matchesSearch
+  })
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
   }
 
   return (
@@ -68,13 +139,52 @@ export default function MessaggiPage() {
       </div>
 
       {/* Messages List */}
-      <ScrollArea className="h-[calc(100vh-180px)]">
-        <div className="p-4">
-          {/* Placeholder for messages */}
-          <div className="text-center text-muted-foreground py-8">
-            <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-            <p>Nessun messaggio trovato</p>
-          </div>
+      <ScrollArea className="h-[calc(100vh-12rem)]">
+        <div className="p-4 space-y-4">
+          {filteredRooms.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+              <p>Nessun messaggio trovato</p>
+            </div>
+          ) : (
+            filteredRooms.map((room) => (
+              <Link key={room._id} href={`/messaggi/${room._id}`}>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent transition-colors"
+                >
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={room.otherUser.image} />
+                    <AvatarFallback>{room.otherUser.name[0]}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-medium truncate">{room.otherUser.name}</h3>
+                      {room.lastMessage && (
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(room.lastMessage.createdAt), "HH:mm", { locale: it })}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground truncate">
+                        {room.lastMessage ? room.lastMessage.content : "Nessun messaggio"}
+                      </p>
+                      {room.unreadCount > 0 && (
+                        <Badge className="bg-blue-500 text-white text-xs">
+                          {room.unreadCount}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-1">
+                      {room.eventTitle}
+                    </p>
+                  </div>
+                </motion.div>
+              </Link>
+            ))
+          )}
         </div>
       </ScrollArea>
     </div>

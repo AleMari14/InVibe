@@ -570,12 +570,6 @@ export default function HomePage() {
             </motion.div>
             <span className="text-xs text-muted-foreground">Messaggi</span>
           </Link>
-          <Link href="/profile" className="flex flex-col items-center p-2 min-w-0 group">
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <Users className="h-5 w-5 text-muted-foreground group-hover:text-purple-500 transition-colors" />
-            </motion.div>
-            <span className="text-xs text-muted-foreground">Profilo</span>
-          </Link>
         </div>
       </div>
     </div>

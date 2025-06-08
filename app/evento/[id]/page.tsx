@@ -26,6 +26,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
+import { MessageHostButton } from "@/components/event/message-host-button"
 
 interface Event {
   _id: string
@@ -46,6 +47,7 @@ interface Event {
   views: number
   host?: {
     name: string
+    email: string
     image?: string
     rating: number
     reviewCount: number
@@ -320,10 +322,12 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   </div>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="border-border text-blue-600 hover:bg-blue-50">
-                <MessageCircle className="h-4 w-4 mr-2" />
-                Messaggio
-              </Button>
+              <MessageHostButton
+                hostId={event.host.email}
+                hostName={event.host.name}
+                eventId={event._id}
+                eventTitle={event.title}
+              />
             </div>
           </motion.div>
         )}
