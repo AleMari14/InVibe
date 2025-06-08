@@ -18,31 +18,26 @@ export async function GET() {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    // Ensure all required fields have default values
-    const userData = {
-      id: user._id || "",
-      name: user.name || "",
-      email: user.email || "",
-      image: user.image || "",
-      bio: user.bio || "",
-      phone: user.phone || "",
-      location: user.location || "",
-      preferences: user.preferences || {},
-      createdAt: user.createdAt || new Date().toISOString(),
-      verified: user.verified || false,
-      joinDate: user.createdAt || new Date().toISOString(),
-    }
-
-    const statsData = {
-      recensioni: user.reviewCount || 0,
-      eventiPartecipati: user.participatedEvents?.length || 0,
-      eventiOrganizzati: user.organizedEvents?.length || 0,
-    }
-
     return NextResponse.json({
       status: "success",
-      user: userData,
-      stats: statsData,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        image: user.image,
+        bio: user.bio,
+        phone: user.phone,
+        location: user.location,
+        preferences: user.preferences,
+        createdAt: user.createdAt,
+        verified: user.verified || false,
+        joinDate: user.createdAt,
+      },
+      stats: {
+        recensioni: user.reviewCount || 0,
+        eventiPartecipati: user.participatedEvents?.length || 0,
+        eventiOrganizzati: user.organizedEvents?.length || 0,
+      },
       eventi: user.organizedEvents || [],
       prenotazioni: user.bookings || [],
     })
