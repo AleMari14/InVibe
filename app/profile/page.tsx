@@ -98,7 +98,29 @@ export default function ProfiloPage() {
       
       const data = await response.json()
       console.log("✅ Profile data received:", data)
-      setProfileData(data)
+      
+      // Transform the API response to match our expected structure
+      const transformedData: ProfileData = {
+        user: {
+          name: data.user.name || "",
+          email: data.user.email || "",
+          image: data.user.image || "",
+          bio: data.user.bio || "",
+          phone: data.user.phone || "",
+          location: data.user.location || "",
+          verified: data.user.verified || false,
+          joinDate: data.user.createdAt || new Date().toISOString()
+        },
+        stats: {
+          eventiPartecipati: 0,
+          eventiOrganizzati: 0,
+          recensioni: 0
+        },
+        eventi: [],
+        prenotazioni: []
+      }
+      
+      setProfileData(transformedData)
     } catch (error) {
       console.error("💥 Error fetching profile:", error)
       toast.error("Errore nel caricamento del profilo")
@@ -118,6 +140,27 @@ export default function ProfiloPage() {
   if (!session || !profileData) {
     return null
   }
+
+  // Add default values for all profile data to prevent undefined errors
+  const user = profileData.user || {
+    name: "",
+    email: "",
+    image: "",
+    bio: "",
+    phone: "",
+    location: "",
+    verified: false,
+    joinDate: new Date().toISOString()
+  }
+
+  const stats = profileData.stats || {
+    eventiPartecipati: 0,
+    eventiOrganizzati: 0,
+    recensioni: 0
+  }
+
+  const eventi = profileData.eventi || []
+  const prenotazioni = profileData.prenotazioni || []
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" })
@@ -156,9 +199,9 @@ export default function ProfiloPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-4 mb-4">
               <Avatar className="h-20 w-20 ring-4 ring-blue-500">
-                <AvatarImage src={profileData.user.image} />
+                <AvatarImage src={user.image} />
                 <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                  {profileData.user.name
+                  {user.name
                     .split(" ")
                     .map((n) => n[0])
                     .join("")}
@@ -166,20 +209,20 @@ export default function ProfiloPage() {
               </Avatar>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-semibold text-foreground">{profileData.user.name}</h2>
-                  {profileData.user.verified && (
+                  <h2 className="text-xl font-semibold text-foreground">{user.name}</h2>
+                  {user.verified && (
                     <Badge className="bg-green-600 text-white text-xs">✓ Verificato</Badge>
                   )}
                 </div>
-                <p className="text-muted-foreground mb-2">{profileData.user.email}</p>
+                <p className="text-muted-foreground mb-2">{user.email}</p>
                 <div className="flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium">{profileData.stats.recensioni}</span>
+                    <span className="font-medium">{stats.recensioni}</span>
                     <span className="text-muted-foreground">recensioni</span>
                   </div>
                   <span className="text-muted-foreground">
-                    Membro dal {new Date(profileData.user.joinDate).toLocaleDateString("it-IT", {
+                    Membro dal {new Date(user.joinDate).toLocaleDateString("it-IT", {
                       month: "long",
                       year: "numeric",
                     })}
@@ -197,19 +240,19 @@ export default function ProfiloPage() {
             <div className="grid grid-cols-3 gap-4">
               <div className="text-center">
                 <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {profileData.stats.eventiPartecipati}
+                  {stats.eventiPartecipati}
                 </div>
                 <div className="text-sm text-muted-foreground">Eventi Partecipati</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {profileData.stats.eventiOrganizzati}
+                  {stats.eventiOrganizzati}
                 </div>
                 <div className="text-sm text-muted-foreground">Eventi Organizzati</div>
               </div>
               <div className="text-center">
                 <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {profileData.stats.recensioni}
+                  {stats.recensioni}
                 </div>
                 <div className="text-sm text-muted-foreground">Recensioni</div>
               </div>
@@ -250,12 +293,12 @@ export default function ProfiloPage() {
             </TabsList>
 
             <TabsContent value="miei-eventi" className="p-4 space-y-4">
-              {profileData.eventi.length === 0 ? (
+              {eventi.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">
                   Non hai ancora creato nessun evento
                 </p>
               ) : (
-                profileData.eventi.map((evento, index) => (
+                eventi.map((evento, index) => (
                   <div key={evento._id}>
                     <div className="flex items-center gap-3">
                       <img
@@ -285,19 +328,19 @@ export default function ProfiloPage() {
                         </Button>
                       </div>
                     </div>
-                    {index < profileData.eventi.length - 1 && <Separator className="mt-4" />}
+                    {index < eventi.length - 1 && <Separator className="mt-4" />}
                   </div>
                 ))
               )}
             </TabsContent>
 
             <TabsContent value="prenotazioni" className="p-4 space-y-4">
-              {profileData.prenotazioni.length === 0 ? (
+              {prenotazioni.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">
                   Non hai ancora effettuato nessuna prenotazione
                 </p>
               ) : (
-                profileData.prenotazioni.map((prenotazione, index) => (
+                prenotazioni.map((prenotazione, index) => (
                   <div key={prenotazione._id}>
                     <div className="flex items-center gap-3">
                       <img
@@ -320,7 +363,7 @@ export default function ProfiloPage() {
                         </Badge>
                       </div>
                     </div>
-                    {index < profileData.prenotazioni.length - 1 && <Separator className="mt-4" />}
+                    {index < prenotazioni.length - 1 && <Separator className="mt-4" />}
                   </div>
                 ))
               )}
