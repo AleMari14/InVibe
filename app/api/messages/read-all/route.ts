@@ -28,4 +28,4 @@ export async function POST(req: Request) {
     console.error("Error marking messages as read:", error)
     return new NextResponse("Internal Server Error", { status: 500 })
   }
-} 
+}
