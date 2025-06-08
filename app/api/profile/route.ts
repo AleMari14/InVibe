@@ -67,7 +67,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, bio, phone, location, preferences } = body
+    const { name, bio, phone, location, preferences, image } = body
 
     const { db } = await connectToDatabase()
 
@@ -77,10 +77,14 @@ export async function PATCH(request: NextRequest) {
     if (phone !== undefined) updateData.phone = phone
     if (location !== undefined) updateData.location = location
     if (preferences !== undefined) updateData.preferences = preferences
+    if (image !== undefined) updateData.image = image
 
     updateData.updatedAt = new Date()
 
-    const result = await db.collection("users").updateOne({ email: session.user.email }, { $set: updateData })
+    const result = await db.collection("users").updateOne(
+      { email: session.user.email },
+      { $set: updateData }
+    )
 
     if (result.matchedCount === 0) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })

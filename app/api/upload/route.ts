@@ -1,9 +1,13 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { writeFile } from "fs/promises"
-import { join } from "path"
-import { v4 as uuidv4 } from "uuid"
+import { cloudinary } from "@/lib/cloudinary"
+
+interface CloudinaryResponse {
+  secure_url: string;
+  public_id: string;
+  [key: string]: any;
+}
 
 export async function POST(request: Request) {
   try {
@@ -26,42 +30,27 @@ export async function POST(request: Request) {
     console.log(`✅ /api/upload: File received - name: ${file.name}, size: ${file.size}`)
 
     const bytes = await file.arrayBuffer()
-    console.log("✅ /api/upload: File bytes read")
-
     const buffer = Buffer.from(bytes)
-    console.log("✅ /api/upload: Buffer created from bytes")
 
-    // Genera un nome file univoco
-    const uniqueId = uuidv4()
-    const extension = file.name.split(".").pop()
-    const fileName = `${uniqueId}.${extension}`
-    console.log(`✅ /api/upload: Generated file name: ${fileName}`)
-
-    // Salva il file nella cartella public/uploads
-    // NOTA: Su Vercel, il filesystem è read-only, quindi questo potrebbe non funzionare in produzione
-    try {
-      const uploadDir = join(process.cwd(), "public", "uploads")
-      const filePath = join(uploadDir, fileName)
-      await writeFile(filePath, buffer)
-      console.log("✅ /api/upload: File saved successfully")
-
-      // Restituisci l'URL del file
-      const fileUrl = `/uploads/${fileName}`
-      return NextResponse.json({ url: fileUrl })
-    } catch (writeError: any) {
-      console.warn("⚠️ /api/upload: File writing failed (expected on Vercel):", writeError.message)
-
-      // Su Vercel, restituiamo un URL temporaneo e un messaggio di avviso
-      const fileUrl = `/uploads/${fileName}`
-      return NextResponse.json(
+    // Upload to Cloudinary
+    const uploadResponse = await new Promise<CloudinaryResponse>((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
         {
-          url: fileUrl,
-          message: "File processed, but not saved (filesystem is read-only). Implement cloud storage for production.",
-          warning: "File upload skipped on serverless environment",
+          folder: "invibe",
+          resource_type: "auto",
         },
-        { status: 200 },
-      )
+        (error, result) => {
+          if (error) reject(error)
+          else resolve(result as CloudinaryResponse)
+        }
+      ).end(buffer)
+    })
+
+    if (!uploadResponse || !uploadResponse.secure_url) {
+      throw new Error("Failed to upload to Cloudinary")
     }
+
+    return NextResponse.json({ url: uploadResponse.secure_url })
   } catch (error: any) {
     console.error("💥 Errore nel caricamento del file in /api/upload:", error)
 
