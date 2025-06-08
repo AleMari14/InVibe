@@ -64,4 +64,4 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
       Contatta {hostName}
     </Button>
   )
-} 
+}

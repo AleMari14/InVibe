@@ -105,4 +105,4 @@ export async function GET(req: Request) {
     console.error("Error fetching chat rooms:", error)
     return new NextResponse("Internal Server Error", { status: 500 })
   }
-} 
+}
