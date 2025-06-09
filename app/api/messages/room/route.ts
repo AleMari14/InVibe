@@ -37,7 +37,8 @@ export async function POST(req: Request) {
       participants: [session.user.email, hostId],
       createdAt: new Date(),
       updatedAt: new Date(),
-      lastMessage: null
+      lastMessage: null,
+      messages: []
     })
 
     return NextResponse.json({ roomId: result.insertedId.toString() })

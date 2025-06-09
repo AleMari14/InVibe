@@ -35,17 +35,21 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          hostId,
+          hostId: hostId, // This should be the host's email
           eventId,
           eventTitle,
         }),
       })
 
-      if (!response.ok) throw new Error("Errore nella creazione della chat")
+      if (!response.ok) {
+        const error = await response.text()
+        throw new Error(error || "Errore nella creazione della chat")
+      }
       
       const { roomId } = await response.json()
       router.push(`/messaggi/${roomId}`)
     } catch (error) {
+      console.error("Error creating chat room:", error)
       toast.error("Errore nell'apertura della chat")
     } finally {
       setIsLoading(false)
