@@ -1,9 +1,8 @@
 import { WebSocketServer, WebSocket } from "ws"
 import { Server } from "http"
 import { parse } from "url"
-import { getSession } from "next-auth/react"
 import { ObjectId } from "mongodb"
-import { connectToDatabase } from "../lib/mongodb"
+import clientPromise from "../lib/mongodb"
 
 interface WebSocketMessage {
   content: string
@@ -11,10 +10,17 @@ interface WebSocketMessage {
   senderId: string
 }
 
-interface WebSocketClient extends WebSocket {
+class WebSocketClient extends WebSocket {
   userId: string
   roomId: string
   isAlive: boolean
+
+  constructor(address: string, protocols?: string | string[]) {
+    super(address, protocols)
+    this.userId = ""
+    this.roomId = ""
+    this.isAlive = true
+  }
 }
 
 export function setupWebSocketServer(server: Server) {
@@ -35,20 +41,21 @@ export function setupWebSocketServer(server: Server) {
 
     // Verifica che l'utente sia autorizzato a partecipare alla chat
     try {
-      const { db } = await connectToDatabase()
-      const conversation = await db.collection("messages").findOne({
+      const client = await clientPromise
+      const db = client.db("invibe")
+      const chatRoom = await db.collection("chatRooms").findOne({
         _id: new ObjectId(roomId),
-        participants: userId,
+        participants: userId
       })
 
-      if (!conversation) {
+      if (!chatRoom) {
         socket.write("HTTP/1.1 403 Forbidden\r\n\r\n")
         socket.destroy()
         return
       }
 
-      wss.handleUpgrade(request, socket, head, (ws) => {
-        const client = ws as unknown as WebSocketClient
+      wss.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+        const client = ws as WebSocketClient
         client.userId = userId
         client.roomId = roomId
         client.isAlive = true
@@ -76,7 +83,8 @@ export function setupWebSocketServer(server: Server) {
     ws.on("message", async (data: string) => {
       try {
         const message: WebSocketMessage = JSON.parse(data)
-        const { db } = await connectToDatabase()
+        const client = await clientPromise
+        const db = client.db("invibe")
 
         // Salva il messaggio nel database
         const result = await db.collection("messages").insertOne({
@@ -84,8 +92,23 @@ export function setupWebSocketServer(server: Server) {
           content: message.content,
           senderId: message.senderId,
           createdAt: new Date(),
-          readBy: [message.senderId],
+          readBy: [message.senderId]
         })
+
+        // Aggiorna l'ultimo messaggio nella chat room
+        await db.collection("chatRooms").updateOne(
+          { _id: new ObjectId(message.roomId) },
+          {
+            $set: {
+              lastMessage: {
+                content: message.content,
+                senderId: message.senderId,
+                createdAt: new Date()
+              },
+              updatedAt: new Date()
+            }
+          }
+        )
 
         // Invia il messaggio a tutti i client nella stanza
         const roomClients = clients.get(message.roomId)
@@ -93,7 +116,7 @@ export function setupWebSocketServer(server: Server) {
           const messageToSend = {
             _id: result.insertedId,
             ...message,
-            createdAt: new Date(),
+            createdAt: new Date()
           }
 
           roomClients.forEach((client) => {
@@ -127,8 +150,8 @@ export function setupWebSocketServer(server: Server) {
 
   // Ping per mantenere attive le connessioni
   const interval = setInterval(() => {
-    wss.clients.forEach((ws) => {
-      const client = ws as unknown as WebSocketClient
+    wss.clients.forEach((ws: WebSocket) => {
+      const client = ws as WebSocketClient
       if (!client.isAlive) {
         return client.terminate()
       }
@@ -141,6 +164,4 @@ export function setupWebSocketServer(server: Server) {
   wss.on("close", () => {
     clearInterval(interval)
   })
-
-  return wss
 }

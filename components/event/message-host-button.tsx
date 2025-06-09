@@ -1,38 +1,45 @@
 "use client"
 
 import { useState } from "react"
+import { MessageSquare } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { Button } from "@/components/ui/button"
-import { MessageCircle } from "lucide-react"
 import { toast } from "sonner"
 
 interface MessageHostButtonProps {
   hostId: string
+  hostName: string
   eventId: string
   eventTitle: string
 }
 
-export function MessageHostButton({ hostId, eventId, eventTitle }: MessageHostButtonProps) {
-  const [loading, setLoading] = useState(false)
+export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: MessageHostButtonProps) {
+  const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { data: session } = useSession()
 
   const handleClick = async () => {
     if (!session?.user) {
-      toast.error("Devi effettuare il login per inviare messaggi")
+      toast.error("Devi effettuare l'accesso per inviare messaggi")
+      router.push("/auth/login")
       return
     }
 
     if (!hostId || !eventId || !eventTitle) {
       console.error("Missing required props:", { hostId, eventId, eventTitle })
-      toast.error("Errore: dati mancanti")
+      toast.error("Errore: dati mancanti per la chat")
       return
     }
 
-    setLoading(true)
+    setIsLoading(true)
     try {
-      console.log("Creating chat room with data:", { hostId, eventId, eventTitle })
+      console.log("Creating chat room with data:", {
+        hostId,
+        eventId,
+        eventTitle
+      })
+
       const response = await fetch("/api/messages/room", {
         method: "POST",
         headers: {
@@ -45,19 +52,21 @@ export function MessageHostButton({ hostId, eventId, eventTitle }: MessageHostBu
         }),
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
-        throw new Error(data.error || "Errore nella creazione della chat")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nella creazione della chat")
       }
 
-      console.log("Chat room created successfully:", data)
+      const data = await response.json()
+      console.log("Chat room created:", data)
+
+      // Navigate to the chat room
       router.push(`/messaggi/${data.roomId}`)
     } catch (error) {
       console.error("Error creating chat room:", error)
-      toast.error(error instanceof Error ? error.message : "Errore nella creazione della chat")
+      toast.error(error instanceof Error ? error.message : "Errore nell'apertura della chat")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -65,12 +74,12 @@ export function MessageHostButton({ hostId, eventId, eventTitle }: MessageHostBu
     <Button
       variant="outline"
       size="sm"
-      className="w-full"
       onClick={handleClick}
-      disabled={loading}
+      disabled={isLoading}
+      className="flex items-center gap-2"
     >
-      <MessageCircle className="h-4 w-4 mr-2" />
-      {loading ? "Caricamento..." : "Contatta"}
+      <MessageSquare className="h-4 w-4" />
+      {isLoading ? "Caricamento..." : `Contatta ${hostName}`}
     </Button>
   )
 }
