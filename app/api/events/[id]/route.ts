@@ -1,6 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server"
 import clientPromise from "@/lib/mongodb"
 import { ObjectId, MongoClient } from "mongodb"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
 
 // Evento di esempio per fallback
 const sampleEvent = {
@@ -73,6 +75,13 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
       console.log("✅ Event found in database")
 
+      // Increment views
+      try {
+        await events.updateOne({ _id: new ObjectId(params.id) }, { $inc: { views: 1 } })
+      } catch (viewError) {
+        console.error("⚠️ Error incrementing views:", viewError)
+      }
+
       // Get host info
       let host = null
       if (event.hostId) {
@@ -82,13 +91,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         } catch (hostError) {
           console.error("⚠️ Error fetching host:", hostError)
         }
-      }
-
-      // Increment views
-      try {
-        await events.updateOne({ _id: new ObjectId(params.id) }, { $inc: { views: 1 } })
-      } catch (viewError) {
-        console.error("⚠️ Error incrementing views:", viewError)
       }
 
       const eventWithHost = {

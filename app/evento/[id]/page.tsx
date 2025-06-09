@@ -189,6 +189,17 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           </Link>
         </div>
         <div className="absolute top-4 right-4 z-10 flex gap-2">
+          {event.host && (
+            <Avatar className="h-10 w-10 ring-2 ring-blue-200">
+              <AvatarImage src={event.host.image || "/placeholder.svg"} />
+              <AvatarFallback>
+                {event.host.name
+                  .split(" ")
+                  .map((n) => n[0])
+                  .join("")}
+              </AvatarFallback>
+            </Avatar>
+          )}
           <Button variant="ghost" size="icon" className="bg-background/80 hover:bg-background backdrop-blur-sm">
             <Share className="h-4 w-4" />
           </Button>
@@ -327,6 +338,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
               <MessageHostButton
                 hostId={event.host.email}
                 hostName={event.host.name}
+                hostEmail={event.host.email}
                 eventId={event._id}
                 eventTitle={event.title}
               />

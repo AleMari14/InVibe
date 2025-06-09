@@ -15,9 +15,12 @@ import {
   Globe,
   CreditCard,
   HelpCircle,
+  Calendar,
+  MapPin,
+  Users,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -30,93 +33,103 @@ import { EditProfileDialog } from "@/components/profile/edit-profile-dialog"
 import { NotificationSettings } from "@/components/profile/notification-settings"
 import { ThemeSettings } from "@/components/profile/theme-settings"
 import { toast } from "sonner"
+import { Skeleton } from "@/components/ui/skeleton"
+import { format } from "date-fns"
+import { it } from "date-fns/locale"
+import Image from "next/image"
 
-interface ProfileData {
-  user: {
-    name: string
-    email: string
-    image: string
-    bio: string
-    phone: string
-    location: string
-    verified: boolean
-    joinDate: string
-  }
-  stats: {
-    eventiPartecipati: number
-    eventiOrganizzati: number
-    recensioni: number
-  }
-  eventi: Array<{
-    _id: string
-    title: string
-    date: string
-    status: string
-    partecipanti: number
-    totale: number
-    image: string
-    views: number
-  }>
-  prenotazioni: Array<{
-    _id: string
-    title: string
-    date: string
-    status: string
-    organizzatore: string
-    image: string
-  }>
+interface Event {
+  _id: string
+  title: string
+  description: string
+  location: string
+  price: number
+  dateStart: string
+  dateEnd?: string
+  totalSpots: number
+  availableSpots: number
+  images: string[]
+  views: number
+  rating: number
+  reviewCount: number
+  verified: boolean
 }
 
-export default function ProfiloPage() {
+interface ProfileData {
+  name: string
+  email: string
+  image?: string
+  verified: boolean
+  rating: number
+  reviewCount: number
+  stats: {
+    eventsParticipated: number
+    eventsOrganized: number
+    totalReviews: number
+  }
+  eventi: Event[]
+}
+
+export default function ProfilePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const [profileData, setProfileData] = useState<ProfileData | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (status === "unauthenticated") {
       router.push("/auth/login")
-      return
-    }
-
-    if (session) {
+    } else if (status === "authenticated") {
       fetchProfileData()
     }
-  }, [session, status, router])
+  }, [status, router])
 
-  async function fetchProfileData() {
+  const fetchProfileData = async () => {
     try {
-      console.log("🔍 Fetching profile data...")
+      setLoading(true)
       const response = await fetch("/api/profile")
-      console.log("📦 Profile API response status:", response.status)
-      
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error("❌ Profile API error:", errorText)
-        throw new Error(`HTTP error! status: ${response.status}`)
+        throw new Error("Failed to fetch profile data")
       }
-      
       const data = await response.json()
-      console.log("✅ Profile data received:", data)
       setProfileData(data)
     } catch (error) {
-      console.error("💥 Error fetching profile:", error)
-      toast.error("Errore nel caricamento del profilo")
+      console.error("Error fetching profile data:", error)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  if (status === "loading" || isLoading) {
+  if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen bg-background">
+        <div className="px-4 py-4 space-y-4">
+          <Skeleton className="h-8 w-32" />
+          <Skeleton className="h-40 w-full" />
+          <Skeleton className="h-8 w-24" />
+          <div className="grid grid-cols-2 gap-4">
+            <Skeleton className="h-32" />
+            <Skeleton className="h-32" />
+          </div>
+        </div>
       </div>
     )
   }
 
-  if (!session || !profileData) {
-    return null
+  if (!profileData) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Errore</h2>
+          <p className="text-muted-foreground mb-4">Impossibile caricare i dati del profilo.</p>
+          <Button onClick={fetchProfileData}>Riprova</Button>
+        </div>
+      </div>
+    )
+  }
+
+  const formatDate = (dateString: string) => {
+    return format(new Date(dateString), "d MMMM yyyy", { locale: it })
   }
 
   const handleSignOut = () => {
@@ -156,9 +169,9 @@ export default function ProfiloPage() {
           <CardContent className="pt-6">
             <div className="flex items-center gap-4 mb-4">
               <Avatar className="h-20 w-20 ring-4 ring-blue-500">
-                <AvatarImage src={profileData.user.image} />
+                <AvatarImage src={profileData.image || "/placeholder.svg"} />
                 <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                  {profileData.user.name
+                  {profileData.name
                     .split(" ")
                     .map((n) => n[0])
                     .join("")}
@@ -166,24 +179,18 @@ export default function ProfiloPage() {
               </Avatar>
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-xl font-semibold text-foreground">{profileData.user.name}</h2>
-                  {profileData.user.verified && (
+                  <h2 className="text-xl font-semibold text-foreground">{profileData.name}</h2>
+                  {profileData.verified && (
                     <Badge className="bg-green-600 text-white text-xs">✓ Verificato</Badge>
                   )}
                 </div>
-                <p className="text-muted-foreground mb-2">{profileData.user.email}</p>
+                <p className="text-muted-foreground mb-2">{profileData.email}</p>
                 <div className="flex items-center gap-4 text-sm">
                   <div className="flex items-center gap-1">
                     <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                    <span className="font-medium">{profileData.stats.recensioni}</span>
-                    <span className="text-muted-foreground">recensioni</span>
+                    <span className="font-medium">{profileData.rating}</span>
+                    <span className="text-muted-foreground">({profileData.reviewCount} recensioni)</span>
                   </div>
-                  <span className="text-muted-foreground">
-                    Membro dal {new Date(profileData.user.joinDate).toLocaleDateString("it-IT", {
-                      month: "long",
-                      year: "numeric",
-                    })}
-                  </span>
                 </div>
               </div>
               <EditProfileDialog />
@@ -195,24 +202,24 @@ export default function ProfiloPage() {
         <Card className="border-border bg-card/80 backdrop-blur-sm">
           <CardContent className="pt-6">
             <div className="grid grid-cols-3 gap-4">
-              <div className="text-center">
-                <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {profileData.stats.eventiPartecipati}
-                </div>
-                <div className="text-sm text-muted-foreground">Eventi Partecipati</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {profileData.stats.eventiOrganizzati}
-                </div>
-                <div className="text-sm text-muted-foreground">Eventi Organizzati</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                  {profileData.stats.recensioni}
-                </div>
-                <div className="text-sm text-muted-foreground">Recensioni</div>
-              </div>
+              <Card>
+                <CardHeader className="p-4">
+                  <CardTitle className="text-lg">{profileData.stats.eventsParticipated}</CardTitle>
+                  <CardDescription>Eventi Partecipati</CardDescription>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="p-4">
+                  <CardTitle className="text-lg">{profileData.stats.eventsOrganized}</CardTitle>
+                  <CardDescription>Eventi Organizzati</CardDescription>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="p-4">
+                  <CardTitle className="text-lg">{profileData.stats.totalReviews}</CardTitle>
+                  <CardDescription>Recensioni</CardDescription>
+                </CardHeader>
+              </Card>
             </div>
           </CardContent>
         </Card>
@@ -241,12 +248,11 @@ export default function ProfiloPage() {
           </CardContent>
         </Card>
 
-        {/* Events and Bookings */}
+        {/* Events */}
         <Card className="border-border bg-card/80 backdrop-blur-sm">
           <Tabs defaultValue="miei-eventi" className="w-full">
             <TabsList className="grid w-full grid-cols-2 bg-muted">
               <TabsTrigger value="miei-eventi">I Miei Eventi</TabsTrigger>
-              <TabsTrigger value="prenotazioni">Le Mie Prenotazioni</TabsTrigger>
             </TabsList>
 
             <TabsContent value="miei-eventi" className="p-4 space-y-4">
@@ -255,73 +261,50 @@ export default function ProfiloPage() {
                   Non hai ancora creato nessun evento
                 </p>
               ) : (
-                profileData.eventi.map((evento, index) => (
-                  <div key={evento._id}>
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={evento.image}
-                        alt={evento.title}
-                        className="w-12 h-12 rounded-lg object-cover"
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-foreground">{evento.title}</h4>
-                        <p className="text-sm text-muted-foreground">{evento.date}</p>
-                        <div className="flex items-center gap-2 mt-1">
-                          <Badge variant={evento.status === "Attivo" ? "default" : "secondary"}>
-                            {evento.status}
-                          </Badge>
-                          <span className="text-xs text-muted-foreground">
-                            {evento.partecipanti}/{evento.totale} partecipanti
-                          </span>
+                profileData.eventi.map((event) => (
+                  <Link key={event._id} href={`/evento/${event._id}`}>
+                    <Card className="hover:bg-accent/50 transition-colors">
+                      <CardContent className="p-4">
+                        <div className="flex gap-4">
+                          <div className="relative h-24 w-24 flex-shrink-0">
+                            <Image
+                              src={event.images[0] || "/placeholder.svg"}
+                              alt={event.title}
+                              fill
+                              className="object-cover rounded-lg"
+                            />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="font-medium truncate">{event.title}</h4>
+                            <div className="text-sm text-muted-foreground space-y-1 mt-1">
+                              <div className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                <span>{formatDate(event.dateStart)}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                <span className="truncate">{event.location}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Users className="h-3 w-3" />
+                                <span>{event.availableSpots}/{event.totalSpots} posti</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Eye className="h-3 w-3" />
+                                <span>{event.views} visualizzazioni</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <div className="text-lg font-bold">€{event.price}</div>
+                            {event.verified && (
+                              <Badge className="bg-green-100 text-green-700">Verificato</Badge>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                          <Eye className="h-3 w-3" />
-                          {evento.views}
-                        </div>
-                        <Button variant="outline" size="sm">
-                          Gestisci
-                        </Button>
-                      </div>
-                    </div>
-                    {index < profileData.eventi.length - 1 && <Separator className="mt-4" />}
-                  </div>
-                ))
-              )}
-            </TabsContent>
-
-            <TabsContent value="prenotazioni" className="p-4 space-y-4">
-              {profileData.prenotazioni.length === 0 ? (
-                <p className="text-center text-muted-foreground py-4">
-                  Non hai ancora effettuato nessuna prenotazione
-                </p>
-              ) : (
-                profileData.prenotazioni.map((prenotazione, index) => (
-                  <div key={prenotazione._id}>
-                    <div className="flex items-center gap-3">
-                      <img
-                        src={prenotazione.image}
-                        alt={prenotazione.title}
-                        className="w-12 h-12 rounded-lg object-cover"
-                      />
-                      <div className="flex-1">
-                        <h4 className="font-medium text-foreground">{prenotazione.title}</h4>
-                        <p className="text-sm text-muted-foreground">{prenotazione.date}</p>
-                        <p className="text-xs text-muted-foreground">
-                          Organizzato da {prenotazione.organizzatore}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <Badge
-                          variant={prenotazione.status === "Confermata" ? "default" : "secondary"}
-                        >
-                          {prenotazione.status}
-                        </Badge>
-                      </div>
-                    </div>
-                    {index < profileData.prenotazioni.length - 1 && <Separator className="mt-4" />}
-                  </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
                 ))
               )}
             </TabsContent>
@@ -334,3 +317,4 @@ export default function ProfiloPage() {
     </div>
   )
 }
+

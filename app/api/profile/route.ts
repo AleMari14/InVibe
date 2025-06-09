@@ -9,66 +9,70 @@ export async function GET() {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { db } = await connectToDatabase()
     const user = await db.collection("users").findOne({ email: session.user.email })
 
     if (!user) {
-      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Fetch user's events directly from events collection
+    // Get user's events
     const events = await db.collection("events")
       .find({ hostId: user._id })
       .sort({ createdAt: -1 })
       .toArray()
 
-    // Format events for the frontend
+    // Get user's participated events
+    const participatedEvents = await db.collection("bookings")
+      .find({ userId: user._id })
+      .toArray()
+
+    // Get user's reviews
+    const reviews = await db.collection("reviews")
+      .find({ userId: user._id })
+      .toArray()
+
+    // Calculate stats
+    const stats = {
+      eventsParticipated: participatedEvents.length,
+      eventsOrganized: events.length,
+      totalReviews: reviews.length
+    }
+
+    // Format events
     const formattedEvents = events.map(event => ({
       _id: event._id.toString(),
       title: event.title,
-      date: event.dateStart,
-      status: event.verified ? "Verificato" : "In attesa",
-      partecipanti: event.totalSpots - event.availableSpots,
-      totale: event.totalSpots,
-      image: event.images?.[0] || "/placeholder.svg",
-      views: event.views || 0
+      description: event.description,
+      location: event.location,
+      price: event.price,
+      dateStart: event.dateStart.toISOString(),
+      dateEnd: event.dateEnd?.toISOString(),
+      totalSpots: event.totalSpots,
+      availableSpots: event.availableSpots,
+      images: event.images || [],
+      views: event.views || 0,
+      rating: event.rating || 0,
+      reviewCount: event.reviewCount || 0,
+      verified: event.verified || false
     }))
 
     return NextResponse.json({
-      status: "success",
-      user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        bio: user.bio,
-        phone: user.phone,
-        location: user.location,
-        preferences: user.preferences,
-        createdAt: user.createdAt,
-        verified: user.verified || false,
-        joinDate: user.createdAt,
-      },
-      stats: {
-        recensioni: user.reviewCount || 0,
-        eventiPartecipati: user.participatedEvents?.length || 0,
-        eventiOrganizzati: events.length,
-      },
-      eventi: formattedEvents,
-      prenotazioni: user.bookings || [],
+      name: user.name,
+      email: user.email,
+      image: user.image,
+      verified: user.verified || false,
+      rating: user.rating || 0,
+      reviewCount: user.reviewCount || 0,
+      stats,
+      eventi: formattedEvents
     })
   } catch (error) {
-    console.error("Errore nel recupero del profilo:", error)
-    return NextResponse.json(
-      {
-        status: "error",
-        message: "Errore interno del server",
-      },
-      { status: 500 },
-    )
+    console.error("Error fetching profile:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
