@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import clientPromise from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
+import { ObjectId, MongoClient } from "mongodb"
 
 // Evento di esempio per fallback
 const sampleEvent = {
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       const client = await Promise.race([
         clientPromise,
         new Promise((_, reject) => setTimeout(() => reject(new Error("Database timeout")), 5000)),
-      ])
+      ]) as MongoClient
 
       console.log("✅ Database connected, fetching event...")
       const db = client.db()
@@ -95,12 +95,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         host: host
           ? {
               name: host.name,
+              email: host.email,
               image: host.image,
               rating: host.rating || 4.8,
               reviewCount: host.reviewCount || 0,
               verified: host.verified || false,
             }
-          : sampleEvent.host,
+          : {
+              ...sampleEvent.host,
+              email: "sample@example.com"
+            },
       }
 
       return NextResponse.json(eventWithHost)
