@@ -8,12 +8,27 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
+      console.log("Unauthorized: No session or email found")
       return new NextResponse("Unauthorized", { status: 401 })
     }
 
-    const { hostId, eventId, eventTitle } = await req.json()
-    if (!hostId || !eventId) {
-      return new NextResponse("Missing required fields", { status: 400 })
+    const body = await req.json()
+    console.log("Received request body:", body)
+
+    const { hostId, eventId, eventTitle } = body
+
+    // Validate required fields
+    if (!hostId) {
+      console.log("Missing hostId in request")
+      return new NextResponse("Missing hostId", { status: 400 })
+    }
+    if (!eventId) {
+      console.log("Missing eventId in request")
+      return new NextResponse("Missing eventId", { status: 400 })
+    }
+    if (!eventTitle) {
+      console.log("Missing eventTitle in request")
+      return new NextResponse("Missing eventTitle", { status: 400 })
     }
 
     const { db } = await connectToDatabase()
@@ -27,11 +42,12 @@ export async function POST(req: Request) {
     })
 
     if (existingRoom) {
+      console.log("Found existing room:", existingRoom._id.toString())
       return NextResponse.json({ roomId: existingRoom._id.toString() })
     }
 
     // Create new room
-    const result = await db.collection("chat_rooms").insertOne({
+    const newRoom = {
       eventId,
       eventTitle,
       participants: [session.user.email, hostId],
@@ -39,11 +55,18 @@ export async function POST(req: Request) {
       updatedAt: new Date(),
       lastMessage: null,
       messages: []
-    })
+    }
+
+    console.log("Creating new room with data:", newRoom)
+    const result = await db.collection("chat_rooms").insertOne(newRoom)
+    console.log("Created new room with ID:", result.insertedId.toString())
 
     return NextResponse.json({ roomId: result.insertedId.toString() })
   } catch (error) {
     console.error("Error creating chat room:", error)
-    return new NextResponse("Internal Server Error", { status: 500 })
+    return new NextResponse(
+      `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+      { status: 500 }
+    )
   }
 }

@@ -26,8 +26,20 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
       return
     }
 
+    if (!hostId || !eventId || !eventTitle) {
+      console.error("Missing required props:", { hostId, eventId, eventTitle })
+      toast.error("Errore: dati mancanti per la chat")
+      return
+    }
+
     setIsLoading(true)
     try {
+      console.log("Creating chat room with data:", {
+        hostId,
+        eventId,
+        eventTitle
+      })
+
       // Create or get existing chat room
       const response = await fetch("/api/messages/room", {
         method: "POST",
@@ -35,22 +47,28 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          hostId: hostId, // This should be the host's email
+          hostId,
           eventId,
           eventTitle,
         }),
       })
 
       if (!response.ok) {
-        const error = await response.text()
-        throw new Error(error || "Errore nella creazione della chat")
+        const errorText = await response.text()
+        console.error("Error response:", {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText
+        })
+        throw new Error(errorText || "Errore nella creazione della chat")
       }
       
-      const { roomId } = await response.json()
-      router.push(`/messaggi/${roomId}`)
+      const data = await response.json()
+      console.log("Chat room created:", data)
+      router.push(`/messaggi/${data.roomId}`)
     } catch (error) {
       console.error("Error creating chat room:", error)
-      toast.error("Errore nell'apertura della chat")
+      toast.error(error instanceof Error ? error.message : "Errore nell'apertura della chat")
     } finally {
       setIsLoading(false)
     }
