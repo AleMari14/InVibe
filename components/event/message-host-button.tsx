@@ -10,11 +10,12 @@ import { toast } from "sonner"
 interface MessageHostButtonProps {
   hostId: string
   hostName: string
+  hostEmail: string
   eventId: string
   eventTitle: string
 }
 
-export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: MessageHostButtonProps) {
+export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventTitle }: MessageHostButtonProps) {
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
   const { data: session } = useSession()
@@ -26,8 +27,8 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
       return
     }
 
-    if (!hostId || !eventId || !eventTitle) {
-      console.error("Missing required props:", { hostId, eventId, eventTitle })
+    if (!hostEmail || !eventId || !eventTitle) {
+      console.error("Missing required props:", { hostEmail, eventId, eventTitle })
       toast.error("Errore: dati mancanti per la chat")
       return
     }
@@ -35,7 +36,7 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
     setIsLoading(true)
     try {
       console.log("Creating chat room with data:", {
-        hostId,
+        hostId: hostEmail,
         eventId,
         eventTitle
       })
@@ -46,7 +47,7 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          hostId,
+          hostId: hostEmail,
           eventId,
           eventTitle,
         }),

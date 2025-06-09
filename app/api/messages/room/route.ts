@@ -33,16 +33,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Get host user
-    let hostId
-    try {
-      hostId = new ObjectId(data.hostId)
-    } catch (error) {
-      console.error("Invalid host ID format:", data.hostId)
-      return NextResponse.json({ error: "Invalid host ID format" }, { status: 400 })
-    }
-
-    const host = await db.collection("users").findOne({ _id: hostId })
+    // Get host user by email
+    const host = await db.collection("users").findOne({ email: data.hostId })
     if (!host) {
       console.error("Host not found:", data.hostId)
       return NextResponse.json({ error: "Host not found" }, { status: 404 })
