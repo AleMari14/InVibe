@@ -1,46 +1,38 @@
 "use client"
 
 import { useState } from "react"
-import { MessageSquare } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { Button } from "@/components/ui/button"
+import { MessageCircle } from "lucide-react"
 import { toast } from "sonner"
 
 interface MessageHostButtonProps {
   hostId: string
-  hostName: string
   eventId: string
   eventTitle: string
 }
 
-export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: MessageHostButtonProps) {
-  const { data: session } = useSession()
+export function MessageHostButton({ hostId, eventId, eventTitle }: MessageHostButtonProps) {
+  const [loading, setLoading] = useState(false)
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const { data: session } = useSession()
 
   const handleClick = async () => {
-    if (!session) {
-      toast.error("Devi effettuare l'accesso per inviare messaggi")
-      router.push("/auth/login")
+    if (!session?.user) {
+      toast.error("Devi effettuare il login per inviare messaggi")
       return
     }
 
     if (!hostId || !eventId || !eventTitle) {
       console.error("Missing required props:", { hostId, eventId, eventTitle })
-      toast.error("Errore: dati mancanti per la chat")
+      toast.error("Errore: dati mancanti")
       return
     }
 
-    setIsLoading(true)
+    setLoading(true)
     try {
-      console.log("Creating chat room with data:", {
-        hostId,
-        eventId,
-        eventTitle
-      })
-
-      // Create or get existing chat room
+      console.log("Creating chat room with data:", { hostId, eventId, eventTitle })
       const response = await fetch("/api/messages/room", {
         method: "POST",
         headers: {
@@ -53,29 +45,19 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
         }),
       })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error("Error response:", {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText
-        })
-        throw new Error(errorText || "Errore nella creazione della chat")
-      }
-      
       const data = await response.json()
-      console.log("Chat room created:", data)
 
-      // Store the host info in sessionStorage for the chat page
-      sessionStorage.setItem('chatHostInfo', JSON.stringify(data.host))
+      if (!response.ok) {
+        throw new Error(data.error || "Errore nella creazione della chat")
+      }
 
-      // Navigate to the chat room
+      console.log("Chat room created successfully:", data)
       router.push(`/messaggi/${data.roomId}`)
     } catch (error) {
       console.error("Error creating chat room:", error)
-      toast.error(error instanceof Error ? error.message : "Errore nell'apertura della chat")
+      toast.error(error instanceof Error ? error.message : "Errore nella creazione della chat")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
@@ -83,12 +65,12 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
     <Button
       variant="outline"
       size="sm"
+      className="w-full"
       onClick={handleClick}
-      disabled={isLoading}
-      className="flex items-center gap-2"
+      disabled={loading}
     >
-      <MessageSquare className="h-4 w-4" />
-      Contatta {hostName}
+      <MessageCircle className="h-4 w-4 mr-2" />
+      {loading ? "Caricamento..." : "Contatta"}
     </Button>
   )
 }
