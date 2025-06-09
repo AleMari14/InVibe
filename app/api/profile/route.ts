@@ -2,6 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
+import { ObjectId } from "mongodb"
 
 export async function GET() {
   try {
@@ -17,6 +18,24 @@ export async function GET() {
     if (!user) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
+
+    // Fetch user's events directly from events collection
+    const events = await db.collection("events")
+      .find({ hostId: user._id })
+      .sort({ createdAt: -1 })
+      .toArray()
+
+    // Format events for the frontend
+    const formattedEvents = events.map(event => ({
+      _id: event._id.toString(),
+      title: event.title,
+      date: event.dateStart,
+      status: event.verified ? "Verificato" : "In attesa",
+      partecipanti: event.totalSpots - event.availableSpots,
+      totale: event.totalSpots,
+      image: event.images?.[0] || "/placeholder.svg",
+      views: event.views || 0
+    }))
 
     return NextResponse.json({
       status: "success",
@@ -36,9 +55,9 @@ export async function GET() {
       stats: {
         recensioni: user.reviewCount || 0,
         eventiPartecipati: user.participatedEvents?.length || 0,
-        eventiOrganizzati: user.organizedEvents?.length || 0,
+        eventiOrganizzati: events.length,
       },
-      eventi: user.organizedEvents || [],
+      eventi: formattedEvents,
       prenotazioni: user.bookings || [],
     })
   } catch (error) {
