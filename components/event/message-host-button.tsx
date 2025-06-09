@@ -65,6 +65,11 @@ export function MessageHostButton({ hostId, hostName, eventId, eventTitle }: Mes
       
       const data = await response.json()
       console.log("Chat room created:", data)
+
+      // Store the host info in sessionStorage for the chat page
+      sessionStorage.setItem('chatHostInfo', JSON.stringify(data.host))
+
+      // Navigate to the chat room
       router.push(`/messaggi/${data.roomId}`)
     } catch (error) {
       console.error("Error creating chat room:", error)

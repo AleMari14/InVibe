@@ -46,6 +46,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ roomId: existingRoom._id.toString() })
     }
 
+    // Get host info to verify they exist
+    const host = await db.collection("users").findOne(
+      { email: hostId },
+      { projection: { name: 1, email: 1, image: 1 } }
+    )
+
+    if (!host) {
+      console.log("Host not found:", hostId)
+      return new NextResponse("Host not found", { status: 404 })
+    }
+
     // Create new room
     const newRoom = {
       eventId,
@@ -61,11 +72,19 @@ export async function POST(req: Request) {
     const result = await db.collection("chat_rooms").insertOne(newRoom)
     console.log("Created new room with ID:", result.insertedId.toString())
 
-    return NextResponse.json({ roomId: result.insertedId.toString() })
+    // Return the room ID and host info
+    return NextResponse.json({
+      roomId: result.insertedId.toString(),
+      host: {
+        name: host.name,
+        email: host.email,
+        image: host.image || "/placeholder.svg"
+      }
+    })
   } catch (error) {
     console.error("Error creating chat room:", error)
     return new NextResponse(
-      `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`, 
+      `Internal Server Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       { status: 500 }
     )
   }

@@ -37,6 +37,17 @@ export default function ChatRoomPage({ params }: { params: { roomId: string } })
       return
     }
 
+    // Try to get host info from sessionStorage first
+    const storedHostInfo = sessionStorage.getItem('chatHostInfo')
+    if (storedHostInfo) {
+      try {
+        const hostInfo = JSON.parse(storedHostInfo)
+        setChatRoom(prev => prev ? { ...prev, otherUser: hostInfo } : null)
+      } catch (error) {
+        console.error("Error parsing stored host info:", error)
+      }
+    }
+
     fetchChatRoom()
   }, [session, params.roomId])
 
