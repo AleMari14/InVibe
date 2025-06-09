@@ -33,6 +33,17 @@ export async function POST(req: Request) {
 
     const { db } = await connectToDatabase()
 
+    // Get host info to verify they exist
+    const host = await db.collection("users").findOne(
+      { email: hostId },
+      { projection: { name: 1, email: 1, image: 1 } }
+    )
+
+    if (!host) {
+      console.log("Host not found:", hostId)
+      return new NextResponse("Host not found", { status: 404 })
+    }
+
     // Check if a room already exists for this event and users
     const existingRoom = await db.collection("chat_rooms").findOne({
       eventId,
@@ -43,18 +54,14 @@ export async function POST(req: Request) {
 
     if (existingRoom) {
       console.log("Found existing room:", existingRoom._id.toString())
-      return NextResponse.json({ roomId: existingRoom._id.toString() })
-    }
-
-    // Get host info to verify they exist
-    const host = await db.collection("users").findOne(
-      { email: hostId },
-      { projection: { name: 1, email: 1, image: 1 } }
-    )
-
-    if (!host) {
-      console.log("Host not found:", hostId)
-      return new NextResponse("Host not found", { status: 404 })
+      return NextResponse.json({
+        roomId: existingRoom._id.toString(),
+        host: {
+          name: host.name,
+          email: host.email,
+          image: host.image || "/placeholder.svg"
+        }
+      })
     }
 
     // Create new room

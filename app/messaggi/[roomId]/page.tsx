@@ -37,17 +37,6 @@ export default function ChatRoomPage({ params }: { params: { roomId: string } })
       return
     }
 
-    // Try to get host info from sessionStorage first
-    const storedHostInfo = sessionStorage.getItem('chatHostInfo')
-    if (storedHostInfo) {
-      try {
-        const hostInfo = JSON.parse(storedHostInfo)
-        setChatRoom(prev => prev ? { ...prev, otherUser: hostInfo } : null)
-      } catch (error) {
-        console.error("Error parsing stored host info:", error)
-      }
-    }
-
     fetchChatRoom()
   }, [session, params.roomId])
 
@@ -77,7 +66,15 @@ export default function ChatRoomPage({ params }: { params: { roomId: string } })
   }
 
   if (!chatRoom) {
-    return null
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Chat non trovata</h2>
+          <p className="text-muted-foreground mb-4">La chat che stai cercando non esiste o è stata rimossa.</p>
+          <Button onClick={() => router.push("/messaggi")}>Torna ai Messaggi</Button>
+        </div>
+      </div>
+    )
   }
 
   return (
