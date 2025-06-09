@@ -75,6 +75,8 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       setLoading(true)
       const response = await fetch(`/api/events/${params.id}`)
       const data = await response.json()
+      console.log("Fetched event data:", data)
+      console.log("Host data:", data.host)
       setEvent(data)
     } catch (error) {
       console.error("Error fetching event:", error)

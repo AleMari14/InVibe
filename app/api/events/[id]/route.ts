@@ -78,6 +78,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       if (event.hostId) {
         try {
           host = await users.findOne({ _id: event.hostId })
+          console.log("Found host data:", host)
         } catch (hostError) {
           console.error("⚠️ Error fetching host:", hostError)
         }
@@ -107,6 +108,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             },
       }
 
+      console.log("Returning event with host data:", eventWithHost.host)
       return NextResponse.json(eventWithHost)
     } catch (dbError) {
       console.error("💥 Database error, using sample event:", dbError)
