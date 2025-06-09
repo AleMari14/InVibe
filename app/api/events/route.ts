@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
       const eventsCollection = db.collection("events")
 
       // Costruisci la query
-      const query: any = { availableSpots: { $gt: 0 } }
+      const query: any = { verified: true, availableSpots: { $gt: 0 } }
 
       if (filters.category && filters.category !== "all") {
         query.category = filters.category
