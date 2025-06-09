@@ -90,4 +90,4 @@ export default function ChatRoomPage({ params }: { params: { roomId: string } })
       </div>
     </div>
   )
-} 
+}
