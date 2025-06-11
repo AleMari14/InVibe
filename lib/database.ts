@@ -218,13 +218,60 @@ export class Database {
   }
 
   static async getUserEvents(userId: string) {
-    const client = await clientPromise
-    const events = client.db().collection("events")
+    try {
+      const client = await clientPromise
+      const db = client.db("invibe")
+      const eventsCollection = db.collection("events")
 
-    return await events
-      .find({ hostId: new ObjectId(userId) })
-      .sort({ createdAt: -1 })
-      .toArray()
+      const events = await eventsCollection
+        .find({ hostId: new ObjectId(userId) })
+        .sort({ createdAt: -1 })
+        .toArray()
+
+      return events.map((event) => ({
+        ...event,
+        _id: event._id.toString(),
+        hostId: event.hostId?.toString(),
+        dateStart: event.dateStart?.toISOString?.() || event.dateStart,
+        dateEnd: event.dateEnd?.toISOString?.() || event.dateEnd,
+        createdAt: event.createdAt?.toISOString?.() || event.createdAt,
+        updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
+      }))
+    } catch (error) {
+      console.error("Error fetching user events:", error)
+      throw error
+    }
+  }
+
+  static async getEventById(eventId: string) {
+    try {
+      const client = await clientPromise
+      const db = client.db("invibe")
+      const eventsCollection = db.collection("events")
+
+      if (!ObjectId.isValid(eventId)) {
+        throw new Error("Invalid event ID")
+      }
+
+      const event = await eventsCollection.findOne({ _id: new ObjectId(eventId) })
+
+      if (!event) {
+        return null
+      }
+
+      return {
+        ...event,
+        _id: event._id.toString(),
+        hostId: event.hostId?.toString(),
+        dateStart: event.dateStart?.toISOString?.() || event.dateStart,
+        dateEnd: event.dateEnd?.toISOString?.() || event.dateEnd,
+        createdAt: event.createdAt?.toISOString?.() || event.createdAt,
+        updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
+      }
+    } catch (error) {
+      console.error("Error fetching event:", error)
+      throw error
+    }
   }
 
   static async incrementEventViews(eventId: string) {

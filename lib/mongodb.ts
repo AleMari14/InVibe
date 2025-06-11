@@ -1,11 +1,17 @@
-import { MongoClient } from "mongodb"
+import { MongoClient, ServerApiVersion } from "mongodb"
 
 if (!process.env.MONGODB_URI) {
   throw new Error('Invalid/Missing environment variable: "MONGODB_URI"')
 }
 
 const uri = process.env.MONGODB_URI
-const options = {}
+const options = {
+  serverApi: {
+    version: ServerApiVersion.v1,
+    strict: true,
+    deprecationErrors: true,
+  },
+}
 
 let client: MongoClient
 let clientPromise: Promise<MongoClient>
@@ -13,7 +19,7 @@ let clientPromise: Promise<MongoClient>
 if (process.env.NODE_ENV === "development") {
   // In development mode, use a global variable so that the value
   // is preserved across module reloads caused by HMR (Hot Module Replacement).
-  const globalWithMongo = global as typeof global & {
+  const globalWithMongo = global as typeof globalThis & {
     _mongoClientPromise?: Promise<MongoClient>
   }
 
@@ -28,25 +34,28 @@ if (process.env.NODE_ENV === "development") {
   clientPromise = client.connect()
 }
 
+// Function to ensure database and collections exist
 export async function connectToDatabase() {
   try {
     const client = await clientPromise
-    const db = client.db()
+    const db = client.db("invibe")
 
-    // Ensure required collections exist
-    const collections = ["users", "events", "bookings", "reviews", "messages"]
-    for (const collection of collections) {
-      try {
-        await db.createCollection(collection)
-      } catch (error) {
-        // Collection might already exist, which is fine
-        console.log(`Collection ${collection} already exists or error:`, error)
+    // Ensure collections exist
+    const collections = await db.listCollections().toArray()
+    const collectionNames = collections.map((col) => col.name)
+
+    const requiredCollections = ["users", "events", "bookings", "reviews", "messages"]
+
+    for (const collectionName of requiredCollections) {
+      if (!collectionNames.includes(collectionName)) {
+        await db.createCollection(collectionName)
+        console.log(`Created collection: ${collectionName}`)
       }
     }
 
     return { client, db }
   } catch (error) {
-    console.error("Failed to connect to MongoDB:", error)
+    console.error("Database connection error:", error)
     throw error
   }
 }
