@@ -44,7 +44,9 @@ interface Event {
   bookingLink: string
   verified: boolean
   views: number
+  hostId?: string
   host?: {
+    _id?: string
     name: string
     email: string
     image?: string
@@ -73,6 +75,9 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     try {
       setLoading(true)
       const response = await fetch(`/api/events/${params.id}`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
       const data = await response.json()
       console.log("Fetched event data:", data)
       console.log("Host data:", data.host)
@@ -87,8 +92,10 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   const checkFavoriteStatus = async () => {
     try {
       const response = await fetch("/api/favorites")
-      const favorites = await response.json()
-      setIsFavorite(favorites.some((fav: Event) => fav._id === params.id))
+      if (response.ok) {
+        const favorites = await response.json()
+        setIsFavorite(favorites.some((fav: Event) => fav._id === params.id))
+      }
     } catch (error) {
       console.error("Error checking favorite status:", error)
     }
@@ -104,22 +111,15 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId: params.id }),
       })
-      const data = await response.json()
-      setIsFavorite(data.isFavorite)
+      if (response.ok) {
+        const data = await response.json()
+        setIsFavorite(data.isFavorite)
+      }
     } catch (error) {
       console.error("Error toggling favorite:", error)
     } finally {
       setFavoriteLoading(false)
     }
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
   }
 
   const formatDateRange = (startDate: string, endDate?: string) => {
@@ -336,7 +336,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
               </div>
               {session?.user?.email !== event.host.email && (
                 <MessageHostButton
-                  hostId={event.host._id || event.hostId}
+                  hostId={event.host._id || event.hostId || ""}
                   hostName={event.host.name}
                   hostEmail={event.host.email}
                   eventId={event._id}
@@ -374,18 +374,20 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
         )}
 
         {/* Booking Link */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-          <h3 className="font-semibold mb-3">Prenotazione Ufficiale</h3>
-          <a
-            href={event.bookingLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 p-3 border border-blue-200 rounded-lg hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-900/20 transition-colors"
-          >
-            <ExternalLink className="h-4 w-4 text-blue-600" />
-            <span className="text-blue-600 font-medium">Prenota su piattaforma ufficiale</span>
-          </a>
-        </motion.div>
+        {event.bookingLink && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <h3 className="font-semibold mb-3">Prenotazione Ufficiale</h3>
+            <a
+              href={event.bookingLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 p-3 border border-blue-200 rounded-lg hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-900/20 transition-colors"
+            >
+              <ExternalLink className="h-4 w-4 text-blue-600" />
+              <span className="text-blue-600 font-medium">Prenota su piattaforma ufficiale</span>
+            </a>
+          </motion.div>
+        )}
       </div>
 
       {/* Bottom Booking Bar */}
