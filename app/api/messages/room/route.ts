@@ -20,20 +20,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 })
     }
 
-    console.log("Creating chat room between:", session.user.email, "and", hostEmail)
+    console.log("Looking for chat between:", session.user.email, "and", hostEmail)
 
     const client = await clientPromise
     const db = client.db("invibe")
 
-    // Generate a unique room ID
-    const roomId = `${eventId}_${session.user.email}_${hostEmail}`.replace(/[^a-zA-Z0-9_]/g, "_")
+    // Create a consistent room ID based on the two users (sorted to ensure uniqueness)
+    const participants = [session.user.email, hostEmail].sort()
+    const roomId = `${participants[0]}_${participants[1]}`.replace(/[^a-zA-Z0-9_]/g, "_")
 
-    // Check if chat room already exists
-    const existingRoom = await db.collection("chatRooms").findOne({ roomId })
+    console.log("Generated room ID:", roomId)
+
+    // Check if chat room already exists between these two users
+    const existingRoom = await db.collection("chatRooms").findOne({
+      $or: [
+        { roomId },
+        {
+          "participants.email": { $all: [session.user.email, hostEmail] },
+        },
+      ],
+    })
 
     if (existingRoom) {
-      console.log("Chat room already exists:", roomId)
-      return NextResponse.json({ roomId: existingRoom.roomId })
+      console.log("Found existing chat room:", existingRoom.roomId)
+      return NextResponse.json({
+        roomId: existingRoom.roomId,
+        isNew: false,
+        message: "Chat esistente trovata",
+      })
     }
 
     // Get user details
@@ -47,20 +61,23 @@ export async function POST(request: Request) {
     // Create new chat room
     const chatRoom = {
       roomId,
-      eventId,
-      eventTitle,
       participants: [
         {
           email: session.user.email,
-          name: currentUser?.name || session.user.name,
+          name: currentUser?.name || session.user.name || "Utente",
           image: currentUser?.image || session.user.image,
         },
         {
           email: hostEmail,
-          name: hostUser.name,
+          name: hostUser.name || "Utente",
           image: hostUser.image,
         },
       ],
+      // Store the event that initiated this chat (but chat is not limited to this event)
+      initialEvent: {
+        eventId,
+        eventTitle,
+      },
       createdAt: new Date(),
       updatedAt: new Date(),
       lastMessage: null,
@@ -68,11 +85,15 @@ export async function POST(request: Request) {
     }
 
     const result = await db.collection("chatRooms").insertOne(chatRoom)
-    console.log("Chat room created:", result.insertedId)
+    console.log("New chat room created:", result.insertedId)
 
-    return NextResponse.json({ roomId })
+    return NextResponse.json({
+      roomId,
+      isNew: true,
+      message: "Nuova chat creata",
+    })
   } catch (error) {
-    console.error("Error creating chat room:", error)
+    console.error("Error creating/finding chat room:", error)
     return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

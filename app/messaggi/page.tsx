@@ -18,13 +18,15 @@ import { toast } from "sonner"
 interface ChatRoom {
   _id: string
   roomId: string
-  eventId: string
-  eventTitle: string
   participants: Array<{
     email: string
     name: string
     image?: string
   }>
+  initialEvent?: {
+    eventId: string
+    eventTitle: string
+  }
   lastMessage: {
     content: string
     senderId: string
@@ -93,7 +95,8 @@ export default function MessaggiPage() {
 
   const filteredRooms = chatRooms.filter((room) => {
     const matchesSearch =
-      room.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      room.initialEvent?.eventTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      false ||
       room.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase())
 
     if (activeTab === "unread") return matchesSearch && room.unreadCount > 0
@@ -167,7 +170,7 @@ export default function MessaggiPage() {
               </p>
               <p className="text-sm">
                 {chatRooms.length === 0
-                  ? "Le tue conversazioni appariranno qui quando inizierai a chattare con gli organizzatori degli eventi"
+                  ? "Le tue conversazioni appariranno qui quando inizierai a chattare con altri utenti"
                   : "Prova a modificare i filtri di ricerca"}
               </p>
             </div>
@@ -200,7 +203,11 @@ export default function MessaggiPage() {
                         <Badge className="bg-blue-500 text-white text-xs">{room.unreadCount}</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-1">{room.eventTitle}</p>
+                    {room.initialEvent && (
+                      <p className="text-xs text-muted-foreground truncate mt-1">
+                        Evento: {room.initialEvent.eventTitle}
+                      </p>
+                    )}
                   </div>
                 </motion.div>
               </Link>
