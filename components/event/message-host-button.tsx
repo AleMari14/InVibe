@@ -27,6 +27,12 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
       return
     }
 
+    // Check if user is trying to message themselves
+    if (hostEmail === session.user.email) {
+      toast.error("Non puoi inviare messaggi a te stesso")
+      return
+    }
+
     if (!hostEmail || !eventId || !eventTitle) {
       console.error("Missing required props:", { hostEmail, eventId, eventTitle })
       toast.error("Errore: dati mancanti per la chat")
@@ -38,7 +44,8 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
       console.log("Creating chat room with data:", {
         hostId: hostEmail,
         eventId,
-        eventTitle
+        eventTitle,
+        currentUser: session.user.email,
       })
 
       const response = await fetch("/api/messages/room", {
@@ -55,6 +62,7 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
 
       if (!response.ok) {
         const errorData = await response.json()
+        console.error("API Error:", errorData)
         throw new Error(errorData.error || "Errore nella creazione della chat")
       }
 
@@ -72,13 +80,7 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
   }
 
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      onClick={handleClick}
-      disabled={isLoading}
-      className="flex items-center gap-2"
-    >
+    <Button variant="outline" size="sm" onClick={handleClick} disabled={isLoading} className="flex items-center gap-2">
       <MessageSquare className="h-4 w-4" />
       {isLoading ? "Caricamento..." : `Contatta ${hostName}`}
     </Button>

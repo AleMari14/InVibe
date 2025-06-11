@@ -9,7 +9,6 @@ import {
   Users,
   Share,
   Heart,
-  MessageCircle,
   ExternalLink,
   Shield,
   CheckCircle,
@@ -331,17 +330,19 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   </div>
                   <div className="text-sm text-muted-foreground flex items-center gap-1">
                     <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    {event.host.rating} • {event.host.reviewCount} recensioni
+                    {event.host.rating || 4.8} • {event.host.reviewCount || 0} recensioni
                   </div>
                 </div>
               </div>
-              <MessageHostButton
-                hostId={event.host.email}
-                hostName={event.host.name}
-                hostEmail={event.host.email}
-                eventId={event._id}
-                eventTitle={event.title}
-              />
+              {session?.user?.email !== event.host.email && (
+                <MessageHostButton
+                  hostId={event.host._id || event.hostId}
+                  hostName={event.host.name}
+                  hostEmail={event.host.email}
+                  eventId={event._id}
+                  eventTitle={event.title}
+                />
+              )}
             </div>
           </motion.div>
         )}
