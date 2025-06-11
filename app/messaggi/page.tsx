@@ -17,9 +17,14 @@ import { toast } from "sonner"
 
 interface ChatRoom {
   _id: string
+  roomId: string
   eventId: string
   eventTitle: string
-  participants: string[]
+  participants: Array<{
+    email: string
+    name: string
+    image?: string
+  }>
   lastMessage: {
     content: string
     senderId: string
@@ -28,8 +33,9 @@ interface ChatRoom {
   unreadCount: number
   archived: boolean
   otherUser: {
+    email: string
     name: string
-    image: string
+    image?: string
   }
 }
 
@@ -42,19 +48,29 @@ export default function MessaggiPage() {
   const [unreadCount, setUnreadCount] = useState(0)
 
   useEffect(() => {
-    if (session) {
+    if (session?.user?.email) {
       fetchChatRooms()
     }
   }, [session])
 
   const fetchChatRooms = async () => {
     try {
+      setIsLoading(true)
+      console.log("Fetching chat rooms...")
+
       const response = await fetch("/api/messages/rooms")
-      if (!response.ok) throw new Error("Errore nel caricamento delle chat")
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nel caricamento delle chat")
+      }
+
       const data = await response.json()
-      setChatRooms(data.rooms)
-      setUnreadCount(data.rooms.reduce((acc: number, room: ChatRoom) => acc + room.unreadCount, 0))
+      console.log("Chat rooms received:", data.rooms?.length || 0)
+
+      setChatRooms(data.rooms || [])
+      setUnreadCount(data.rooms?.reduce((acc: number, room: ChatRoom) => acc + room.unreadCount, 0) || 0)
     } catch (error) {
+      console.error("Error fetching chat rooms:", error)
       toast.error("Errore nel caricamento delle chat")
     } finally {
       setIsLoading(false)
@@ -68,16 +84,18 @@ export default function MessaggiPage() {
       })
       if (!response.ok) throw new Error("Errore nell'aggiornamento dei messaggi")
       setUnreadCount(0)
-      setChatRooms(rooms => rooms.map(room => ({ ...room, unreadCount: 0 })))
+      setChatRooms((rooms) => rooms.map((room) => ({ ...room, unreadCount: 0 })))
+      toast.success("Tutti i messaggi sono stati segnati come letti")
     } catch (error) {
       toast.error("Errore nell'aggiornamento dei messaggi")
     }
   }
 
-  const filteredRooms = chatRooms.filter(room => {
-    const matchesSearch = room.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  const filteredRooms = chatRooms.filter((room) => {
+    const matchesSearch =
+      room.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
       room.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase())
-    
+
     if (activeTab === "unread") return matchesSearch && room.unreadCount > 0
     if (activeTab === "archived") return matchesSearch && room.archived
     return matchesSearch
@@ -144,19 +162,26 @@ export default function MessaggiPage() {
           {filteredRooms.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p>Nessun messaggio trovato</p>
+              <p className="text-lg font-medium mb-2">
+                {chatRooms.length === 0 ? "Nessuna chat ancora" : "Nessun messaggio trovato"}
+              </p>
+              <p className="text-sm">
+                {chatRooms.length === 0
+                  ? "Le tue conversazioni appariranno qui quando inizierai a chattare con gli organizzatori degli eventi"
+                  : "Prova a modificare i filtri di ricerca"}
+              </p>
             </div>
           ) : (
             filteredRooms.map((room) => (
-              <Link key={room._id} href={`/messaggi/${room._id}`}>
+              <Link key={room.roomId} href={`/messaggi/${room.roomId}`}>
                 <motion.div
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent transition-colors"
+                  className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent transition-colors border border-border"
                 >
                   <Avatar className="h-12 w-12">
-                    <AvatarImage src={room.otherUser.image} />
-                    <AvatarFallback>{room.otherUser.name[0]}</AvatarFallback>
+                    <AvatarImage src={room.otherUser.image || "/placeholder.svg"} />
+                    <AvatarFallback>{room.otherUser.name.charAt(0)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
@@ -169,17 +194,13 @@ export default function MessaggiPage() {
                     </div>
                     <div className="flex items-center justify-between">
                       <p className="text-sm text-muted-foreground truncate">
-                        {room.lastMessage ? room.lastMessage.content : "Nessun messaggio"}
+                        {room.lastMessage ? room.lastMessage.content : "Nessun messaggio ancora"}
                       </p>
                       {room.unreadCount > 0 && (
-                        <Badge className="bg-blue-500 text-white text-xs">
-                          {room.unreadCount}
-                        </Badge>
+                        <Badge className="bg-blue-500 text-white text-xs">{room.unreadCount}</Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate mt-1">
-                      {room.eventTitle}
-                    </p>
+                    <p className="text-xs text-muted-foreground truncate mt-1">{room.eventTitle}</p>
                   </div>
                 </motion.div>
               </Link>

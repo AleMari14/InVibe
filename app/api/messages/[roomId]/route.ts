@@ -16,7 +16,7 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
     const client = await clientPromise
     const db = client.db("invibe")
 
-    // First check if the chat room exists and user has access
+    // Check if chat room exists and user has access
     const chatRoom = await db.collection("chatRooms").findOne({ roomId })
     if (!chatRoom) {
       return NextResponse.json({ error: "Chat room not found" }, { status: 404 })
@@ -78,7 +78,7 @@ export async function POST(request: Request, { params }: { params: { roomId: str
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Get sender info
+    // Get sender and recipient info
     const sender = chatRoom.participants.find((p: any) => p.email === session.user.email)
     const recipient = chatRoom.participants.find((p: any) => p.email !== session.user.email)
 
@@ -120,10 +120,10 @@ export async function POST(request: Request, { params }: { params: { roomId: str
         message: `${sender?.name || session.user.name} ti ha inviato un messaggio: "${content.substring(0, 50)}${content.length > 50 ? "..." : ""}"`,
         eventId: chatRoom.eventId,
         eventTitle: chatRoom.eventTitle,
+        roomId: roomId,
         fromUserId: session.user.email,
         fromUserName: sender?.name || session.user.name,
         fromUserImage: sender?.image || session.user.image,
-        roomId: roomId,
         read: false,
         createdAt: new Date(),
       }
