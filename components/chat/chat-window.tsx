@@ -1,21 +1,25 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import type React from "react"
+
+import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { Send, Loader2, ArrowLeft } from "lucide-react"
+import { Send, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { format } from "date-fns"
-import { it } from "date-fns/locale"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"
 
 interface Message {
   _id: string
+  roomId: string
   content: string
   senderId: string
+  senderName: string
+  senderImage?: string
   createdAt: string
+  readBy: string[]
 }
 
 interface ChatWindowProps {
@@ -23,9 +27,9 @@ interface ChatWindowProps {
   otherUser: {
     name: string
     email: string
-    image: string
+    image?: string
   }
-  onClose: () => void
+  onClose?: () => void
 }
 
 export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
@@ -34,26 +38,37 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
   const [newMessage, setNewMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const socketRef = useRef<WebSocket | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    fetchMessages()
-    setupWebSocket()
-
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.close()
-      }
+    if (roomId) {
+      fetchMessages()
     }
   }, [roomId])
 
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }
+
   const fetchMessages = async () => {
     try {
+      setIsLoading(true)
+      console.log("Fetching messages for room:", roomId)
+
       const response = await fetch(`/api/messages/${roomId}`)
-      if (!response.ok) throw new Error("Errore nel caricamento dei messaggi")
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to fetch messages")
+      }
+
       const data = await response.json()
-      setMessages(data.messages)
+      console.log("Messages fetched:", data.messages?.length || 0)
+      setMessages(data.messages || [])
     } catch (error) {
       console.error("Error fetching messages:", error)
       toast.error("Errore nel caricamento dei messaggi")
@@ -62,144 +77,117 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
     }
   }
 
-  const setupWebSocket = () => {
-    const ws = new WebSocket(
-      `${process.env.NEXT_PUBLIC_WS_URL}/chat?roomId=${roomId}&userId=${session?.user?.email}`
-    )
-
-    ws.onmessage = (event) => {
-      const message = JSON.parse(event.data)
-      setMessages((prev) => [...prev, message])
-      scrollToBottom()
-    }
-
-    ws.onerror = (error) => {
-      console.error("WebSocket error:", error)
-      toast.error("Errore di connessione")
-    }
-
-    socketRef.current = ws
-  }
-
-  const scrollToBottom = () => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }
-
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || !socketRef.current) return
+    if (!newMessage.trim() || isSending) return
 
+    const messageContent = newMessage.trim()
+    setNewMessage("")
     setIsSending(true)
+
     try {
-      socketRef.current.send(
-        JSON.stringify({
-          content: newMessage,
-          roomId,
-          senderId: session?.user?.email,
-        })
-      )
-      setNewMessage("")
+      console.log("Sending message:", messageContent)
+
+      const response = await fetch(`/api/messages/${roomId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content: messageContent }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Failed to send message")
+      }
+
+      const sentMessage = await response.json()
+      console.log("Message sent:", sentMessage)
+
+      setMessages((prev) => [...prev, sentMessage])
+      toast.success("Messaggio inviato")
     } catch (error) {
       console.error("Error sending message:", error)
       toast.error("Errore nell'invio del messaggio")
+      setNewMessage(messageContent) // Restore message on error
     } finally {
       setIsSending(false)
     }
   }
 
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleTimeString("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="flex items-center justify-center h-full">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Chat Header */}
-      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={onClose}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={otherUser.image} />
-          <AvatarFallback>{otherUser.name[0]}</AvatarFallback>
-        </Avatar>
-        <div>
-          <h3 className="font-medium">{otherUser.name}</h3>
-          <p className="text-xs text-muted-foreground">Online</p>
-        </div>
-      </div>
-
+    <div className="flex flex-col h-full">
       {/* Messages */}
-      <ScrollArea ref={scrollRef} className="flex-1 p-4">
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
-          {messages.map((message) => {
-            const isOwnMessage = message.senderId === session?.user?.email
-            return (
-              <div
-                key={message._id}
-                className={`flex ${isOwnMessage ? "justify-end" : "justify-start"}`}
-              >
-                <div
-                  className={`flex gap-2 max-w-[80%] ${
-                    isOwnMessage ? "flex-row-reverse" : "flex-row"
-                  }`}
-                >
+          {messages.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8">
+              <p>Nessun messaggio ancora.</p>
+              <p className="text-sm">Inizia la conversazione!</p>
+            </div>
+          ) : (
+            messages.map((message) => {
+              const isOwnMessage = message.senderId === session?.user?.email
+              return (
+                <div key={message._id} className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
                   <Avatar className="h-8 w-8">
                     <AvatarImage
-                      src={isOwnMessage ? session?.user?.image : otherUser.image}
+                      src={isOwnMessage ? session?.user?.image || "" : otherUser.image || ""}
+                      alt={isOwnMessage ? session?.user?.name || "" : otherUser.name}
                     />
                     <AvatarFallback>
-                      {isOwnMessage
-                        ? session?.user?.name?.[0]
-                        : otherUser.name[0]}
+                      {isOwnMessage ? session?.user?.name?.charAt(0) || "U" : otherUser.name.charAt(0)}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
                     <div
-                      className={`rounded-lg px-4 py-2 ${
-                        isOwnMessage
-                          ? "bg-primary text-primary-foreground"
-                          : "bg-muted"
+                      className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
+                        isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                       }`}
                     >
                       <p className="text-sm">{message.content}</p>
                     </div>
-                    <span className="text-xs text-muted-foreground mt-1 block">
-                      {format(new Date(message.createdAt), "HH:mm", {
-                        locale: it,
-                      })}
-                    </span>
+                    <span className="text-xs text-muted-foreground mt-1">{formatTime(message.createdAt)}</span>
                   </div>
                 </div>
-              </div>
-            )
-          })}
+              )
+            })
+          )}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
       {/* Message Input */}
-      <form onSubmit={handleSendMessage} className="p-4 border-t border-border">
-        <div className="flex gap-2">
+      <div className="border-t p-4">
+        <form onSubmit={sendMessage} className="flex gap-2">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Scrivi un messaggio..."
             disabled={isSending}
+            className="flex-1"
           />
-          <Button type="submit" disabled={isSending || !newMessage.trim()}>
-            {isSending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Send className="h-4 w-4" />
-            )}
+          <Button type="submit" disabled={!newMessage.trim() || isSending} size="icon">
+            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   )
 }
