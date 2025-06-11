@@ -13,6 +13,7 @@ import {
   Sparkles,
   TrendingUp,
   MessageSquare,
+  Bell,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,10 +22,13 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useRouter } from "next/navigation"
+import { useNotifications } from "@/hooks/use-notifications"
 
 const categories = [
   { id: "casa", name: "Case", icon: "🏠", gradient: "from-green-500 to-emerald-600" },
@@ -66,6 +70,8 @@ export default function HomePage() {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [error, setError] = useState("")
   const { data: session } = useSession()
+  const router = useRouter()
+  const { notifications, unreadCount, markAsRead } = useNotifications()
 
   useEffect(() => {
     fetchEvents()
@@ -158,6 +164,19 @@ export default function HomePage() {
     }
   }
 
+  const handleEventClick = (eventId: string) => {
+    router.push(`/evento/${eventId}`)
+  }
+
+  const handleNotificationClick = (notification: any) => {
+    markAsRead(notification._id)
+    if (notification.type === "message") {
+      router.push(`/messaggi/${notification.roomId}`)
+    } else if (notification.eventId) {
+      router.push(`/evento/${notification.eventId}`)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString("it-IT", {
@@ -195,6 +214,54 @@ export default function HomePage() {
               >
                 {session ? (
                   <>
+                    {/* Notifications Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="relative">
+                          <Bell className="h-5 w-5" />
+                          {unreadCount > 0 && (
+                            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500 text-white">
+                              {unreadCount > 9 ? "9+" : unreadCount}
+                            </Badge>
+                          )}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-80">
+                        <div className="p-2">
+                          <h3 className="font-semibold mb-2">Notifiche</h3>
+                          {notifications.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Nessuna notifica</p>
+                          ) : (
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {notifications.slice(0, 5).map((notification) => (
+                                <DropdownMenuItem
+                                  key={notification._id}
+                                  className="flex flex-col items-start p-3 cursor-pointer"
+                                  onClick={() => handleNotificationClick(notification)}
+                                >
+                                  <div className="flex items-center justify-between w-full">
+                                    <span className="font-medium text-sm">{notification.title}</span>
+                                    {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                                  <span className="text-xs text-muted-foreground mt-1">
+                                    {new Date(notification.createdAt).toLocaleDateString("it-IT")}
+                                  </span>
+                                </DropdownMenuItem>
+                              ))}
+                            </div>
+                          )}
+                          {notifications.length > 5 && (
+                            <Link href="/notifiche">
+                              <Button variant="ghost" size="sm" className="w-full mt-2">
+                                Vedi tutte
+                              </Button>
+                            </Link>
+                          )}
+                        </div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
                     <Link href="/crea-evento">
                       <Button
                         size="sm"
@@ -326,7 +393,8 @@ export default function HomePage() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 * index }}
-                  className="min-w-[240px]"
+                  className="min-w-[240px] cursor-pointer"
+                  onClick={() => handleEventClick(event._id)}
                 >
                   <Card className="overflow-hidden border-border bg-gradient-to-br from-card/80 to-card/60 backdrop-blur-sm hover:shadow-2xl transition-all duration-500 hover:scale-105">
                     <div className="relative">
@@ -358,7 +426,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Events Grid - Modificato per essere più compatto */}
+      {/* Events Grid - Ora cliccabile */}
       <div className="px-3 sm:px-4 py-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
           <AnimatePresence>
@@ -387,6 +455,8 @@ export default function HomePage() {
                     exit={{ opacity: 0, y: -20 }}
                     transition={{ duration: 0.3, delay: 0.05 * index }}
                     whileHover={{ y: -5 }}
+                    className="cursor-pointer"
+                    onClick={() => handleEventClick(event._id)}
                   >
                     <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 group h-[360px] flex flex-col">
                       <div className="relative">
@@ -496,13 +566,15 @@ export default function HomePage() {
                           </div>
                         </div>
 
-                        <Link href={`/evento/${event._id}`}>
-                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                            <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs shadow-lg hover:shadow-xl transition-all duration-300">
-                              Vedi Dettagli
-                            </Button>
-                          </motion.div>
-                        </Link>
+                        <Button
+                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs shadow-lg hover:shadow-xl transition-all duration-300"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleEventClick(event._id)
+                          }}
+                        >
+                          Vedi Dettagli
+                        </Button>
                       </CardContent>
                     </Card>
                   </motion.div>

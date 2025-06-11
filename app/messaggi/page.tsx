@@ -3,13 +3,24 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
-import { ArrowLeft, MessageSquare, Search, Loader2 } from "lucide-react"
+import { ArrowLeft, MessageSquare, Search, Loader2, MoreVertical, Trash2, Archive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { motion } from "framer-motion"
 import { format } from "date-fns"
 import { it } from "date-fns/locale"
@@ -48,6 +59,8 @@ export default function MessaggiPage() {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [roomToDelete, setRoomToDelete] = useState<string | null>(null)
 
   useEffect(() => {
     if (session?.user?.email) {
@@ -93,6 +106,57 @@ export default function MessaggiPage() {
     }
   }
 
+  const deleteChat = async (roomId: string) => {
+    try {
+      const response = await fetch(`/api/messages/room/${roomId}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        throw new Error("Errore nell'eliminazione della chat")
+      }
+
+      setChatRooms((rooms) => rooms.filter((room) => room.roomId !== roomId))
+      toast.success("Chat eliminata con successo")
+    } catch (error) {
+      console.error("Error deleting chat:", error)
+      toast.error("Errore nell'eliminazione della chat")
+    }
+  }
+
+  const archiveChat = async (roomId: string) => {
+    try {
+      const response = await fetch(`/api/messages/room/${roomId}/archive`, {
+        method: "POST",
+      })
+
+      if (!response.ok) {
+        throw new Error("Errore nell'archiviazione della chat")
+      }
+
+      setChatRooms((rooms) =>
+        rooms.map((room) => (room.roomId === roomId ? { ...room, archived: !room.archived } : room)),
+      )
+      toast.success("Chat archiviata con successo")
+    } catch (error) {
+      console.error("Error archiving chat:", error)
+      toast.error("Errore nell'archiviazione della chat")
+    }
+  }
+
+  const handleDeleteClick = (roomId: string) => {
+    setRoomToDelete(roomId)
+    setDeleteDialogOpen(true)
+  }
+
+  const confirmDelete = () => {
+    if (roomToDelete) {
+      deleteChat(roomToDelete)
+      setRoomToDelete(null)
+    }
+    setDeleteDialogOpen(false)
+  }
+
   const filteredRooms = chatRooms.filter((room) => {
     const matchesSearch =
       room.initialEvent?.eventTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -101,7 +165,7 @@ export default function MessaggiPage() {
 
     if (activeTab === "unread") return matchesSearch && room.unreadCount > 0
     if (activeTab === "archived") return matchesSearch && room.archived
-    return matchesSearch
+    return matchesSearch && !room.archived
   })
 
   if (isLoading) {
@@ -176,45 +240,92 @@ export default function MessaggiPage() {
             </div>
           ) : (
             filteredRooms.map((room) => (
-              <Link key={room.roomId} href={`/messaggi/${room.roomId}`}>
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="flex items-center gap-4 p-3 rounded-lg hover:bg-accent transition-colors border border-border"
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={room.otherUser.image || "/placeholder.svg"} />
-                    <AvatarFallback>{room.otherUser.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium truncate">{room.otherUser.name}</h3>
-                      {room.lastMessage && (
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(room.lastMessage.createdAt), "HH:mm", { locale: it })}
-                        </span>
+              <div key={room.roomId} className="flex items-center gap-4 p-3 rounded-lg border border-border group">
+                <Link href={`/messaggi/${room.roomId}`} className="flex items-center gap-4 flex-1">
+                  <motion.div
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="flex items-center gap-4 flex-1"
+                  >
+                    <Avatar className="h-12 w-12">
+                      <AvatarImage src={room.otherUser.image || "/placeholder.svg"} />
+                      <AvatarFallback>{room.otherUser.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="font-medium truncate">{room.otherUser.name}</h3>
+                        {room.lastMessage && (
+                          <span className="text-xs text-muted-foreground">
+                            {format(new Date(room.lastMessage.createdAt), "HH:mm", { locale: it })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm text-muted-foreground truncate">
+                          {room.lastMessage ? room.lastMessage.content : "Nessun messaggio ancora"}
+                        </p>
+                        {room.unreadCount > 0 && (
+                          <Badge className="bg-blue-500 text-white text-xs">{room.unreadCount}</Badge>
+                        )}
+                      </div>
+                      {room.initialEvent && (
+                        <p className="text-xs text-muted-foreground truncate mt-1">
+                          Evento: {room.initialEvent.eventTitle}
+                        </p>
                       )}
                     </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground truncate">
-                        {room.lastMessage ? room.lastMessage.content : "Nessun messaggio ancora"}
-                      </p>
-                      {room.unreadCount > 0 && (
-                        <Badge className="bg-blue-500 text-white text-xs">{room.unreadCount}</Badge>
-                      )}
-                    </div>
-                    {room.initialEvent && (
-                      <p className="text-xs text-muted-foreground truncate mt-1">
-                        Evento: {room.initialEvent.eventTitle}
-                      </p>
-                    )}
-                  </div>
-                </motion.div>
-              </Link>
+                  </motion.div>
+                </Link>
+
+                {/* Chat Actions */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => archiveChat(room.roomId)}>
+                      <Archive className="h-4 w-4 mr-2" />
+                      {room.archived ? "Disarchivia" : "Archivia"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => handleDeleteClick(room.roomId)}
+                      className="text-red-600 focus:text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Elimina
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             ))
           )}
         </div>
       </ScrollArea>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Elimina chat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Sei sicuro di voler eliminare questa chat? Questa azione non può essere annullata e tutti i messaggi
+              verranno persi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
+              Elimina
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
