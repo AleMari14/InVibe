@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { ArrowLeft, Bell, Heart, Calendar, Users, Star } from "lucide-react"
+import { ArrowLeft, Bell, MessageSquare, Calendar, Users, Star } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -9,102 +9,70 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { motion, AnimatePresence } from "framer-motion"
+import { useNotifications } from "@/hooks/use-notifications"
+import { toast } from "sonner"
 
 interface Notification {
-  id: string
-  type: "booking" | "favorite" | "review" | "event" | "system"
+  _id: string
+  type: "message" | "booking" | "favorite" | "review" | "event" | "system"
   title: string
   message: string
-  timestamp: string
+  eventId?: string
+  eventTitle?: string
+  roomId?: string
+  fromUserId?: string
+  fromUserName?: string
+  fromUserImage?: string
   read: boolean
-  actionUrl?: string
-  user?: {
-    name: string
-    image?: string
-  }
+  createdAt: string
 }
 
 export default function NotifichePage() {
   const [activeTab, setActiveTab] = useState("all")
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: "1",
-      type: "booking",
-      title: "Nuova prenotazione",
-      message: "Marco R. si è unito al tuo evento 'Villa con Piscina - Toscana'",
-      timestamp: "5 min fa",
-      read: false,
-      actionUrl: "/prenotazioni",
-      user: {
-        name: "Marco R.",
-        image: "/placeholder.svg?height=40&width=40",
-      },
-    },
-    {
-      id: "2",
-      type: "favorite",
-      title: "Nuovo preferito",
-      message: "Il tuo evento è stato aggiunto ai preferiti da 3 persone",
-      timestamp: "1 ora fa",
-      read: false,
-      actionUrl: "/crea-evento",
-    },
-    {
-      id: "3",
-      type: "review",
-      title: "Nuova recensione",
-      message: "Sofia M. ha lasciato una recensione a 5 stelle per il tuo evento",
-      timestamp: "2 ore fa",
-      read: true,
-      actionUrl: "/profile",
-      user: {
-        name: "Sofia M.",
-        image: "/placeholder.svg?height=40&width=40",
-      },
-    },
-    {
-      id: "4",
-      type: "event",
-      title: "Promemoria evento",
-      message: "Il tuo evento 'Weekend Sci Dolomiti' inizia domani",
-      timestamp: "3 ore fa",
-      read: true,
-      actionUrl: "/prenotazioni",
-    },
-    {
-      id: "5",
-      type: "system",
-      title: "Benvenuto su InVibe!",
-      message: "Completa il tuo profilo per iniziare a creare eventi",
-      timestamp: "1 giorno fa",
-      read: true,
-      actionUrl: "/profile",
-    },
-  ])
+  const { notifications, unreadCount, markAsRead } = useNotifications()
 
   const getIcon = (type: string) => {
     switch (type) {
+      case "message":
+        return <MessageSquare className="h-5 w-5 text-blue-500" />
       case "booking":
-        return <Calendar className="h-5 w-5 text-blue-500" />
+        return <Calendar className="h-5 w-5 text-green-500" />
       case "favorite":
-        return <Heart className="h-5 w-5 text-red-500" />
-      case "review":
         return <Star className="h-5 w-5 text-yellow-500" />
+      case "review":
+        return <Star className="h-5 w-5 text-orange-500" />
       case "event":
         return <Users className="h-5 w-5 text-purple-500" />
       case "system":
-        return <Bell className="h-5 w-5 text-green-500" />
+        return <Bell className="h-5 w-5 text-gray-500" />
       default:
         return <Bell className="h-5 w-5 text-gray-500" />
     }
   }
 
-  const markAsRead = (id: string) => {
-    setNotifications((prev) => prev.map((notif) => (notif.id === id ? { ...notif, read: true } : notif)))
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.read) {
+      await markAsRead(notification._id)
+    }
+
+    // Navigate based on notification type
+    if (notification.type === "message" && notification.roomId) {
+      window.location.href = `/messaggi/${notification.roomId}`
+    } else if (notification.eventId) {
+      window.location.href = `/evento/${notification.eventId}`
+    }
   }
 
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((notif) => ({ ...notif, read: true })))
+  const markAllAsRead = async () => {
+    try {
+      const unreadNotifications = notifications.filter((n) => !n.read)
+      for (const notification of unreadNotifications) {
+        await markAsRead(notification._id)
+      }
+      toast.success("Tutte le notifiche sono state segnate come lette")
+    } catch (error) {
+      toast.error("Errore nel segnare le notifiche come lette")
+    }
   }
 
   const filteredNotifications = notifications.filter((notif) => {
@@ -113,7 +81,21 @@ export default function NotifichePage() {
     return notif.type === activeTab
   })
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+    if (diffInHours < 1) {
+      const diffInMinutes = Math.floor(diffInHours * 60)
+      return `${diffInMinutes} min fa`
+    } else if (diffInHours < 24) {
+      return `${Math.floor(diffInHours)} ore fa`
+    } else {
+      const diffInDays = Math.floor(diffInHours / 24)
+      return `${diffInDays} giorni fa`
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background pb-20">
@@ -146,8 +128,8 @@ export default function NotifichePage() {
           <TabsList className="grid w-full grid-cols-4 bg-muted">
             <TabsTrigger value="all">Tutte</TabsTrigger>
             <TabsTrigger value="unread">Non lette</TabsTrigger>
-            <TabsTrigger value="booking">Prenotazioni</TabsTrigger>
-            <TabsTrigger value="event">Eventi</TabsTrigger>
+            <TabsTrigger value="message">Messaggi</TabsTrigger>
+            <TabsTrigger value="booking">Eventi</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -166,7 +148,7 @@ export default function NotifichePage() {
             <AnimatePresence>
               {filteredNotifications.map((notification, index) => (
                 <motion.div
-                  key={notification.id}
+                  key={notification._id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, x: -100 }}
@@ -177,25 +159,15 @@ export default function NotifichePage() {
                     className={`border-border bg-card/80 backdrop-blur-sm hover:shadow-lg transition-all duration-300 cursor-pointer ${
                       !notification.read ? "ring-2 ring-blue-500/20" : ""
                     }`}
-                    onClick={() => {
-                      markAsRead(notification.id)
-                      if (notification.actionUrl) {
-                        window.location.href = notification.actionUrl
-                      }
-                    }}
+                    onClick={() => handleNotificationClick(notification)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
                         <div className="flex-shrink-0">
-                          {notification.user ? (
+                          {notification.fromUserImage ? (
                             <Avatar className="h-10 w-10">
-                              <AvatarImage src={notification.user.image || "/placeholder.svg"} />
-                              <AvatarFallback>
-                                {notification.user.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
+                              <AvatarImage src={notification.fromUserImage || "/placeholder.svg"} />
+                              <AvatarFallback>{notification.fromUserName?.charAt(0) || "U"}</AvatarFallback>
                             </Avatar>
                           ) : (
                             <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
@@ -214,7 +186,9 @@ export default function NotifichePage() {
                               {notification.title}
                             </h3>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-muted-foreground">{notification.timestamp}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {formatTime(notification.createdAt)}
+                              </span>
                               {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
                             </div>
                           </div>
@@ -222,6 +196,10 @@ export default function NotifichePage() {
                           <p className={`text-sm ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>
                             {notification.message}
                           </p>
+
+                          {notification.eventTitle && (
+                            <p className="text-xs text-muted-foreground mt-1">Evento: {notification.eventTitle}</p>
+                          )}
                         </div>
                       </div>
                     </CardContent>

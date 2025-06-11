@@ -30,6 +30,16 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
     // Get messages for this room
     const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
 
+    // Mark messages as read by current user
+    await db.collection("messages").updateMany(
+      {
+        roomId,
+        senderId: { $ne: session.user.email },
+        readBy: { $ne: session.user.email },
+      },
+      { $addToSet: { readBy: session.user.email } },
+    )
+
     console.log(`Found ${messages.length} messages for room ${roomId}`)
     return NextResponse.json({ messages })
   } catch (error) {
@@ -70,6 +80,7 @@ export async function POST(request: Request, { params }: { params: { roomId: str
 
     // Get sender info
     const sender = chatRoom.participants.find((p: any) => p.email === session.user.email)
+    const recipient = chatRoom.participants.find((p: any) => p.email !== session.user.email)
 
     // Create message
     const message = {
@@ -99,6 +110,27 @@ export async function POST(request: Request, { params }: { params: { roomId: str
         },
       },
     )
+
+    // Create notification for recipient
+    if (recipient) {
+      const notification = {
+        userId: recipient.email,
+        type: "message",
+        title: "Nuovo messaggio",
+        message: `${sender?.name || session.user.name} ti ha inviato un messaggio: "${content.substring(0, 50)}${content.length > 50 ? "..." : ""}"`,
+        eventId: chatRoom.eventId,
+        eventTitle: chatRoom.eventTitle,
+        fromUserId: session.user.email,
+        fromUserName: sender?.name || session.user.name,
+        fromUserImage: sender?.image || session.user.image,
+        roomId: roomId,
+        read: false,
+        createdAt: new Date(),
+      }
+
+      await db.collection("notifications").insertOne(notification)
+      console.log("Notification created for:", recipient.email)
+    }
 
     console.log("Message sent successfully:", result.insertedId)
     return NextResponse.json({ ...message, _id: result.insertedId })
