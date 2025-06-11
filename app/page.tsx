@@ -1,7 +1,19 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Filter, MapPin, Calendar, Users, Star, Heart, Plus, Sparkles, TrendingUp, MessageSquare } from "lucide-react"
+import {
+  Search,
+  Filter,
+  MapPin,
+  Calendar,
+  Users,
+  Star,
+  Heart,
+  Plus,
+  Sparkles,
+  TrendingUp,
+  MessageSquare,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -158,8 +170,8 @@ export default function HomePage() {
     <div className="min-h-screen bg-background pb-20">
       {/* Enhanced Header */}
       <div className="bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 backdrop-blur-md border-b border-border sticky top-0 z-10">
-        <div className="px-3 sm:px-4 py-4">
-          <div className="flex items-center justify-between mb-4">
+        <div className="px-3 sm:px-4 py-3">
+          <div className="flex items-center justify-between mb-3">
             <motion.div
               className="flex items-center gap-2"
               initial={{ opacity: 0, x: -20 }}
@@ -246,9 +258,9 @@ export default function HomePage() {
       </div>
 
       {/* Enhanced Categories */}
-      <div className="px-3 sm:px-4 py-4 bg-gradient-to-r from-background via-card/50 to-background">
+      <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-background via-card/50 to-background">
         <motion.div
-          className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide"
+          className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5, delay: 0.2 }}
@@ -258,7 +270,7 @@ export default function HomePage() {
               variant={selectedCategory === "all" ? "default" : "outline"}
               size="sm"
               onClick={() => setSelectedCategory("all")}
-              className={`whitespace-nowrap text-xs sm:text-sm px-4 py-2 shadow-md ${
+              className={`whitespace-nowrap text-xs sm:text-sm px-4 py-1 shadow-md ${
                 selectedCategory === "all"
                   ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
                   : "border-border hover:bg-accent hover:shadow-lg transition-all duration-300"
@@ -273,7 +285,7 @@ export default function HomePage() {
                 variant={selectedCategory === category.id ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedCategory(category.id)}
-                className={`whitespace-nowrap text-xs sm:text-sm px-4 py-2 shadow-md ${
+                className={`whitespace-nowrap text-xs sm:text-sm px-4 py-1 shadow-md ${
                   selectedCategory === category.id
                     ? `bg-gradient-to-r ${category.gradient} hover:shadow-lg text-white`
                     : "border-border hover:bg-accent hover:shadow-lg transition-all duration-300"
@@ -297,13 +309,13 @@ export default function HomePage() {
 
       {/* Featured Events Section */}
       {featuredEvents.length > 0 && (
-        <div className="px-3 sm:px-4 py-4">
+        <div className="px-3 sm:px-4 py-3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
           >
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex items-center gap-2 mb-2">
               <TrendingUp className="h-5 w-5 text-orange-500" />
               <h2 className="text-lg font-bold text-foreground">In Evidenza</h2>
             </div>
@@ -314,7 +326,7 @@ export default function HomePage() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.5, delay: 0.1 * index }}
-                  className="min-w-[280px]"
+                  className="min-w-[240px]"
                 >
                   <Card className="overflow-hidden border-border bg-gradient-to-br from-card/80 to-card/60 backdrop-blur-sm hover:shadow-2xl transition-all duration-500 hover:scale-105">
                     <div className="relative">
@@ -346,155 +358,157 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Events Grid */}
-      <div className="px-3 sm:px-4 py-4 space-y-4">
-        <AnimatePresence>
-          {loading
-            ? // Loading skeletons
-              Array.from({ length: 6 }).map((_, index) => (
-                <motion.div key={index} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                  <Card className="overflow-hidden border-border">
-                    <Skeleton className="aspect-[16/10] w-full" />
-                    <CardContent className="p-4 space-y-3">
-                      <Skeleton className="h-4 w-3/4" />
-                      <Skeleton className="h-3 w-1/2" />
-                      <div className="flex gap-2">
-                        <Skeleton className="h-6 w-16" />
-                        <Skeleton className="h-6 w-16" />
-                      </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))
-            : events.map((event, index) => (
-                <motion.div
-                  key={event._id}
-                  initial={{ opacity: 0, y: 50 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -50 }}
-                  transition={{ duration: 0.5, delay: 0.1 * index }}
-                  whileHover={{ y: -5 }}
-                >
-                  <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm hover:shadow-2xl transition-all duration-500 group">
-                    <div className="relative">
-                      <div className="aspect-[16/10] relative overflow-hidden">
-                        <Image
-                          src={event.images?.[0] || "/placeholder.svg?height=240&width=400"}
-                          alt={event.title}
-                          fill
-                          className="object-cover group-hover:scale-110 transition-transform duration-700"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                      </div>
+      {/* Events Grid - Modificato per essere più compatto */}
+      <div className="px-3 sm:px-4 py-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <AnimatePresence>
+            {loading
+              ? // Loading skeletons
+                Array.from({ length: 6 }).map((_, index) => (
+                  <motion.div key={index} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                    <Card className="overflow-hidden border-border h-[360px]">
+                      <Skeleton className="aspect-[16/10] w-full" />
+                      <CardContent className="p-3 space-y-2">
+                        <Skeleton className="h-4 w-3/4" />
+                        <Skeleton className="h-3 w-1/2" />
+                        <div className="flex gap-2">
+                          <Skeleton className="h-6 w-16" />
+                          <Skeleton className="h-6 w-16" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
+              : events.map((event, index) => (
+                  <motion.div
+                    key={event._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3, delay: 0.05 * index }}
+                    whileHover={{ y: -5 }}
+                  >
+                    <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 group h-[360px] flex flex-col">
+                      <div className="relative">
+                        <div className="aspect-[16/10] relative overflow-hidden">
+                          <Image
+                            src={event.images?.[0] || "/placeholder.svg?height=180&width=320"}
+                            alt={event.title}
+                            fill
+                            className="object-cover group-hover:scale-110 transition-transform duration-700"
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                        </div>
 
-                      <div className="absolute top-3 left-3 flex gap-2">
-                        {event.verified && (
-                          <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs shadow-lg">
-                            ✓ Verificato
+                        <div className="absolute top-2 left-2 flex gap-1">
+                          {event.verified && (
+                            <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs shadow-lg">✓</Badge>
+                          )}
+                          <Badge className="bg-blue-600/90 backdrop-blur-sm text-white text-xs shadow-lg">
+                            {event.availableSpots}/{event.totalSpots}
                           </Badge>
+                        </div>
+
+                        {session && (
+                          <div className="absolute top-2 right-2">
+                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="bg-background/80 hover:bg-background backdrop-blur-sm h-7 w-7 shadow-lg"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  e.stopPropagation()
+                                  toggleFavorite(event._id)
+                                }}
+                              >
+                                <Heart
+                                  className={`h-4 w-4 transition-colors duration-300 ${
+                                    favorites.includes(event._id)
+                                      ? "fill-red-500 text-red-500"
+                                      : "text-foreground hover:text-red-500"
+                                  }`}
+                                />
+                              </Button>
+                            </motion.div>
+                          </div>
                         )}
-                        <Badge className="bg-blue-600/90 backdrop-blur-sm text-white text-xs shadow-lg">
-                          {event.availableSpots}/{event.totalSpots} posti
-                        </Badge>
                       </div>
 
-                      {session && (
-                        <div className="absolute top-3 right-3">
-                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="bg-background/80 hover:bg-background backdrop-blur-sm h-8 w-8 shadow-lg"
-                              onClick={() => toggleFavorite(event._id)}
+                      <CardContent className="p-3 flex-1 flex flex-col">
+                        <div className="flex justify-between items-start mb-1">
+                          <h3 className="font-semibold text-base leading-tight text-foreground line-clamp-1 group-hover:text-blue-600 transition-colors duration-300">
+                            {event.title}
+                          </h3>
+                          <div className="flex items-center gap-1 text-xs ml-1">
+                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                            <span className="font-medium">{event.rating || 4.8}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1 text-muted-foreground mb-1">
+                          <MapPin className="h-3 w-3" />
+                          <span className="text-xs line-clamp-1">{event.location}</span>
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3" />
+                            <span>{formatDate(event.dateStart)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3" />
+                            <span>{event.totalSpots}</span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {event.amenities?.slice(0, 2).map((amenity) => (
+                            <Badge
+                              key={amenity}
+                              variant="secondary"
+                              className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
                             >
-                              <Heart
-                                className={`h-4 w-4 transition-colors duration-300 ${
-                                  favorites.includes(event._id)
-                                    ? "fill-red-500 text-red-500"
-                                    : "text-foreground hover:text-red-500"
-                                }`}
-                              />
-                            </Button>
-                          </motion.div>
-                        </div>
-                      )}
-                    </div>
-
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-lg leading-tight text-foreground line-clamp-2 group-hover:text-blue-600 transition-colors duration-300">
-                          {event.title}
-                        </h3>
-                        <div className="flex items-center gap-1 text-sm ml-2">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="font-medium">{event.rating || 4.8}</span>
-                          <span className="text-muted-foreground text-xs">({event.reviewCount || 0})</span>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 text-muted-foreground mb-3">
-                        <MapPin className="h-4 w-4" />
-                        <span className="text-sm">{event.location}</span>
-                      </div>
-
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>{formatDate(event.dateStart)}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Users className="h-4 w-4" />
-                          <span>{event.totalSpots} persone</span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {event.amenities?.slice(0, 3).map((amenity) => (
-                          <Badge
-                            key={amenity}
-                            variant="secondary"
-                            className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                          >
-                            {amenity}
-                          </Badge>
-                        ))}
-                        {event.amenities?.length > 3 && (
-                          <Badge variant="secondary" className="text-xs">
-                            +{event.amenities.length - 3}
-                          </Badge>
-                        )}
-                      </div>
-
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="text-sm text-muted-foreground">
-                          {event.host && (
-                            <span>
-                              Organizzato da <span className="font-medium text-foreground">{event.host.name}</span>
-                              {event.host.verified && <span className="text-green-500 ml-1">✓</span>}
-                            </span>
+                              {amenity}
+                            </Badge>
+                          ))}
+                          {event.amenities?.length > 2 && (
+                            <Badge variant="secondary" className="text-xs">
+                              +{event.amenities.length - 2}
+                            </Badge>
                           )}
                         </div>
-                        <div className="text-right">
-                          <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                            €{event.price}
-                          </div>
-                          <div className="text-xs text-muted-foreground">a persona</div>
-                        </div>
-                      </div>
 
-                      <Link href={`/evento/${event._id}`}>
-                        <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                          <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm shadow-lg hover:shadow-xl transition-all duration-300">
-                            Vedi Dettagli
-                          </Button>
-                        </motion.div>
-                      </Link>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-        </AnimatePresence>
+                        <div className="flex items-center justify-between mb-2 mt-auto">
+                          <div className="text-xs text-muted-foreground">
+                            {event.host && (
+                              <span className="line-clamp-1">
+                                Da <span className="font-medium text-foreground">{event.host.name}</span>
+                                {event.host.verified && <span className="text-green-500 ml-1">✓</span>}
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                              €{event.price}
+                            </div>
+                          </div>
+                        </div>
+
+                        <Link href={`/evento/${event._id}`}>
+                          <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                            <Button className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs shadow-lg hover:shadow-xl transition-all duration-300">
+                              Vedi Dettagli
+                            </Button>
+                          </motion.div>
+                        </Link>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+          </AnimatePresence>
+        </div>
 
         {!loading && events.length === 0 && !error && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">

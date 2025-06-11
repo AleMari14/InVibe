@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -15,26 +17,23 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import {
-  Form,
-  FormControl,
-  FormDescription,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form"
+import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Upload, Edit } from "lucide-react"
+import { Loader2, Edit, Camera } from "lucide-react"
 import { toast } from "sonner"
+import { Progress } from "@/components/ui/progress"
 
 const profileFormSchema = z.object({
   name: z.string().min(2, "Il nome deve contenere almeno 2 caratteri"),
   bio: z.string().max(160, "La bio non può superare i 160 caratteri").optional(),
-  phone: z.string().regex(/^\+?[0-9]{10,15}$/, "Numero di telefono non valido").optional(),
-  location: z.string().min(2, "La località deve contenere almeno 2 caratteri").optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[0-9]{10,15}$/, "Numero di telefono non valido")
+    .optional()
+    .or(z.string().length(0)),
+  location: z.string().min(2, "La località deve contenere almeno 2 caratteri").optional().or(z.string().length(0)),
 })
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>
@@ -45,6 +44,7 @@ export function EditProfileDialog() {
   const [isLoading, setIsLoading] = useState(false)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -68,9 +68,33 @@ export function EditProfileDialog() {
     }
   }, [session, form])
 
+  // Simulate progress for better UX
+  useEffect(() => {
+    if (isLoading && avatarFile) {
+      const interval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 95) {
+            clearInterval(interval)
+            return prev
+          }
+          return prev + 5
+        })
+      }, 100)
+
+      return () => clearInterval(interval)
+    } else if (!isLoading) {
+      setUploadProgress(0)
+    }
+  }, [isLoading, avatarFile])
+
   const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error("L'immagine non può superare i 5MB")
+        return
+      }
+
       setAvatarFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
@@ -127,7 +151,7 @@ export function EditProfileDialog() {
       // Reset form and preview
       setAvatarFile(null)
       setAvatarPreview(null)
-      
+
       toast.success("Profilo aggiornato con successo")
       setOpen(false)
     } catch (error) {
@@ -155,33 +179,43 @@ export function EditProfileDialog() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <div className="flex flex-col items-center gap-4">
-              <Avatar className="h-24 w-24">
-                <AvatarImage src={avatarPreview || session?.user?.image || "/placeholder.svg"} />
-                <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-2xl">
-                  {session?.user?.name
-                    ?.split(" ")
-                    .map((n) => n[0])
-                    .join("") || "U"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarChange}
-                  className="hidden"
-                  id="avatar-upload"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => document.getElementById("avatar-upload")?.click()}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Cambia Avatar
-                </Button>
+              <div className="relative">
+                <Avatar className="h-24 w-24 border-4 border-background">
+                  <AvatarImage src={avatarPreview || session?.user?.image || "/placeholder.svg"} />
+                  <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-2xl">
+                    {session?.user?.name
+                      ?.split(" ")
+                      .map((n) => n[0])
+                      .join("") || "U"}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-2 -right-2">
+                  <label
+                    htmlFor="avatar-upload"
+                    className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2 cursor-pointer shadow-lg flex items-center justify-center"
+                  >
+                    <Camera className="h-4 w-4" />
+                    <span className="sr-only">Cambia avatar</span>
+                  </label>
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                    id="avatar-upload"
+                  />
+                </div>
               </div>
+
+              {avatarFile && uploadProgress > 0 && isLoading && (
+                <div className="w-full space-y-2">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Caricamento...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-1" />
+                </div>
+              )}
             </div>
 
             <FormField
@@ -205,15 +239,9 @@ export function EditProfileDialog() {
                 <FormItem>
                   <FormLabel>Bio</FormLabel>
                   <FormControl>
-                    <Textarea
-                      placeholder="Racconta qualcosa di te"
-                      className="resize-none"
-                      {...field}
-                    />
+                    <Textarea placeholder="Racconta qualcosa di te" className="resize-none" {...field} />
                   </FormControl>
-                  <FormDescription>
-                    Breve descrizione che apparirà nel tuo profilo.
-                  </FormDescription>
+                  <FormDescription>Breve descrizione che apparirà nel tuo profilo.</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -248,7 +276,7 @@ export function EditProfileDialog() {
             />
 
             <DialogFooter>
-              <Button type="submit" disabled={isLoading}>
+              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
                 {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Salva Modifiche
               </Button>
