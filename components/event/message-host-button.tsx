@@ -69,9 +69,26 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
       const data = await response.json()
       console.log("Chat room result:", data)
 
-      // Show appropriate message
+      // If it's a new chat, send an initial message with event info
       if (data.isNew) {
-        toast.success("Nuova chat creata!")
+        try {
+          const initialMessage = `Ciao! Sono interessato/a al tuo evento "${eventTitle}". Potresti darmi maggiori informazioni?`
+
+          await fetch(`/api/messages/${data.roomId}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              content: initialMessage,
+            }),
+          })
+
+          toast.success("Chat creata e messaggio inviato!")
+        } catch (error) {
+          console.error("Error sending initial message:", error)
+          toast.success("Chat creata!")
+        }
       } else {
         toast.success("Chat esistente aperta!")
       }

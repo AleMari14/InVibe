@@ -29,6 +29,7 @@ import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { useNotifications } from "@/hooks/use-notifications"
+import { toast } from "sonner"
 
 const categories = [
   { id: "casa", name: "Case", icon: "🏠", gradient: "from-green-500 to-emerald-600" },
@@ -123,7 +124,7 @@ export default function HomePage() {
   }
 
   const fetchFavorites = async () => {
-    if (!session?.user?.id) return
+    if (!session?.user?.email) return
 
     try {
       console.log("💖 Fetching favorites...")
@@ -142,7 +143,10 @@ export default function HomePage() {
   }
 
   const toggleFavorite = async (eventId: string) => {
-    if (!session?.user?.email) return
+    if (!session?.user?.email) {
+      toast.error("Devi essere loggato per aggiungere ai preferiti")
+      return
+    }
 
     try {
       const response = await fetch("/api/favorites", {
@@ -153,14 +157,17 @@ export default function HomePage() {
 
       if (response.ok) {
         const data = await response.json()
-        if (data.isFavorite) {
+        if (data.isFavorited) {
           setFavorites((prev) => [...prev, eventId])
+          toast.success("Aggiunto ai preferiti")
         } else {
           setFavorites((prev) => prev.filter((id) => id !== eventId))
+          toast.success("Rimosso dai preferiti")
         }
       }
     } catch (error) {
       console.error("💥 Error toggling favorite:", error)
+      toast.error("Errore nell'aggiornamento dei preferiti")
     }
   }
 
@@ -426,17 +433,17 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Events Grid - Ora cliccabile */}
+      {/* Events Grid - Corretto per evitare tagli */}
       <div className="px-3 sm:px-4 py-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <AnimatePresence>
             {loading
               ? // Loading skeletons
                 Array.from({ length: 6 }).map((_, index) => (
                   <motion.div key={index} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <Card className="overflow-hidden border-border h-[360px]">
-                      <Skeleton className="aspect-[16/10] w-full" />
-                      <CardContent className="p-3 space-y-2">
+                    <Card className="overflow-hidden border-border">
+                      <Skeleton className="aspect-[4/3] w-full" />
+                      <CardContent className="p-4 space-y-3">
                         <Skeleton className="h-4 w-3/4" />
                         <Skeleton className="h-3 w-1/2" />
                         <div className="flex gap-2">
@@ -458,35 +465,37 @@ export default function HomePage() {
                     className="cursor-pointer"
                     onClick={() => handleEventClick(event._id)}
                   >
-                    <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 group h-[360px] flex flex-col">
+                    <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 group">
                       <div className="relative">
-                        <div className="aspect-[16/10] relative overflow-hidden">
+                        <div className="aspect-[4/3] relative overflow-hidden">
                           <Image
-                            src={event.images?.[0] || "/placeholder.svg?height=180&width=320"}
+                            src={event.images?.[0] || "/placeholder.svg?height=240&width=320"}
                             alt={event.title}
                             fill
                             className="object-cover group-hover:scale-110 transition-transform duration-700"
-                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                         </div>
 
-                        <div className="absolute top-2 left-2 flex gap-1">
+                        <div className="absolute top-3 left-3 flex gap-2">
                           {event.verified && (
-                            <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs shadow-lg">✓</Badge>
+                            <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs shadow-lg">
+                              ✓ Verificato
+                            </Badge>
                           )}
                           <Badge className="bg-blue-600/90 backdrop-blur-sm text-white text-xs shadow-lg">
-                            {event.availableSpots}/{event.totalSpots}
+                            {event.availableSpots}/{event.totalSpots} posti
                           </Badge>
                         </div>
 
                         {session && (
-                          <div className="absolute top-2 right-2">
+                          <div className="absolute top-3 right-3">
                             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                className="bg-background/80 hover:bg-background backdrop-blur-sm h-7 w-7 shadow-lg"
+                                className="bg-background/80 hover:bg-background backdrop-blur-sm h-8 w-8 shadow-lg"
                                 onClick={(e) => {
                                   e.preventDefault()
                                   e.stopPropagation()
@@ -506,35 +515,36 @@ export default function HomePage() {
                         )}
                       </div>
 
-                      <CardContent className="p-3 flex-1 flex flex-col">
-                        <div className="flex justify-between items-start mb-1">
-                          <h3 className="font-semibold text-base leading-tight text-foreground line-clamp-1 group-hover:text-blue-600 transition-colors duration-300">
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-semibold text-lg leading-tight text-foreground line-clamp-2 group-hover:text-blue-600 transition-colors duration-300 flex-1 mr-2">
                             {event.title}
                           </h3>
-                          <div className="flex items-center gap-1 text-xs ml-1">
-                            <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          <div className="flex items-center gap-1 text-sm">
+                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                             <span className="font-medium">{event.rating || 4.8}</span>
+                            <span className="text-muted-foreground text-xs">({event.reviewCount || 0})</span>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 text-muted-foreground mb-1">
-                          <MapPin className="h-3 w-3" />
-                          <span className="text-xs line-clamp-1">{event.location}</span>
+                        <div className="flex items-center gap-1 text-muted-foreground mb-3">
+                          <MapPin className="h-4 w-4" />
+                          <span className="text-sm line-clamp-1">{event.location}</span>
                         </div>
 
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
                           <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
+                            <Calendar className="h-4 w-4" />
                             <span>{formatDate(event.dateStart)}</span>
                           </div>
                           <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3" />
-                            <span>{event.totalSpots}</span>
+                            <Users className="h-4 w-4" />
+                            <span>{event.totalSpots} persone</span>
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-1 mb-2">
-                          {event.amenities?.slice(0, 2).map((amenity) => (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {event.amenities?.slice(0, 3).map((amenity) => (
                             <Badge
                               key={amenity}
                               variant="secondary"
@@ -543,31 +553,32 @@ export default function HomePage() {
                               {amenity}
                             </Badge>
                           ))}
-                          {event.amenities?.length > 2 && (
+                          {event.amenities?.length > 3 && (
                             <Badge variant="secondary" className="text-xs">
-                              +{event.amenities.length - 2}
+                              +{event.amenities.length - 3}
                             </Badge>
                           )}
                         </div>
 
-                        <div className="flex items-center justify-between mb-2 mt-auto">
-                          <div className="text-xs text-muted-foreground">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="text-sm text-muted-foreground">
                             {event.host && (
                               <span className="line-clamp-1">
-                                Da <span className="font-medium text-foreground">{event.host.name}</span>
+                                Organizzato da <span className="font-medium text-foreground">{event.host.name}</span>
                                 {event.host.verified && <span className="text-green-500 ml-1">✓</span>}
                               </span>
                             )}
                           </div>
                           <div className="text-right">
-                            <div className="text-lg font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                            <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                               €{event.price}
                             </div>
+                            <div className="text-xs text-muted-foreground">a persona</div>
                           </div>
                         </div>
 
                         <Button
-                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs shadow-lg hover:shadow-xl transition-all duration-300"
+                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm shadow-lg hover:shadow-xl transition-all duration-300"
                           onClick={(e) => {
                             e.stopPropagation()
                             handleEventClick(event._id)

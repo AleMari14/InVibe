@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
+import clientPromise from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 
 export async function GET(req: Request) {
@@ -14,9 +14,11 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const eventId = searchParams.get("eventId")
 
-    const { db } = await connectToDatabase()
-    const user = await db.collection("users").findOne({ email: session.user.email })
+    const client = await clientPromise
+    const db = client.db("invibe")
 
+    // Get user
+    const user = await db.collection("users").findOne({ email: session.user.email })
     if (!user) {
       return new NextResponse("User not found", { status: 404 })
     }
@@ -35,9 +37,22 @@ export async function GET(req: Request) {
       }
     }
 
-    // If no eventId, return all favorites
-    const favorites = await db.collection("favorites")
-      .find({ userId: user._id })
+    // If no eventId, return all favorites with event details
+    const favorites = await db
+      .collection("favorites")
+      .aggregate([
+        { $match: { userId: user._id } },
+        {
+          $lookup: {
+            from: "events",
+            localField: "eventId",
+            foreignField: "_id",
+            as: "event",
+          },
+        },
+        { $unwind: "$event" },
+        { $replaceRoot: { newRoot: "$event" } },
+      ])
       .toArray()
 
     return NextResponse.json(favorites)
@@ -59,27 +74,45 @@ export async function POST(req: Request) {
       return new NextResponse("Event ID is required", { status: 400 })
     }
 
-    const { db } = await connectToDatabase()
-    const user = await db.collection("users").findOne({ email: session.user.email })
+    const client = await clientPromise
+    const db = client.db("invibe")
 
+    // Get user
+    const user = await db.collection("users").findOne({ email: session.user.email })
     if (!user) {
       return new NextResponse("User not found", { status: 404 })
     }
 
     try {
       const eventObjectId = new ObjectId(eventId)
-      await db.collection("favorites").insertOne({
+
+      // Check if already favorited
+      const existingFavorite = await db.collection("favorites").findOne({
         userId: user._id,
         eventId: eventObjectId,
-        createdAt: new Date(),
       })
 
-      return NextResponse.json({ message: "Event added to favorites" })
+      if (existingFavorite) {
+        // Remove from favorites
+        await db.collection("favorites").deleteOne({
+          userId: user._id,
+          eventId: eventObjectId,
+        })
+        return NextResponse.json({ isFavorited: false, message: "Rimosso dai preferiti" })
+      } else {
+        // Add to favorites
+        await db.collection("favorites").insertOne({
+          userId: user._id,
+          eventId: eventObjectId,
+          createdAt: new Date(),
+        })
+        return NextResponse.json({ isFavorited: true, message: "Aggiunto ai preferiti" })
+      }
     } catch (error) {
       return new NextResponse("Invalid event ID", { status: 400 })
     }
   } catch (error) {
-    console.error("Error adding favorite:", error)
+    console.error("Error toggling favorite:", error)
     return new NextResponse("Internal Server Error", { status: 500 })
   }
 }
@@ -97,9 +130,11 @@ export async function DELETE(req: Request) {
       return new NextResponse("Event ID is required", { status: 400 })
     }
 
-    const { db } = await connectToDatabase()
-    const user = await db.collection("users").findOne({ email: session.user.email })
+    const client = await clientPromise
+    const db = client.db("invibe")
 
+    // Get user
+    const user = await db.collection("users").findOne({ email: session.user.email })
     if (!user) {
       return new NextResponse("User not found", { status: 404 })
     }
@@ -111,7 +146,7 @@ export async function DELETE(req: Request) {
         eventId: eventObjectId,
       })
 
-      return NextResponse.json({ message: "Event removed from favorites" })
+      return NextResponse.json({ message: "Rimosso dai preferiti" })
     } catch (error) {
       return new NextResponse("Invalid event ID", { status: 400 })
     }
