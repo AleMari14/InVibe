@@ -1,18 +1,14 @@
 "use client"
 
-import { useState, useCallback, useEffect } from "react"
-import { Label } from "./label"
-import { Alert, AlertDescription } from "./alert"
-import { MapPin, Loader2, Search } from "lucide-react"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "./command"
-import { Popover, PopoverContent, PopoverTrigger } from "./popover"
-import { Button } from "./button"
-import { debounce } from "lodash"
+import { useState, useEffect, useRef } from "react"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Search, MapPin, Info } from "lucide-react"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface LocationPickerProps {
-  value: string
-  onChange: (location: string, coordinates: { lat: number; lng: number }) => void
-  error?: string
+  onLocationSelect: (location: { address: string; lat: number; lng: number }) => void
+  defaultValue?: string
 }
 
 interface NominatimResult {
@@ -29,114 +25,125 @@ interface NominatimResult {
   importance: number
 }
 
-export function LocationPicker({ value, onChange, error }: LocationPickerProps) {
-  const [open, setOpen] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [suggestions, setSuggestions] = useState<NominatimResult[]>([])
+export function LocationPicker({ onLocationSelect, defaultValue = "" }: LocationPickerProps) {
+  const [query, setQuery] = useState(defaultValue)
+  const [results, setResults] = useState<NominatimResult[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [showResults, setShowResults] = useState(false)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const resultsContainerRef = useRef<HTMLDivElement>(null)
 
-  // Funzione per cercare luoghi con Nominatim
-  const searchPlaces = useCallback(
-    debounce(async (query: string) => {
-      if (!query || query.length < 3) return
+  const searchLocation = async (searchQuery: string) => {
+    if (!searchQuery.trim()) {
+      setResults([])
+      return
+    }
 
-      setIsLoading(true)
-      try {
-        // Utilizziamo l'API Nominatim per cercare luoghi
-        const response = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            query,
-          )}&countrycodes=it&limit=5&addressdetails=1`,
-          {
-            headers: {
-              "Accept-Language": "it",
-              "User-Agent": "InVibe/1.0",
-            },
-          },
-        )
-
-        if (!response.ok) {
-          throw new Error("Errore nella ricerca dei luoghi")
-        }
-
-        const data: NominatimResult[] = await response.json()
-        setSuggestions(data)
-      } catch (error) {
-        console.error("Errore nella ricerca dei luoghi:", error)
-        setSuggestions([])
-      } finally {
-        setIsLoading(false)
-      }
-    }, 300),
-    [],
-  )
+    setIsLoading(true)
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          searchQuery,
+        )}&limit=5&addressdetails=1`,
+      )
+      const data = await response.json()
+      setResults(data)
+    } catch (error) {
+      console.error("Error searching location:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    if (searchQuery.length >= 3) {
-      searchPlaces(searchQuery)
-    } else {
-      setSuggestions([])
+    // Debounce search
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
     }
-  }, [searchQuery, searchPlaces])
 
-  const handleSelect = (place: NominatimResult) => {
-    onChange(place.display_name, {
-      lat: Number.parseFloat(place.lat),
-      lng: Number.parseFloat(place.lon),
+    searchTimeoutRef.current = setTimeout(() => {
+      searchLocation(query)
+    }, 500)
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [query])
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (resultsContainerRef.current && !resultsContainerRef.current.contains(event.target as Node)) {
+        setShowResults(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  const handleSelectLocation = (result: NominatimResult) => {
+    setQuery(result.display_name)
+    onLocationSelect({
+      address: result.display_name,
+      lat: Number.parseFloat(result.lat),
+      lng: Number.parseFloat(result.lon),
     })
-    setOpen(false)
-    setSearchQuery("")
+    setShowResults(false)
   }
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor="location">Località *</Label>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between">
-            {value || "Seleziona una località..."}
-            <MapPin className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
-          <Command>
-            <div className="flex items-center border-b px-3">
-              <Search className="mr-2 h-4 w-4 shrink-0 opacity-50" />
-              <CommandInput
-                placeholder="Cerca una località..."
-                value={searchQuery}
-                onValueChange={setSearchQuery}
-                className="flex-1 border-0 outline-none focus:ring-0"
-              />
-              {isLoading && <Loader2 className="h-4 w-4 animate-spin opacity-50" />}
-            </div>
-            <CommandList>
-              <CommandEmpty>
-                {searchQuery.length < 3 ? "Digita almeno 3 caratteri per cercare" : "Nessun risultato trovato."}
-              </CommandEmpty>
-              <CommandGroup>
-                {suggestions.map((place) => (
-                  <CommandItem key={place.place_id} value={place.display_name} onSelect={() => handleSelect(place)}>
-                    <MapPin className="mr-2 h-4 w-4" />
-                    <div className="overflow-hidden">
-                      <div className="truncate">{place.display_name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {place.type} in {place.class}
-                      </div>
-                    </div>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </PopoverContent>
-      </Popover>
-      {error && (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+    <div className="relative w-full" ref={resultsContainerRef}>
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Input
+            type="text"
+            placeholder="Cerca un indirizzo..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value)
+              setShowResults(true)
+            }}
+            onFocus={() => setShowResults(true)}
+            className="pl-10"
+          />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="icon" type="button" className="flex-shrink-0">
+                <Info className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Cerca un indirizzo per il tuo evento</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </div>
+
+      {showResults && (results.length > 0 || isLoading) && (
+        <div className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-background shadow-lg">
+          {isLoading ? (
+            <div className="p-2 text-center text-sm text-muted-foreground">Ricerca in corso...</div>
+          ) : (
+            results.map((result) => (
+              <div
+                key={result.place_id}
+                className="flex cursor-pointer items-start gap-2 p-2 hover:bg-accent"
+                onClick={() => handleSelectLocation(result)}
+              >
+                <MapPin className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+                <span className="text-sm">{result.display_name}</span>
+              </div>
+            ))
+          )}
+        </div>
       )}
-      {value && <p className="text-sm text-muted-foreground">Località selezionata: {value}</p>}
     </div>
   )
 }
