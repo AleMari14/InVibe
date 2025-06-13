@@ -69,36 +69,63 @@ export default function CreaEventoPage() {
     setIsBrowser(true)
   }, [])
 
-  // Funzione per estrarre informazioni da un link di Google Maps
-  const extractInfoFromGoogleMapsLink = (link: string) => {
+  // Funzione per estrarre informazioni da un link di OpenStreetMap
+  const extractInfoFromMapLink = (link: string) => {
     // Verifica che siamo nel browser prima di usare URL
     if (!isBrowser) return { placeName: "", coordinates: null }
 
     try {
       const url = new URL(link)
+      let lat = 0,
+        lng = 0,
+        placeName = ""
 
-      // Estrai il nome del luogo dal link
-      let placeName = ""
+      // Estrai le coordinate da OpenStreetMap
+      if (url.hostname.includes("openstreetmap.org")) {
+        const params = new URLSearchParams(url.search)
+        const mlat = params.get("mlat")
+        const mlon = params.get("mlon")
 
-      if (url.hostname.includes("google") && url.pathname.includes("/place/")) {
-        const pathParts = url.pathname.split("/")
-        const placeIndex = pathParts.indexOf("place")
-        if (placeIndex !== -1 && placeIndex < pathParts.length - 1) {
-          placeName = decodeURIComponent(pathParts[placeIndex + 1].split("/")[0])
-          placeName = placeName.replace(/\+/g, " ")
+        if (mlat && mlon) {
+          lat = Number.parseFloat(mlat)
+          lng = Number.parseFloat(mlon)
+        } else {
+          // Prova a estrarre dalle parti del percorso
+          const match = url.pathname.match(/map\/(\d+)\/(-?\d+\.\d+)\/(-?\d+\.\d+)/)
+          if (match) {
+            lat = Number.parseFloat(match[2])
+            lng = Number.parseFloat(match[3])
+          }
+        }
+
+        // Estrai il nome del luogo se presente
+        placeName = params.get("query") || "Luogo su OpenStreetMap"
+      }
+      // Supporto per Google Maps (per retrocompatibilità)
+      else if (url.hostname.includes("google") && url.pathname.includes("/maps")) {
+        const coordsMatch = url.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+        if (coordsMatch) {
+          lat = Number.parseFloat(coordsMatch[1])
+          lng = Number.parseFloat(coordsMatch[2])
+        }
+
+        // Estrai il nome del luogo se presente
+        if (url.pathname.includes("/place/")) {
+          const pathParts = url.pathname.split("/")
+          const placeIndex = pathParts.indexOf("place")
+          if (placeIndex !== -1 && placeIndex < pathParts.length - 1) {
+            placeName = decodeURIComponent(pathParts[placeIndex + 1].split("/")[0])
+            placeName = placeName.replace(/\+/g, " ")
+          }
+        } else {
+          placeName = "Luogo su Google Maps"
         }
       }
 
-      // Estrai le coordinate
-      let lat = 0,
-        lng = 0
-      const coordsMatch = url.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-      if (coordsMatch) {
-        lat = Number.parseFloat(coordsMatch[1])
-        lng = Number.parseFloat(coordsMatch[2])
+      return {
+        placeName,
+        coordinates: lat !== 0 && lng !== 0 ? { lat, lng } : null,
       }
-
-      return { placeName, coordinates: { lat, lng } }
     } catch (e) {
       console.error("Errore nell'analisi del link:", e)
       return { placeName: "", coordinates: null }
@@ -108,7 +135,7 @@ export default function CreaEventoPage() {
   // Funzione per generare un'immagine dal link del posto
   const generateImageFromPlaceLink = async () => {
     if (!placeLink) {
-      toast.error("Inserisci un link di Google Maps valido")
+      toast.error("Inserisci un link di una mappa valido")
       return
     }
 
@@ -117,10 +144,44 @@ export default function CreaEventoPage() {
 
     try {
       // Estrai informazioni dal link solo se siamo nel browser
-      const { placeName } = isBrowser ? extractInfoFromGoogleMapsLink(placeLink) : { placeName: "Luogo" }
+      const { placeName, coordinates } = isBrowser
+        ? extractInfoFromMapLink(placeLink)
+        : { placeName: "Luogo", coordinates: null }
+
+      if (!placeName && !coordinates) {
+        toast.error("Non è stato possibile estrarre informazioni dal link fornito")
+        setIsLoadingImage(false)
+        return
+      }
 
       // Genera un'anteprima del luogo
       setPlacePreview(placeName || "Luogo sconosciuto")
+
+      // Se abbiamo le coordinate, aggiorniamo anche la posizione sulla mappa
+      if (coordinates) {
+        // Esegui reverse geocoding per ottenere l'indirizzo completo
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coordinates.lat}&lon=${coordinates.lng}&zoom=18&addressdetails=1`,
+            {
+              headers: {
+                "Accept-Language": "it",
+                "User-Agent": "InVibe/1.0",
+              },
+            },
+          )
+
+          if (response.ok) {
+            const data = await response.json()
+            if (data.display_name) {
+              setLocation(data.display_name)
+              setCoordinates(coordinates)
+            }
+          }
+        } catch (error) {
+          console.error("Errore nel reverse geocoding:", error)
+        }
+      }
 
       // Genera un'immagine basata sul nome del luogo
       const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(placeName || "location")}`
@@ -174,7 +235,7 @@ export default function CreaEventoPage() {
   useEffect(() => {
     // Pulisci l'anteprima quando il link cambia
     if (placeLink && isBrowser) {
-      const { placeName } = extractInfoFromGoogleMapsLink(placeLink)
+      const { placeName } = extractInfoFromMapLink(placeLink)
       setPlacePreview(placeName || null)
       setError("")
     } else {
@@ -510,7 +571,7 @@ export default function CreaEventoPage() {
                     <div className="space-y-2 p-3 border border-blue-200 bg-blue-50/50 rounded-md">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="placeLink" className="flex items-center gap-1">
-                          Link Google Maps (opzionale)
+                          Link OpenStreetMap o Google Maps (opzionale)
                           <Info className="h-4 w-4 text-muted-foreground cursor-help" />
                         </Label>
                       </div>
@@ -519,7 +580,7 @@ export default function CreaEventoPage() {
                         <Input
                           id="placeLink"
                           type="url"
-                          placeholder="https://maps.google.com/..."
+                          placeholder="https://www.openstreetmap.org/..."
                           value={placeLink}
                           onChange={(e) => setPlaceLink(e.target.value)}
                           className="pl-10"
@@ -553,7 +614,8 @@ export default function CreaEventoPage() {
                         )}
                       </Button>
                       <p className="text-xs text-muted-foreground">
-                        Inserisci un link di Google Maps per generare automaticamente un'immagine del luogo
+                        Inserisci un link di OpenStreetMap o Google Maps per generare automaticamente un'immagine del
+                        luogo
                       </p>
                     </div>
                   )}

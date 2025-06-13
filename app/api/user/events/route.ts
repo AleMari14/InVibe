@@ -1,87 +1,41 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import clientPromise from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
+import { connectToDatabase } from "@/lib/mongodb"
 
-// Forza la route ad essere dinamica
+// Indica a Next.js che questa è una route dinamica
 export const dynamic = "force-dynamic"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    console.log("🔍 GET /api/user/events called")
-
-    // Verify user authentication
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      console.log("❌ Unauthorized request")
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
-    const eventsCollection = db.collection("events")
+    const userId = session.user.id
 
-    console.log("📋 Fetching events for user:", session.user.id)
+    const { db } = await connectToDatabase()
 
-    // Get events created by the current user
-    const events = await eventsCollection
-      .aggregate([
-        { $match: { hostId: new ObjectId(session.user.id) } },
-        {
-          $lookup: {
-            from: "users",
-            localField: "hostId",
-            foreignField: "_id",
-            as: "hostInfo",
-          },
-        },
-        {
-          $addFields: {
-            host: {
-              $cond: {
-                if: { $gt: [{ $size: "$hostInfo" }, 0] },
-                then: {
-                  name: { $arrayElemAt: ["$hostInfo.name", 0] },
-                  email: { $arrayElemAt: ["$hostInfo.email", 0] },
-                  image: { $arrayElemAt: ["$hostInfo.image", 0] },
-                  verified: { $arrayElemAt: ["$hostInfo.verified", 0] },
-                  rating: { $arrayElemAt: ["$hostInfo.rating", 0] },
-                  reviewCount: { $arrayElemAt: ["$hostInfo.reviewCount", 0] },
-                },
-                else: {
-                  name: session.user.name || "Host",
-                  email: session.user.email,
-                  verified: false,
-                  rating: 0,
-                  reviewCount: 0,
-                },
-              },
-            },
-          },
-        },
-        { $project: { hostInfo: 0 } },
-        { $sort: { createdAt: -1 } },
-      ])
-      .toArray()
+    // Ottieni tutti gli eventi creati dall'utente
+    const events = await db.collection("events").find({ hostId: userId }).sort({ createdAt: -1 }).toArray()
 
-    console.log(`📊 Found ${events.length} events for user`)
+    // Ottieni le prenotazioni per ogni evento
+    const eventsWithBookings = await Promise.all(
+      events.map(async (event) => {
+        const bookings = await db.collection("bookings").find({ eventId: event._id.toString() }).toArray()
 
-    // Serialize the events
-    const serializedEvents = events.map((event) => ({
-      ...event,
-      _id: event._id.toString(),
-      hostId: event.hostId?.toString(),
-      dateStart: event.dateStart?.toISOString?.() || event.dateStart,
-      dateEnd: event.dateEnd?.toISOString?.() || event.dateEnd,
-      createdAt: event.createdAt?.toISOString?.() || event.createdAt,
-      updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
-    }))
+        return {
+          ...event,
+          bookings,
+        }
+      }),
+    )
 
-    console.log(`✅ Returning ${serializedEvents.length} user events`)
-    return NextResponse.json(serializedEvents)
+    return NextResponse.json(eventsWithBookings)
   } catch (error) {
-    console.error("💥 Error in GET /api/user/events:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Errore nel recupero degli eventi dell'utente:", error)
+    return NextResponse.json({ error: "Errore nel recupero degli eventi" }, { status: 500 })
   }
 }

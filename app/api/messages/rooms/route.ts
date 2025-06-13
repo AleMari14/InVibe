@@ -1,72 +1,69 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import clientPromise from "@/lib/mongodb"
 import { authOptions } from "@/lib/auth"
+import { connectToDatabase } from "@/lib/mongodb"
 
-// Forza la route ad essere dinamica
+// Indica a Next.js che questa è una route dinamica
 export const dynamic = "force-dynamic"
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+    if (!session?.user) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    console.log("Fetching chat rooms for user:", session.user.email)
+    const userId = session.user.id
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
-    // Get all chat rooms where the user is a participant
-    const chatRooms = await db
+    // Ottieni tutte le stanze di chat in cui l'utente è coinvolto
+    const rooms = await db
       .collection("chatRooms")
       .find({
-        "participants.email": session.user.email,
+        $or: [{ userId1: userId }, { userId2: userId }],
+        archived: { $ne: true }, // Escludi le stanze archiviate
       })
       .sort({ updatedAt: -1 })
       .toArray()
 
-    console.log(`Found ${chatRooms.length} chat rooms for user`)
-
-    // For each chat room, get the last message and unread count
+    // Ottieni i dettagli degli utenti per ogni stanza
     const roomsWithDetails = await Promise.all(
-      chatRooms.map(async (room) => {
-        // Get last message
-        const lastMessage = await db
-          .collection("messages")
-          .findOne({ roomId: room.roomId }, { sort: { createdAt: -1 } })
+      rooms.map(async (room) => {
+        const otherUserId = room.userId1 === userId ? room.userId2 : room.userId1
 
-        // Get unread count
+        const otherUser = await db
+          .collection("users")
+          .findOne({ _id: otherUserId }, { projection: { name: 1, email: 1, image: 1 } })
+
+        // Conta i messaggi non letti per l'utente corrente
         const unreadCount = await db.collection("messages").countDocuments({
-          roomId: room.roomId,
-          senderId: { $ne: session.user.email },
-          readBy: { $ne: session.user.email },
+          roomId: room._id.toString(),
+          senderId: { $ne: userId },
+          read: { $ne: true },
         })
 
-        // Get other user info
-        const otherUser = room.participants.find((p: any) => p.email !== session.user.email)
+        // Ottieni l'ultimo messaggio
+        const lastMessage = await db
+          .collection("messages")
+          .find({ roomId: room._id.toString() })
+          .sort({ createdAt: -1 })
+          .limit(1)
+          .toArray()
 
         return {
-          _id: room._id,
-          roomId: room.roomId,
-          eventId: room.eventId,
-          eventTitle: room.eventTitle,
-          participants: room.participants,
-          lastMessage,
-          unreadCount,
+          ...room,
           otherUser,
-          archived: room.archived || false,
-          createdAt: room.createdAt,
-          updatedAt: room.updatedAt,
+          unreadCount,
+          lastMessage: lastMessage[0] || null,
         }
       }),
     )
 
-    console.log("Returning rooms with details:", roomsWithDetails.length)
-    return NextResponse.json({ rooms: roomsWithDetails })
+    return NextResponse.json(roomsWithDetails)
   } catch (error) {
-    console.error("Error fetching chat rooms:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Errore nel recupero delle stanze di chat:", error)
+    return NextResponse.json({ error: "Errore nel recupero delle stanze di chat" }, { status: 500 })
   }
 }
