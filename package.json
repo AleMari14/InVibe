@@ -50,7 +50,6 @@
     "gcp-metadata": "latest",
     "http": "latest",
     "kerberos": "latest",
-    "lodash": "latest",
     "lucide-react": "^0.454.0",
     "mongodb": "latest",
     "mongodb-client-encryption": "latest",
