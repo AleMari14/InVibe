@@ -2,108 +2,150 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
-import { format } from "date-fns"
-import { it } from "date-fns/locale"
-import { CalendarIcon, Loader2, Info, ImagePlus } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
+import {
+  ArrowLeft,
+  Calendar,
+  Users,
+  DollarSign,
+  LinkIcon,
+  CheckCircle,
+  Loader2,
+  ImageIcon,
+  Info,
+  MapPin,
+  Camera,
+  X,
+  ChevronRight,
+  ChevronLeft,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { LocationPicker } from "@/components/ui/location-picker"
-import { cn } from "@/lib/utils"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
+import Link from "next/link"
 
-const formSchema = z.object({
-  title: z.string().min(5, {
-    message: "Il titolo deve essere di almeno 5 caratteri",
-  }),
-  description: z.string().min(20, {
-    message: "La descrizione deve essere di almeno 20 caratteri",
-  }),
-  date: z.date({
-    required_error: "Seleziona una data per l'evento",
-  }),
-  time: z.string().regex(/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/, {
-    message: "Inserisci un orario valido (HH:MM)",
-  }),
-  location: z.object({
-    address: z.string().min(1, "L'indirizzo è obbligatorio"),
-    lat: z.number(),
-    lng: z.number(),
-  }),
-  category: z.string().min(1, "Seleziona una categoria"),
-  maxParticipants: z.string().transform((val) => Number.parseInt(val, 10)),
-  price: z.string().transform((val) => Number.parseFloat(val)),
-  placeLink: z.string().optional(),
-})
-
-type FormValues = z.infer<typeof formSchema>
-
-export default function CreateEventPage() {
-  const router = useRouter()
-  const [isSubmitting, setIsSubmitting] = useState(false)
+export default function CreaEventoPage() {
+  const [currentStep, setCurrentStep] = useState(1)
+  const [categoria, setCategoria] = useState("")
+  const [titolo, setTitolo] = useState("")
+  const [descrizione, setDescrizione] = useState("")
+  const [location, setLocation] = useState("")
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null)
+  const [dataInizio, setDataInizio] = useState("")
+  const [dataFine, setDataFine] = useState("")
+  const [postiTotali, setPostiTotali] = useState("")
+  const [prezzo, setPrezzo] = useState("")
+  const [bookingLink, setBookingLink] = useState("")
+  const [placeLink, setPlaceLink] = useState("")
   const [images, setImages] = useState<string[]>([])
-  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  const [isLoadingImage, setIsLoadingImage] = useState(false)
+  const [servizi, setServizi] = useState<string[]>([])
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [error, setError] = useState("")
+  const [locationError, setLocationError] = useState("")
+  const [uploadingImage, setUploadingImage] = useState(false)
 
-  const form = useForm<FormValues>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      title: "",
-      description: "",
-      time: "20:00",
-      location: {
-        address: "",
-        lat: 0,
-        lng: 0,
-      },
-      category: "",
-      maxParticipants: "10",
-      price: "0",
-      placeLink: "",
-    },
-  })
+  const { data: session, status } = useSession()
+  const router = useRouter()
 
-  const selectedCategory = form.watch("category")
-
-  const onSubmit = async (data: FormValues) => {
-    setIsSubmitting(true)
+  // Funzione per estrarre l'ID del luogo da un link di Google Maps
+  const extractPlaceIdFromLink = (link: string) => {
     try {
-      const eventData = {
-        ...data,
-        images,
-        datetime: new Date(`${format(data.date, "yyyy-MM-dd")}T${data.time}:00`).toISOString(),
+      // Supporta diversi formati di URL di Google Maps
+      const url = new URL(link)
+
+      // Formato 1: https://maps.app.goo.gl/xxx
+      if (url.hostname === "maps.app.goo.gl") {
+        return { placeId: url.pathname.substring(1), isShortUrl: true }
       }
 
-      const response = await fetch("/api/events", {
+      // Formato 2: https://www.google.com/maps/place/...
+      if (url.pathname.includes("/place/")) {
+        const placeId = url.searchParams.get("place_id")
+        if (placeId) return { placeId, isShortUrl: false }
+
+        // Se non c'è un place_id esplicito, proviamo a estrarre dal percorso
+        const pathParts = url.pathname.split("/")
+        const placeIndex = pathParts.indexOf("place")
+        if (placeIndex !== -1 && placeIndex < pathParts.length - 1) {
+          return { placeId: pathParts[placeIndex + 1].split("/")[0], isShortUrl: false }
+        }
+      }
+
+      // Formato 3: https://goo.gl/maps/xxx
+      if (url.hostname === "goo.gl" && url.pathname.startsWith("/maps/")) {
+        return { placeId: url.pathname.substring(6), isShortUrl: true }
+      }
+
+      return null
+    } catch (e) {
+      console.error("Errore nell'analisi del link:", e)
+      return null
+    }
+  }
+
+  // Funzione per generare un'immagine dal link del posto
+  const generateImageFromPlaceLink = async () => {
+    if (!placeLink) {
+      toast.error("Inserisci un link di Google Maps valido")
+      return
+    }
+
+    setIsLoadingImage(true)
+    setError("")
+
+    try {
+      // Estrai informazioni dal link
+      const placeInfo = extractPlaceIdFromLink(placeLink)
+
+      if (!placeInfo) {
+        toast.error("Link non valido. Inserisci un link di Google Maps valido.")
+        setIsLoadingImage(false)
+        return
+      }
+
+      // Chiamata API per generare l'immagine
+      const response = await fetch("/api/place-image", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(eventData),
+        body: JSON.stringify({
+          placeLink,
+          placeId: placeInfo.placeId,
+        }),
       })
 
       if (!response.ok) {
-        throw new Error("Errore durante la creazione dell'evento")
+        throw new Error("Errore nella generazione dell'immagine")
       }
 
-      const result = await response.json()
-      toast.success("Evento creato con successo!")
-      router.push(`/evento/${result.id}`)
+      const data = await response.json()
+
+      if (data.success && data.imageUrl) {
+        setImages((prev) => [...prev, data.imageUrl])
+        toast.success("Immagine generata con successo!")
+      } else {
+        throw new Error(data.error || "Errore nella generazione dell'immagine")
+      }
     } catch (error) {
-      console.error("Error creating event:", error)
-      toast.error("Errore durante la creazione dell'evento")
+      console.error("Errore nella generazione dell'immagine:", error)
+      toast.error(error instanceof Error ? error.message : "Errore nella generazione dell'immagine")
     } finally {
-      setIsSubmitting(false)
+      setIsLoadingImage(false)
     }
   }
 
@@ -111,321 +153,747 @@ export default function CreateEventPage() {
     const files = e.target.files
     if (!files || files.length === 0) return
 
-    const formData = new FormData()
-    formData.append("file", files[0])
-
+    setUploadingImage(true)
     try {
+      const formData = new FormData()
+      formData.append("file", files[0])
+
       const response = await fetch("/api/upload", {
         method: "POST",
         body: formData,
       })
 
       if (!response.ok) {
-        throw new Error("Errore durante il caricamento dell'immagine")
+        throw new Error("Errore nel caricamento dell'immagine")
       }
 
       const data = await response.json()
-      setImages((prev) => [...prev, data.url])
-      toast.success("Immagine caricata con successo!")
+      if (data.url) {
+        setImages((prev) => [...prev, data.url])
+        toast.success("Immagine caricata con successo!")
+      }
     } catch (error) {
-      console.error("Error uploading image:", error)
-      toast.error("Errore durante il caricamento dell'immagine")
+      console.error("Errore nel caricamento dell'immagine:", error)
+      toast.error("Errore nel caricamento dell'immagine")
+    } finally {
+      setUploadingImage(false)
     }
   }
 
-  const generateImageFromLink = async () => {
-    const placeLink = form.getValues("placeLink")
-    if (!placeLink) {
-      toast.error("Inserisci un link valido di Google Maps")
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  useEffect(() => {
+    // Pulisci l'anteprima quando il link cambia
+    if (placeLink) {
+      setError("")
+    }
+  }, [placeLink])
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    router.push("/auth/login")
+    return null
+  }
+
+  const categorieDisponibili = [
+    {
+      id: "casa",
+      name: "Casa/Appartamento",
+      description: "Condividi una casa, villa o appartamento",
+      icon: "🏠",
+      gradient: "from-green-500 to-emerald-600",
+    },
+    {
+      id: "viaggio",
+      name: "Viaggio di Gruppo",
+      description: "Organizza un viaggio con altre persone",
+      icon: "✈️",
+      gradient: "from-blue-500 to-cyan-600",
+    },
+    {
+      id: "evento",
+      name: "Evento Privato",
+      description: "Crea un evento speciale",
+      icon: "🎉",
+      gradient: "from-purple-500 to-pink-600",
+    },
+    {
+      id: "esperienza",
+      name: "Esperienza",
+      description: "Condividi un'esperienza unica",
+      icon: "🌟",
+      gradient: "from-orange-500 to-red-600",
+    },
+  ]
+
+  const serviziDisponibili = [
+    "WiFi",
+    "Piscina",
+    "Parcheggio",
+    "Cucina",
+    "Aria Condizionata",
+    "Riscaldamento",
+    "TV",
+    "Lavatrice",
+    "Asciugacapelli",
+    "Ferro da Stiro",
+    "Terrazza",
+    "Giardino",
+    "Trasporti Inclusi",
+    "Colazione Inclusa",
+    "Pranzi Inclusi",
+    "Guida Turistica",
+    "Attrezzature Sportive",
+    "Animali Ammessi",
+  ]
+
+  const toggleServizio = (servizio: string) => {
+    setServizi((prev) => (prev.includes(servizio) ? prev.filter((s) => s !== servizio) : [...prev, servizio]))
+  }
+
+  const getProgress = () => {
+    const totalSteps = 4
+    return (currentStep / totalSteps) * 100
+  }
+
+  const canProceedToNextStep = () => {
+    switch (currentStep) {
+      case 1:
+        return categoria !== ""
+      case 2:
+        return titolo && descrizione && location
+      case 3:
+        return dataInizio && postiTotali && prezzo
+      case 4:
+        return true // Servizi opzionali
+      default:
+        return false
+    }
+  }
+
+  const handleLocationChange = (newLocation: string, newCoordinates: { lat: number; lng: number }) => {
+    setLocation(newLocation)
+    setCoordinates(newCoordinates)
+    setLocationError("")
+  }
+
+  const validateForm = () => {
+    if (!coordinates) {
+      setLocationError("Seleziona una località valida sulla mappa")
+      return false
+    }
+    if (!titolo.trim()) {
+      setError("Il titolo è obbligatorio")
+      return false
+    }
+    if (!descrizione.trim()) {
+      setError("La descrizione è obbligatoria")
+      return false
+    }
+    if (!dataInizio) {
+      setError("La data di inizio è obbligatoria")
+      return false
+    }
+    if (dataFine && new Date(dataFine) < new Date(dataInizio)) {
+      setError("La data di fine deve essere successiva alla data di inizio")
+      return false
+    }
+    if (!postiTotali || Number.parseInt(postiTotali) < 2) {
+      setError("Il numero di posti deve essere almeno 2")
+      return false
+    }
+    if (!prezzo || Number.parseFloat(prezzo) <= 0) {
+      setError("Il prezzo deve essere maggiore di 0")
+      return false
+    }
+    return true
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+
+    if (!validateForm()) {
       return
     }
 
-    setIsGeneratingImage(true)
+    setIsSubmitting(true)
+
     try {
-      const response = await fetch("/api/place-image", {
+      const eventData = {
+        title: titolo.trim(),
+        description: descrizione.trim(),
+        category: categoria,
+        location: location,
+        coordinates: coordinates,
+        price: Number.parseFloat(prezzo),
+        dateStart: dataInizio,
+        dateEnd: dataFine || null,
+        totalSpots: Number.parseInt(postiTotali),
+        amenities: servizi,
+        bookingLink: bookingLink.trim(),
+        placeLink: placeLink.trim(),
+        images: images,
+      }
+
+      console.log("Submitting event data:", eventData)
+
+      const response = await fetch("/api/events", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ placeLink }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(eventData),
       })
 
-      if (!response.ok) {
-        throw new Error("Errore durante la generazione dell'immagine")
-      }
+      const result = await response.json()
 
-      const data = await response.json()
-      if (data.imageUrl) {
-        setImages((prev) => [...prev, data.imageUrl])
-        toast.success("Immagine generata con successo!")
+      if (response.ok && result.success) {
+        setSuccess(true)
+        toast.success("Evento creato con successo!")
+        setTimeout(() => {
+          router.push("/")
+        }, 2000)
       } else {
-        toast.error("Impossibile generare l'immagine dal link fornito")
+        throw new Error(result.error || "Errore nella creazione dell'evento")
       }
     } catch (error) {
-      console.error("Error generating image:", error)
-      toast.error("Errore durante la generazione dell'immagine")
+      console.error("Error creating event:", error)
+      setError(error instanceof Error ? error.message : "Errore nella creazione dell'evento")
+      toast.error("Errore nella creazione dell'evento")
     } finally {
-      setIsGeneratingImage(false)
+      setIsSubmitting(false)
     }
   }
 
+  if (success) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5 }}
+        >
+          <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm w-full max-w-md">
+            <CardContent className="pt-6 text-center">
+              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle className="h-8 w-8 text-green-600" />
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-2">Evento Creato!</h2>
+              <p className="text-muted-foreground mb-4">
+                Il tuo evento è stato pubblicato con successo. Verrai reindirizzato alla home.
+              </p>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    )
+  }
+
   return (
-    <div className="container mx-auto max-w-3xl py-10">
-      <h1 className="mb-8 text-3xl font-bold">Crea un nuovo evento</h1>
-
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <FormField
-            control={form.control}
-            name="title"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Titolo</FormLabel>
-                <FormControl>
-                  <Input placeholder="Festa di compleanno, Aperitivo, ecc." {...field} />
-                </FormControl>
-                <FormDescription>Un titolo accattivante per il tuo evento</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="description"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Descrizione</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Descrivi il tuo evento..." className="min-h-32" {...field} />
-                </FormControl>
-                <FormDescription>Fornisci dettagli sul tuo evento, cosa farete, cosa portare, ecc.</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Data</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                        >
-                          {field.value ? format(field.value, "PPP", { locale: it }) : <span>Seleziona una data</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={field.onChange}
-                        disabled={(date) => date < new Date()}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormDescription>La data in cui si terrà l'evento</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="time"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Orario</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
-                  <FormDescription>L'orario di inizio dell'evento</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <Link href="/">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+              Crea Nuovo Evento
+            </h1>
+            <div className="flex items-center gap-2 mt-1">
+              <Progress value={getProgress()} className="flex-1 h-2" />
+              <span className="text-xs text-muted-foreground">{currentStep}/4</span>
+            </div>
           </div>
+        </div>
+      </div>
 
-          <FormField
-            control={form.control}
-            name="location"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Luogo</FormLabel>
-                <FormControl>
-                  <LocationPicker
-                    onLocationSelect={(location) => {
-                      field.onChange(location)
-                    }}
-                    defaultValue={field.value.address}
-                  />
-                </FormControl>
-                <FormDescription>L'indirizzo dove si terrà l'evento</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+      <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4 pb-20 max-w-3xl mx-auto">
+        {error && (
+          <Alert className="border-red-500/50 bg-red-500/10">
+            <AlertDescription className="text-red-400">{error}</AlertDescription>
+          </Alert>
+        )}
 
-          <FormField
-            control={form.control}
-            name="category"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Categoria</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Seleziona una categoria" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="festa">Festa</SelectItem>
-                    <SelectItem value="aperitivo">Aperitivo</SelectItem>
-                    <SelectItem value="cena">Cena</SelectItem>
-                    <SelectItem value="casa">Casa</SelectItem>
-                    <SelectItem value="altro">Altro</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormDescription>La categoria dell'evento aiuta gli utenti a trovarlo</FormDescription>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          {selectedCategory === "casa" && (
-            <FormField
-              control={form.control}
-              name="placeLink"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center gap-2">
-                    Link Google Maps
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 cursor-help text-muted-foreground" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Inserisci un link di Google Maps per generare automaticamente un'immagine del luogo</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </FormLabel>
-                  <div className="flex gap-2">
-                    <FormControl>
-                      <Input placeholder="https://maps.google.com/..." {...field} />
-                    </FormControl>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={generateImageFromLink}
-                      disabled={isGeneratingImage || !field.value}
+        <AnimatePresence mode="wait">
+          {/* Step 1: Categoria */}
+          {currentStep === 1 && (
+            <motion.div
+              key="step1"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs">1</span>
+                    </div>
+                    Tipo di Evento
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {categorieDisponibili.map((cat) => (
+                    <motion.div
+                      key={cat.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                        categoria === cat.id
+                          ? `border-transparent bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
+                          : "border-border hover:border-gray-300 hover:shadow-md"
+                      }`}
+                      onClick={() => setCategoria(cat.id)}
                     >
-                      {isGeneratingImage ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <ImagePlus className="mr-2 h-4 w-4" />
-                      )}
-                      Genera Immagine
-                    </Button>
-                  </div>
-                  <FormDescription>
-                    Opzionale: inserisci un link di Google Maps per generare un'immagine del luogo
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+                      <div className="flex items-center gap-3">
+                        <span className="text-2xl">{cat.icon}</span>
+                        <div>
+                          <div className="font-medium">{cat.name}</div>
+                          <div
+                            className={`text-sm ${categoria === cat.id ? "text-white/80" : "text-muted-foreground"}`}
+                          >
+                            {cat.description}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </CardContent>
+              </Card>
+            </motion.div>
           )}
 
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <FormField
-              control={form.control}
-              name="maxParticipants"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Numero massimo di partecipanti</FormLabel>
-                  <FormControl>
-                    <Input type="number" min="1" {...field} />
-                  </FormControl>
-                  <FormDescription>Quante persone possono partecipare</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          {/* Step 2: Informazioni Base */}
+          {currentStep === 2 && (
+            <motion.div
+              key="step2"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs">2</span>
+                    </div>
+                    Informazioni Base
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="titolo">Titolo dell'Evento *</Label>
+                    <Input
+                      id="titolo"
+                      placeholder="es. Villa con Piscina - Weekend in Toscana"
+                      value={titolo}
+                      onChange={(e) => setTitolo(e.target.value)}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="descrizione">Descrizione *</Label>
+                    <Textarea
+                      id="descrizione"
+                      placeholder="Descrivi il tuo evento, cosa include, cosa aspettarsi..."
+                      value={descrizione}
+                      onChange={(e) => setDescrizione(e.target.value)}
+                      rows={4}
+                      className="mt-1"
+                      required
+                    />
+                  </div>
 
-            <FormField
-              control={form.control}
-              name="price"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Prezzo (€)</FormLabel>
-                  <FormControl>
-                    <Input type="number" min="0" step="0.01" {...field} />
-                  </FormControl>
-                  <FormDescription>Quanto costa partecipare (0 per eventi gratuiti)</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="location">Località *</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="location"
+                        placeholder="Cerca una località..."
+                        value={location}
+                        onChange={(e) => setLocation(e.target.value)}
+                        className="pl-10"
+                        required
+                      />
+                    </div>
+                    <div className="h-48 bg-gray-100 rounded-md mt-2 relative overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                        <span>Mappa di OpenStreetMap</span>
+                      </div>
+                      {coordinates && (
+                        <div className="absolute bottom-2 right-2 bg-white p-2 rounded-md shadow-md text-xs">
+                          Lat: {coordinates.lat.toFixed(4)}, Lng: {coordinates.lng.toFixed(4)}
+                        </div>
+                      )}
+                    </div>
+                    {locationError && <p className="text-sm text-red-500 mt-1">{locationError}</p>}
+                  </div>
 
-          <div>
-            <FormLabel>Immagini</FormLabel>
-            <div className="mt-2 grid grid-cols-1 gap-4 md:grid-cols-2">
-              {images.map((image, index) => (
-                <div key={index} className="relative aspect-video overflow-hidden rounded-md">
-                  <img
-                    src={image || "/placeholder.svg"}
-                    alt={`Immagine evento ${index + 1}`}
-                    className="h-full w-full object-cover"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute right-2 top-2"
-                    onClick={() => {
-                      setImages((prev) => prev.filter((_, i) => i !== index))
-                    }}
-                  >
-                    Rimuovi
-                  </Button>
-                </div>
-              ))}
-              <div className="flex aspect-video items-center justify-center rounded-md border-2 border-dashed">
-                <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center">
-                  <ImagePlus className="mb-2 h-8 w-8 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Carica un'immagine</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                </label>
-              </div>
-            </div>
-            <FormDescription className="mt-2">Aggiungi immagini per il tuo evento (consigliato)</FormDescription>
-          </div>
+                  {categoria === "casa" && (
+                    <div className="space-y-2 p-3 border border-blue-200 bg-blue-50/50 rounded-md">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="placeLink" className="flex items-center gap-1">
+                          Link Google Maps (opzionale)
+                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                        </Label>
+                      </div>
+                      <div className="relative">
+                        <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                          id="placeLink"
+                          type="url"
+                          placeholder="https://maps.google.com/..."
+                          value={placeLink}
+                          onChange={(e) => setPlaceLink(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={generateImageFromPlaceLink}
+                        disabled={!placeLink || isLoadingImage}
+                        className="w-full mt-2"
+                        variant="secondary"
+                      >
+                        {isLoadingImage ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Generazione immagine...
+                          </>
+                        ) : (
+                          <>
+                            <ImageIcon className="h-4 w-4 mr-2" />
+                            Genera Immagine dal Link
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        Inserisci un link di Google Maps per generare automaticamente un'immagine del luogo
+                      </p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
-          <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Creazione in corso...
-              </>
-            ) : (
-              "Crea Evento"
+          {/* Step 3: Date, Partecipanti e Prezzo */}
+          {currentStep === 3 && (
+            <motion.div
+              key="step3"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs">3</span>
+                    </div>
+                    Date, Partecipanti e Prezzo
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="dataInizio">Data Inizio *</Label>
+                      <div className="relative mt-1">
+                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                          id="dataInizio"
+                          type="date"
+                          value={dataInizio}
+                          onChange={(e) => setDataInizio(e.target.value)}
+                          className="pl-10"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="dataFine">Data Fine</Label>
+                      <div className="relative mt-1">
+                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                          id="dataFine"
+                          type="date"
+                          value={dataFine}
+                          onChange={(e) => setDataFine(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="postiTotali">Numero Totale di Posti *</Label>
+                    <div className="relative mt-1">
+                      <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="postiTotali"
+                        type="number"
+                        placeholder="es. 8"
+                        value={postiTotali}
+                        onChange={(e) => setPostiTotali(e.target.value)}
+                        className="pl-10"
+                        min="2"
+                        max="50"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="prezzo">Prezzo per Persona (€) *</Label>
+                    <div className="relative mt-1">
+                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="prezzo"
+                        type="number"
+                        placeholder="es. 85"
+                        value={prezzo}
+                        onChange={(e) => setPrezzo(e.target.value)}
+                        className="pl-10"
+                        min="1"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="bookingLink">Link di Prenotazione (opzionale)</Label>
+                    <div className="relative mt-1">
+                      <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                      <Input
+                        id="bookingLink"
+                        type="url"
+                        placeholder="https://..."
+                        value={bookingLink}
+                        onChange={(e) => setBookingLink(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm mt-4">
+                <CardHeader>
+                  <CardTitle className="text-md">Immagini dell'Evento</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    {images.map((image, index) => (
+                      <div
+                        key={index}
+                        className="relative aspect-video rounded-md overflow-hidden border border-border"
+                      >
+                        <img
+                          src={image || "/placeholder.svg"}
+                          alt={`Immagine ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <Button
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-1 right-1 h-6 w-6"
+                          onClick={() => removeImage(index)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    <label className="aspect-video rounded-md border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-accent/50 transition-colors">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleImageUpload}
+                        disabled={uploadingImage}
+                      />
+                      {uploadingImage ? (
+                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                      ) : (
+                        <>
+                          <Camera className="h-6 w-6 mb-2 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">Carica immagine</span>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Aggiungi immagini per rendere il tuo evento più attraente. Formato consigliato: 16:9
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Step 4: Servizi */}
+          {currentStep === 4 && (
+            <motion.div
+              key="step4"
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -50 }}
+              transition={{ duration: 0.3 }}
+            >
+              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs">4</span>
+                    </div>
+                    Servizi Inclusi (Opzionale)
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-3">
+                    {serviziDisponibili.map((servizio) => (
+                      <motion.div key={servizio} className="flex items-center space-x-2" whileHover={{ scale: 1.02 }}>
+                        <Checkbox
+                          id={servizio}
+                          checked={servizi.includes(servizio)}
+                          onCheckedChange={() => toggleServizio(servizio)}
+                        />
+                        <Label htmlFor={servizio} className="text-sm cursor-pointer">
+                          {servizio}
+                        </Label>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {servizi.length > 0 && (
+                    <motion.div className="mt-4" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                      <div className="text-sm font-medium mb-2">Servizi selezionati:</div>
+                      <div className="flex flex-wrap gap-1">
+                        {servizi.map((servizio) => (
+                          <Badge
+                            key={servizio}
+                            variant="secondary"
+                            className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                          >
+                            {servizio}
+                          </Badge>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm mt-4">
+                <CardHeader>
+                  <CardTitle className="text-md">Riepilogo Evento</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                    <div>
+                      <span className="text-sm font-medium">Categoria:</span>
+                      <p className="text-sm text-muted-foreground">
+                        {categorieDisponibili.find((c) => c.id === categoria)?.name || categoria}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Località:</span>
+                      <p className="text-sm text-muted-foreground truncate">{location}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Data:</span>
+                      <p className="text-sm text-muted-foreground">
+                        {dataInizio} {dataFine ? `- ${dataFine}` : ""}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Prezzo:</span>
+                      <p className="text-sm text-muted-foreground">{prezzo}€ per persona</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Posti disponibili:</span>
+                      <p className="text-sm text-muted-foreground">{postiTotali}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm font-medium">Immagini:</span>
+                      <p className="text-sm text-muted-foreground">{images.length} caricate</p>
+                    </div>
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <span className="text-sm font-medium">Titolo:</span>
+                    <p className="text-sm">{titolo}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-sm font-medium">Descrizione:</span>
+                    <p className="text-sm text-muted-foreground line-clamp-3">{descrizione}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Navigation Buttons */}
+        <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-md border-t border-border p-4">
+          <div className="flex gap-3 max-w-3xl mx-auto">
+            {currentStep > 1 && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCurrentStep(currentStep - 1)}
+                className="flex-1"
+              >
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Indietro
+              </Button>
             )}
-          </Button>
-        </form>
-      </Form>
+
+            {currentStep < 4 ? (
+              <Button
+                type="button"
+                onClick={() => setCurrentStep(currentStep + 1)}
+                disabled={!canProceedToNextStep()}
+                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              >
+                Avanti
+                <ChevronRight className="h-4 w-4 ml-1" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Pubblicazione...
+                  </>
+                ) : (
+                  "Pubblica Evento"
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
+      </form>
     </div>
   )
 }

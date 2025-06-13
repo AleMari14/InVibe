@@ -4,55 +4,92 @@ import { authOptions } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
+    // Verifica autenticazione
     const session = await getServerSession(authOptions)
-    if (!session?.user) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Non autorizzato", success: false }, { status: 401 })
     }
 
-    const { placeLink } = await request.json()
+    const { placeLink, placeId } = await request.json()
 
     if (!placeLink) {
-      return NextResponse.json({ error: "Link mancante" }, { status: 400 })
+      return NextResponse.json({ error: "Link mancante", success: false }, { status: 400 })
     }
 
-    // Estrai l'ID del posto dal link di Google Maps
-    let placeId = null
+    // Estrai informazioni dal link
+    const locationInfo = placeId || extractPlaceIdFromLink(placeLink)
 
-    // Formato: https://maps.google.com/maps?q=place_id:ChIJN1t_tDeuEmsRUsoyG83frY4
-    const placeIdMatch = placeLink.match(/place_id:([^&]+)/)
-    if (placeIdMatch) {
-      placeId = placeIdMatch[1]
+    if (!locationInfo) {
+      // Fallback: genera un'immagine casuale
+      const randomId = Math.random().toString(36).substring(2, 10)
+      const imageUrl = `/placeholder.svg?height=400&width=600&query=location%20${randomId}`
+
+      return NextResponse.json({
+        success: true,
+        imageUrl,
+        message: "Immagine generata (placeholder)",
+      })
     }
 
-    // Formato: https://maps.app.goo.gl/abcdefg123456
-    // Per questo formato, useremo un'immagine generica
+    // In un'implementazione reale, qui utilizzeresti l'API di Google Places o un servizio simile
+    // Per questa demo, generiamo un URL placeholder con il placeId come query
+    const imageUrl = `/placeholder.svg?height=400&width=600&query=location%20${encodeURIComponent(locationInfo)}`
 
-    // Formato: https://www.google.com/maps/place/.../@lat,lng,zoom/data=...
-    const coordsMatch = placeLink.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
-
-    let imageUrl = ""
-
-    if (placeId) {
-      // Usa l'ID del posto per generare un'URL dell'immagine
-      imageUrl = `https://maps.googleapis.com/maps/api/staticmap?center=place_id:${placeId}&zoom=16&size=600x400&maptype=roadmap&markers=color:red%7C${placeId}&key=YOUR_API_KEY`
-    } else if (coordsMatch) {
-      // Usa le coordinate per generare un'URL dell'immagine
-      const lat = coordsMatch[1]
-      const lng = coordsMatch[2]
-      imageUrl = `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lng}&zoom=16&size=600x400&maptype=roadmap&markers=color:red%7C${lat},${lng}&key=YOUR_API_KEY`
-    } else {
-      // Usa un'immagine generica di OpenStreetMap
-      const randomLat = 41.9028 + (Math.random() * 0.02 - 0.01) // Roma, Italia con piccola variazione
-      const randomLng = 12.4964 + (Math.random() * 0.02 - 0.01)
-      imageUrl = `https://api.mapbox.com/styles/v1/mapbox/streets-v11/static/${randomLng},${randomLat},14,0/600x400?access_token=YOUR_MAPBOX_TOKEN`
-
-      // Poiché non abbiamo una chiave API, usiamo un'immagine di placeholder
-      imageUrl = `https://via.placeholder.com/600x400?text=Immagine+Luogo`
-    }
-
-    return NextResponse.json({ imageUrl })
+    return NextResponse.json({
+      success: true,
+      imageUrl,
+      message: "Immagine generata con successo",
+    })
   } catch (error) {
     console.error("Error generating place image:", error)
-    return NextResponse.json({ error: "Errore durante la generazione dell'immagine" }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Errore durante la generazione dell'immagine",
+        success: false,
+      },
+      { status: 500 },
+    )
+  }
+}
+
+// Funzione per estrarre l'ID del luogo da un link di Google Maps
+function extractPlaceIdFromLink(link: string) {
+  try {
+    // Supporta diversi formati di URL di Google Maps
+    const url = new URL(link)
+
+    // Formato 1: https://maps.app.goo.gl/xxx
+    if (url.hostname === "maps.app.goo.gl") {
+      return url.pathname.substring(1)
+    }
+
+    // Formato 2: https://www.google.com/maps/place/...
+    if (url.pathname.includes("/place/")) {
+      const placeId = url.searchParams.get("place_id")
+      if (placeId) return placeId
+
+      // Se non c'è un place_id esplicito, proviamo a estrarre dal percorso
+      const pathParts = url.pathname.split("/")
+      const placeIndex = pathParts.indexOf("place")
+      if (placeIndex !== -1 && placeIndex < pathParts.length - 1) {
+        return pathParts[placeIndex + 1].split("/")[0]
+      }
+    }
+
+    // Formato 3: https://goo.gl/maps/xxx
+    if (url.hostname === "goo.gl" && url.pathname.startsWith("/maps/")) {
+      return url.pathname.substring(6)
+    }
+
+    // Estrai coordinate come fallback
+    const coordsMatch = url.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+    if (coordsMatch) {
+      return `${coordsMatch[1]},${coordsMatch[2]}`
+    }
+
+    return null
+  } catch (e) {
+    console.error("Errore nell'analisi del link:", e)
+    return null
   }
 }
