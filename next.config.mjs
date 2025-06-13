@@ -1,5 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -7,7 +8,7 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   images: {
-    domains: ['localhost', 'res.cloudinary.com'],
+    domains: ['localhost', 'res.cloudinary.com', 'lh3.googleusercontent.com', 'images.unsplash.com'],
     remotePatterns: [
       {
         protocol: 'https',
@@ -26,6 +27,7 @@ const nextConfig = {
   },
   experimental: {
     serverComponentsExternalPackages: ['mongodb'],
+    serverActions: true,
   },
   webpack: (config) => {
     config.resolve.fallback = {

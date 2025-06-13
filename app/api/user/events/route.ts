@@ -4,6 +4,9 @@ import { authOptions } from "@/lib/auth"
 import clientPromise from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 
+// Forza la route ad essere dinamica
+export const dynamic = "force-dynamic"
+
 export async function GET() {
   try {
     console.log("🔍 GET /api/user/events called")

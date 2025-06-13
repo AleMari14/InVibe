@@ -59,12 +59,21 @@ export default function CreaEventoPage() {
   const [locationError, setLocationError] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
   const [placePreview, setPlacePreview] = useState<string | null>(null)
+  const [isBrowser, setIsBrowser] = useState(false)
 
   const { data: session, status } = useSession()
   const router = useRouter()
 
+  // Imposta isBrowser a true solo dopo il montaggio del componente
+  useEffect(() => {
+    setIsBrowser(true)
+  }, [])
+
   // Funzione per estrarre informazioni da un link di Google Maps
   const extractInfoFromGoogleMapsLink = (link: string) => {
+    // Verifica che siamo nel browser prima di usare URL
+    if (!isBrowser) return { placeName: "", coordinates: null }
+
     try {
       const url = new URL(link)
 
@@ -107,8 +116,8 @@ export default function CreaEventoPage() {
     setError("")
 
     try {
-      // Estrai informazioni dal link
-      const { placeName } = extractInfoFromGoogleMapsLink(placeLink)
+      // Estrai informazioni dal link solo se siamo nel browser
+      const { placeName } = isBrowser ? extractInfoFromGoogleMapsLink(placeLink) : { placeName: "Luogo" }
 
       // Genera un'anteprima del luogo
       setPlacePreview(placeName || "Luogo sconosciuto")
@@ -164,14 +173,14 @@ export default function CreaEventoPage() {
 
   useEffect(() => {
     // Pulisci l'anteprima quando il link cambia
-    if (placeLink) {
+    if (placeLink && isBrowser) {
       const { placeName } = extractInfoFromGoogleMapsLink(placeLink)
       setPlacePreview(placeName || null)
       setError("")
     } else {
       setPlacePreview(null)
     }
-  }, [placeLink])
+  }, [placeLink, isBrowser])
 
   if (status === "loading") {
     return (
