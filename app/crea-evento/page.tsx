@@ -2,8 +2,8 @@
 
 import type React from "react"
 
-import { useState } from "react"
-import { ArrowLeft, MapPin, Calendar, Users, DollarSign, LinkIcon, CheckCircle, Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
+import { ArrowLeft, Calendar, Users, DollarSign, LinkIcon, CheckCircle, Loader2, ImageIcon, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,11 +13,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
 import { LocationPicker } from "@/components/ui/location-picker"
+import { toast } from "sonner"
 
 export default function CreaEventoPage() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -31,6 +33,9 @@ export default function CreaEventoPage() {
   const [postiTotali, setPostiTotali] = useState("")
   const [prezzo, setPrezzo] = useState("")
   const [bookingLink, setBookingLink] = useState("")
+  const [placeLink, setPlaceLink] = useState("")
+  const [placeImagePreview, setPlaceImagePreview] = useState<string | null>(null)
+  const [isLoadingImage, setIsLoadingImage] = useState(false)
   const [servizi, setServizi] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
@@ -39,6 +44,82 @@ export default function CreaEventoPage() {
 
   const { data: session, status } = useSession()
   const router = useRouter()
+
+  // Funzione per estrarre l'ID del luogo da un link di Google Maps
+  const extractPlaceIdFromLink = (link: string) => {
+    try {
+      // Supporta diversi formati di URL di Google Maps
+      const url = new URL(link)
+
+      // Formato 1: https://maps.app.goo.gl/xxx
+      if (url.hostname === "maps.app.goo.gl") {
+        return { placeId: url.pathname.substring(1), isShortUrl: true }
+      }
+
+      // Formato 2: https://www.google.com/maps/place/...
+      if (url.pathname.includes("/place/")) {
+        const placeId = url.searchParams.get("place_id")
+        if (placeId) return { placeId, isShortUrl: false }
+
+        // Se non c'è un place_id esplicito, proviamo a estrarre dal percorso
+        const pathParts = url.pathname.split("/")
+        const placeIndex = pathParts.indexOf("place")
+        if (placeIndex !== -1 && placeIndex < pathParts.length - 1) {
+          return { placeId: pathParts[placeIndex + 1].split("/")[0], isShortUrl: false }
+        }
+      }
+
+      // Formato 3: https://goo.gl/maps/xxx
+      if (url.hostname === "goo.gl" && url.pathname.startsWith("/maps/")) {
+        return { placeId: url.pathname.substring(6), isShortUrl: true }
+      }
+
+      return null
+    } catch (e) {
+      console.error("Errore nell'analisi del link:", e)
+      return null
+    }
+  }
+
+  // Funzione per generare un'immagine dal link del posto
+  const generateImageFromPlaceLink = async () => {
+    if (!placeLink) return
+
+    setIsLoadingImage(true)
+    setError("")
+
+    try {
+      const placeInfo = extractPlaceIdFromLink(placeLink)
+
+      if (!placeInfo) {
+        setError("Link non valido. Inserisci un link di Google Maps valido.")
+        setIsLoadingImage(false)
+        return
+      }
+
+      // Generiamo un'immagine basata sul link
+      // Nota: in un'implementazione reale, dovresti avere un endpoint server che fa questo
+      // per non esporre chiavi API sul client
+
+      // Per ora, utilizziamo un placeholder con il placeId come query
+      const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(placeInfo.placeId)}`
+      setPlaceImagePreview(imageUrl)
+
+      toast.success("Anteprima immagine generata")
+    } catch (error) {
+      console.error("Errore nella generazione dell'immagine:", error)
+      setError("Errore nella generazione dell'immagine. Riprova.")
+    } finally {
+      setIsLoadingImage(false)
+    }
+  }
+
+  useEffect(() => {
+    // Pulisci l'anteprima quando il link cambia
+    if (placeLink) {
+      setPlaceImagePreview(null)
+    }
+  }, [placeLink])
 
   if (status === "loading") {
     return (
@@ -156,11 +237,11 @@ export default function CreaEventoPage() {
       setError("La data di fine deve essere successiva alla data di inizio")
       return false
     }
-    if (!postiTotali || parseInt(postiTotali) < 2) {
+    if (!postiTotali || Number.parseInt(postiTotali) < 2) {
       setError("Il numero di posti deve essere almeno 2")
       return false
     }
-    if (!prezzo || parseFloat(prezzo) <= 0) {
+    if (!prezzo || Number.parseFloat(prezzo) <= 0) {
       setError("Il prezzo deve essere maggiore di 0")
       return false
     }
@@ -170,7 +251,7 @@ export default function CreaEventoPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
-    
+
     if (!validateForm()) {
       return
     }
@@ -184,13 +265,14 @@ export default function CreaEventoPage() {
         category: categoria,
         location: location,
         coordinates: coordinates,
-        price: parseFloat(prezzo),
+        price: Number.parseFloat(prezzo),
         dateStart: dataInizio,
         dateEnd: dataFine || null,
-        totalSpots: parseInt(postiTotali),
+        totalSpots: Number.parseInt(postiTotali),
         amenities: servizi,
         bookingLink: bookingLink.trim(),
-        images: [],
+        placeLink: placeLink.trim(),
+        images: placeImagePreview ? [placeImagePreview] : [],
       }
 
       const response = await fetch("/api/events", {
@@ -203,6 +285,7 @@ export default function CreaEventoPage() {
 
       if (response.ok && result.success) {
         setSuccess(true)
+        toast.success("Evento creato con successo!")
         setTimeout(() => {
           router.push("/")
         }, 2000)
@@ -212,6 +295,7 @@ export default function CreaEventoPage() {
     } catch (error) {
       console.error("Error creating event:", error)
       setError(error instanceof Error ? error.message : "Errore nella creazione dell'evento")
+      toast.error("Errore nella creazione dell'evento")
     } finally {
       setIsSubmitting(false)
     }
@@ -363,11 +447,76 @@ export default function CreaEventoPage() {
                       required
                     />
                   </div>
-                  <LocationPicker
-                    value={location}
-                    onChange={handleLocationChange}
-                    error={locationError}
-                  />
+                  <LocationPicker value={location} onChange={handleLocationChange} error={locationError} />
+
+                  {categoria === "casa" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="placeLink" className="flex items-center gap-1">
+                          Link Google Maps (opzionale)
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs text-xs">
+                                  Inserisci un link di Google Maps per generare automaticamente un'immagine del luogo
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={generateImageFromPlaceLink}
+                          disabled={!placeLink || isLoadingImage}
+                          className="text-xs"
+                        >
+                          {isLoadingImage ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                              Caricamento...
+                            </>
+                          ) : (
+                            <>
+                              <ImageIcon className="h-3 w-3 mr-1" />
+                              Genera Immagine
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                      <div className="relative">
+                        <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Input
+                          id="placeLink"
+                          type="url"
+                          placeholder="https://maps.google.com/..."
+                          value={placeLink}
+                          onChange={(e) => setPlaceLink(e.target.value)}
+                          className="pl-10"
+                        />
+                      </div>
+
+                      {placeImagePreview && (
+                        <div className="mt-2">
+                          <p className="text-sm font-medium mb-1">Anteprima immagine:</p>
+                          <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border">
+                            <img
+                              src={placeImagePreview || "/placeholder.svg"}
+                              alt="Anteprima luogo"
+                              className="object-cover w-full h-full"
+                            />
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Questa immagine verrà utilizzata come copertina dell'evento
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>

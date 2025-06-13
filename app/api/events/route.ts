@@ -134,70 +134,97 @@ export async function POST(request: NextRequest) {
     console.log("📋 Event data received:", data)
 
     // Required fields validation
-    const requiredFields = ['title', 'description', 'location', 'coordinates', 'price', 'dateStart', 'totalSpots']
-    const missingFields = requiredFields.filter(field => !data[field])
-    
+    const requiredFields = ["title", "description", "location", "coordinates", "price", "dateStart", "totalSpots"]
+    const missingFields = requiredFields.filter((field) => !data[field])
+
     if (missingFields.length > 0) {
-      return NextResponse.json({ 
-        error: "Missing required fields", 
-        fields: missingFields 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Missing required fields",
+          fields: missingFields,
+        },
+        { status: 400 },
+      )
     }
 
     // Data type validation
     if (isNaN(Number(data.price)) || isNaN(Number(data.totalSpots))) {
-      return NextResponse.json({ 
-        error: "Invalid numeric values for price or total spots" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Invalid numeric values for price or total spots",
+        },
+        { status: 400 },
+      )
     }
 
     // Location validation
     if (!data.coordinates?.lat || !data.coordinates?.lng) {
-      return NextResponse.json({ 
-        error: "Invalid location coordinates" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Invalid location coordinates",
+        },
+        { status: 400 },
+      )
     }
 
     // Date validation
     const startDate = new Date(data.dateStart)
     if (isNaN(startDate.getTime())) {
-      return NextResponse.json({ 
-        error: "Invalid start date format" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Invalid start date format",
+        },
+        { status: 400 },
+      )
     }
 
     // Validate that start date is not in the past
     if (startDate < new Date()) {
-      return NextResponse.json({ 
-        error: "Start date cannot be in the past" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Start date cannot be in the past",
+        },
+        { status: 400 },
+      )
     }
 
     const endDate = data.dateEnd ? new Date(data.dateEnd) : null
     if (endDate && isNaN(endDate.getTime())) {
-      return NextResponse.json({ 
-        error: "Invalid end date format" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Invalid end date format",
+        },
+        { status: 400 },
+      )
     }
 
     if (endDate && endDate < startDate) {
-      return NextResponse.json({ 
-        error: "End date must be after start date" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "End date must be after start date",
+        },
+        { status: 400 },
+      )
     }
 
     // Price validation
     if (Number(data.price) <= 0) {
-      return NextResponse.json({ 
-        error: "Price must be greater than 0" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Price must be greater than 0",
+        },
+        { status: 400 },
+      )
     }
 
     // Total spots validation
     if (Number(data.totalSpots) < 2) {
-      return NextResponse.json({ 
-        error: "Total spots must be at least 2" 
-      }, { status: 400 })
+      return NextResponse.json(
+        {
+          error: "Total spots must be at least 2",
+        },
+        { status: 400 },
+      )
     }
 
     // Prepare event data
@@ -208,7 +235,7 @@ export async function POST(request: NextRequest) {
       location: data.location.trim(),
       coordinates: {
         lat: Number(data.coordinates.lat),
-        lng: Number(data.coordinates.lng)
+        lng: Number(data.coordinates.lng),
       },
       price: Number(data.price),
       dateStart: startDate,
@@ -218,6 +245,7 @@ export async function POST(request: NextRequest) {
       amenities: Array.isArray(data.amenities) ? data.amenities : [],
       images: Array.isArray(data.images) ? data.images : [],
       bookingLink: data.bookingLink?.trim() || "",
+      placeLink: data.placeLink?.trim() || "", // Nuovo campo per il link del posto
       verified: false, // Events need to be verified by admin
       hostId: new ObjectId(session.user.id),
       participants: [],
@@ -244,16 +272,22 @@ export async function POST(request: NextRequest) {
       })
     } catch (dbError: any) {
       console.error("Database error creating event:", dbError)
-      return NextResponse.json({ 
-        error: "Errore nel salvataggio dell'evento",
-        details: process.env.NODE_ENV === "development" ? dbError.message : undefined
-      }, { status: 500 })
+      return NextResponse.json(
+        {
+          error: "Errore nel salvataggio dell'evento",
+          details: process.env.NODE_ENV === "development" ? dbError.message : undefined,
+        },
+        { status: 500 },
+      )
     }
   } catch (error: any) {
     console.error("Error in POST /api/events:", error)
-    return NextResponse.json({ 
-      error: "Errore interno del server",
-      details: process.env.NODE_ENV === "development" ? error.message : undefined
-    }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Errore interno del server",
+        details: process.env.NODE_ENV === "development" ? error.message : undefined,
+      },
+      { status: 500 },
+    )
   }
 }
