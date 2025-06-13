@@ -17,11 +17,11 @@ import {
   Loader2,
   ImageIcon,
   Info,
-  MapPin,
   Camera,
   X,
   ChevronRight,
   ChevronLeft,
+  Globe,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -34,6 +34,7 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
+import { LocationPicker } from "@/components/ui/location-picker"
 import Link from "next/link"
 
 export default function CreaEventoPage() {
@@ -57,9 +58,43 @@ export default function CreaEventoPage() {
   const [error, setError] = useState("")
   const [locationError, setLocationError] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [placePreview, setPlacePreview] = useState<string | null>(null)
 
   const { data: session, status } = useSession()
   const router = useRouter()
+
+  // Funzione per estrarre informazioni da un link di Google Maps
+  const extractInfoFromGoogleMapsLink = (link: string) => {
+    try {
+      const url = new URL(link)
+
+      // Estrai il nome del luogo dal link
+      let placeName = ""
+
+      if (url.hostname.includes("google") && url.pathname.includes("/place/")) {
+        const pathParts = url.pathname.split("/")
+        const placeIndex = pathParts.indexOf("place")
+        if (placeIndex !== -1 && placeIndex < pathParts.length - 1) {
+          placeName = decodeURIComponent(pathParts[placeIndex + 1].split("/")[0])
+          placeName = placeName.replace(/\+/g, " ")
+        }
+      }
+
+      // Estrai le coordinate
+      let lat = 0,
+        lng = 0
+      const coordsMatch = url.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
+      if (coordsMatch) {
+        lat = Number.parseFloat(coordsMatch[1])
+        lng = Number.parseFloat(coordsMatch[2])
+      }
+
+      return { placeName, coordinates: { lat, lng } }
+    } catch (e) {
+      console.error("Errore nell'analisi del link:", e)
+      return { placeName: "", coordinates: null }
+    }
+  }
 
   // Funzione per generare un'immagine dal link del posto
   const generateImageFromPlaceLink = async () => {
@@ -72,12 +107,16 @@ export default function CreaEventoPage() {
     setError("")
 
     try {
-      // Generiamo un'immagine basata sul link
-      // Per questa demo, utilizziamo un placeholder con un ID casuale
-      const randomId = Math.random().toString(36).substring(2, 10)
-      const imageUrl = `/placeholder.svg?height=400&width=600&query=location%20${randomId}`
+      // Estrai informazioni dal link
+      const { placeName } = extractInfoFromGoogleMapsLink(placeLink)
 
-      // Simuliamo un ritardo per mostrare il caricamento
+      // Genera un'anteprima del luogo
+      setPlacePreview(placeName || "Luogo sconosciuto")
+
+      // Genera un'immagine basata sul nome del luogo
+      const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(placeName || "location")}`
+
+      // Simula un ritardo per mostrare il caricamento
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       setImages((prev) => [...prev, imageUrl])
@@ -97,10 +136,10 @@ export default function CreaEventoPage() {
     setUploadingImage(true)
     try {
       // Per questa demo, utilizziamo un placeholder invece di caricare realmente l'immagine
-      const randomId = Math.random().toString(36).substring(2, 10)
-      const imageUrl = `/placeholder.svg?height=400&width=600&query=upload%20${randomId}`
+      const file = files[0]
+      const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(file.name)}`
 
-      // Simuliamo un ritardo per mostrare il caricamento
+      // Simula un ritardo per mostrare il caricamento
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       setImages((prev) => [...prev, imageUrl])
@@ -117,10 +156,20 @@ export default function CreaEventoPage() {
     setImages((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const handleLocationChange = (newLocation: string, newCoordinates: { lat: number; lng: number }) => {
+    setLocation(newLocation)
+    setCoordinates(newCoordinates)
+    setLocationError("")
+  }
+
   useEffect(() => {
     // Pulisci l'anteprima quando il link cambia
     if (placeLink) {
+      const { placeName } = extractInfoFromGoogleMapsLink(placeLink)
+      setPlacePreview(placeName || null)
       setError("")
+    } else {
+      setPlacePreview(null)
     }
   }, [placeLink])
 
@@ -211,12 +260,6 @@ export default function CreaEventoPage() {
       default:
         return false
     }
-  }
-
-  const handleLocationChange = (newLocation: string, newCoordinates: { lat: number; lng: number }) => {
-    setLocation(newLocation)
-    setCoordinates(newCoordinates)
-    setLocationError("")
   }
 
   const validateForm = () => {
@@ -452,44 +495,7 @@ export default function CreaEventoPage() {
                     />
                   </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="location">Località *</Label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        id="location"
-                        placeholder="Inserisci una località..."
-                        value={location}
-                        onChange={(e) => {
-                          setLocation(e.target.value)
-                          // Simuliamo le coordinate per scopi dimostrativi
-                          if (e.target.value.length > 3) {
-                            setCoordinates({
-                              lat: 41.9028 + Math.random() * 0.01,
-                              lng: 12.4964 + Math.random() * 0.01,
-                            })
-                          }
-                        }}
-                        className="pl-10"
-                        required
-                      />
-                    </div>
-
-                    {/* Mappa statica per demo */}
-                    <div className="h-48 bg-gray-100 rounded-md mt-2 relative overflow-hidden">
-                      <img
-                        src="/placeholder.svg?height=200&width=600"
-                        alt="Mappa"
-                        className="w-full h-full object-cover"
-                      />
-                      {coordinates && (
-                        <div className="absolute bottom-2 right-2 bg-white p-2 rounded-md shadow-md text-xs">
-                          Lat: {coordinates.lat.toFixed(4)}, Lng: {coordinates.lng.toFixed(4)}
-                        </div>
-                      )}
-                    </div>
-                    {locationError && <p className="text-sm text-red-500 mt-1">{locationError}</p>}
-                  </div>
+                  <LocationPicker value={location} onChange={handleLocationChange} error={locationError} />
 
                   {categoria === "casa" && (
                     <div className="space-y-2 p-3 border border-blue-200 bg-blue-50/50 rounded-md">
@@ -500,7 +506,7 @@ export default function CreaEventoPage() {
                         </Label>
                       </div>
                       <div className="relative">
-                        <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                        <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                         <Input
                           id="placeLink"
                           type="url"
@@ -510,6 +516,14 @@ export default function CreaEventoPage() {
                           className="pl-10"
                         />
                       </div>
+
+                      {placePreview && (
+                        <div className="text-sm p-2 bg-blue-50 rounded border border-blue-100 mt-2">
+                          <p className="font-medium">Luogo rilevato:</p>
+                          <p className="text-muted-foreground">{placePreview}</p>
+                        </div>
+                      )}
+
                       <Button
                         type="button"
                         onClick={generateImageFromPlaceLink}
