@@ -400,19 +400,35 @@ export default function CreaEventoPage() {
 
       console.log("Submitting event data:", eventData)
 
-      // Simuliamo una chiamata API di successo
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Effettua la chiamata API reale
+      const response = await fetch("/api/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(eventData),
+      })
 
-      setSuccess(true)
-      toast.success("Evento creato con successo!")
+      const result = await response.json()
 
-      setTimeout(() => {
-        router.push("/")
-      }, 2000)
-    } catch (error) {
+      if (!response.ok) {
+        throw new Error(result.error || "Errore nella creazione dell'evento")
+      }
+
+      if (result.success) {
+        setSuccess(true)
+        toast.success("Evento creato con successo!")
+
+        setTimeout(() => {
+          router.push("/")
+        }, 2000)
+      } else {
+        throw new Error(result.error || "Errore nella creazione dell'evento")
+      }
+    } catch (error: any) {
       console.error("Error creating event:", error)
-      setError("Errore nella creazione dell'evento. Riprova.")
-      toast.error("Errore nella creazione dell'evento")
+      setError(error.message || "Errore nella creazione dell'evento. Riprova.")
+      toast.error(error.message || "Errore nella creazione dell'evento")
     } finally {
       setIsSubmitting(false)
     }
@@ -445,35 +461,35 @@ export default function CreaEventoPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+      {/* Header Mobile-Optimized */}
+      <div className="bg-card/80 backdrop-blur-md border-b border-border px-3 sm:px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link href="/">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
               Crea Nuovo Evento
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <Progress value={getProgress()} className="flex-1 h-2" />
-              <span className="text-xs text-muted-foreground">{currentStep}/4</span>
+              <Progress value={getProgress()} className="flex-1 h-1.5 sm:h-2" />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{currentStep}/4</span>
             </div>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4 pb-20 max-w-3xl mx-auto">
+      <form onSubmit={handleSubmit} className="px-3 sm:px-4 py-4 space-y-4 pb-24 sm:pb-20 max-w-3xl mx-auto">
         {error && (
           <Alert className="border-red-500/50 bg-red-500/10">
-            <AlertDescription className="text-red-400">{error}</AlertDescription>
+            <AlertDescription className="text-red-400 text-sm">{error}</AlertDescription>
           </Alert>
         )}
 
         <AnimatePresence mode="wait">
-          {/* Step 1: Categoria */}
+          {/* Step 1: Categoria - Mobile Optimized */}
           {currentStep === 1 && (
             <motion.div
               key="step1"
@@ -483,7 +499,7 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">1</span>
@@ -497,7 +513,7 @@ export default function CreaEventoPage() {
                       key={cat.id}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      className={`p-3 sm:p-4 rounded-lg border-2 cursor-pointer transition-all ${
                         categoria === cat.id
                           ? `border-transparent bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
                           : "border-border hover:border-gray-300 hover:shadow-md"
@@ -505,11 +521,11 @@ export default function CreaEventoPage() {
                       onClick={() => setCategoria(cat.id)}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{cat.icon}</span>
-                        <div>
-                          <div className="font-medium">{cat.name}</div>
+                        <span className="text-xl sm:text-2xl">{cat.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm sm:text-base">{cat.name}</div>
                           <div
-                            className={`text-sm ${categoria === cat.id ? "text-white/80" : "text-muted-foreground"}`}
+                            className={`text-xs sm:text-sm ${categoria === cat.id ? "text-white/80" : "text-muted-foreground"}`}
                           >
                             {cat.description}
                           </div>
@@ -522,7 +538,7 @@ export default function CreaEventoPage() {
             </motion.div>
           )}
 
-          {/* Step 2: Informazioni Base */}
+          {/* Step 2: Informazioni Base - Mobile Optimized */}
           {currentStep === 2 && (
             <motion.div
               key="step2"
@@ -532,7 +548,7 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">2</span>
@@ -542,25 +558,29 @@ export default function CreaEventoPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label htmlFor="titolo">Titolo dell'Evento *</Label>
+                    <Label htmlFor="titolo" className="text-sm font-medium">
+                      Titolo dell'Evento *
+                    </Label>
                     <Input
                       id="titolo"
                       placeholder="es. Villa con Piscina - Weekend in Toscana"
                       value={titolo}
                       onChange={(e) => setTitolo(e.target.value)}
-                      className="mt-1"
+                      className="mt-1 text-sm"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="descrizione">Descrizione *</Label>
+                    <Label htmlFor="descrizione" className="text-sm font-medium">
+                      Descrizione *
+                    </Label>
                     <Textarea
                       id="descrizione"
                       placeholder="Descrivi il tuo evento, cosa include, cosa aspettarsi..."
                       value={descrizione}
                       onChange={(e) => setDescrizione(e.target.value)}
                       rows={4}
-                      className="mt-1"
+                      className="mt-1 text-sm resize-none"
                       required
                     />
                   </div>
@@ -570,9 +590,9 @@ export default function CreaEventoPage() {
                   {categoria === "casa" && (
                     <div className="space-y-2 p-3 border border-blue-200 bg-blue-50/50 rounded-md">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="placeLink" className="flex items-center gap-1">
+                        <Label htmlFor="placeLink" className="flex items-center gap-1 text-sm">
                           Link OpenStreetMap o Google Maps (opzionale)
-                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                         </Label>
                       </div>
                       <div className="relative">
@@ -583,14 +603,14 @@ export default function CreaEventoPage() {
                           placeholder="https://www.openstreetmap.org/..."
                           value={placeLink}
                           onChange={(e) => setPlaceLink(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 text-sm"
                         />
                       </div>
 
                       {placePreview && (
                         <div className="text-sm p-2 bg-blue-50 rounded border border-blue-100 mt-2">
-                          <p className="font-medium">Luogo rilevato:</p>
-                          <p className="text-muted-foreground">{placePreview}</p>
+                          <p className="font-medium text-xs">Luogo rilevato:</p>
+                          <p className="text-muted-foreground text-xs truncate">{placePreview}</p>
                         </div>
                       )}
 
@@ -598,17 +618,18 @@ export default function CreaEventoPage() {
                         type="button"
                         onClick={generateImageFromPlaceLink}
                         disabled={!placeLink || isLoadingImage}
-                        className="w-full mt-2"
+                        className="w-full mt-2 text-sm"
                         variant="secondary"
+                        size="sm"
                       >
                         {isLoadingImage ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            <Loader2 className="h-3 w-3 mr-2 animate-spin" />
                             Generazione immagine...
                           </>
                         ) : (
                           <>
-                            <ImageIcon className="h-4 w-4 mr-2" />
+                            <ImageIcon className="h-3 w-3 mr-2" />
                             Genera Immagine dal Link
                           </>
                         )}
@@ -624,7 +645,7 @@ export default function CreaEventoPage() {
             </motion.div>
           )}
 
-          {/* Step 3: Date, Partecipanti e Prezzo */}
+          {/* Step 3: Date, Partecipanti e Prezzo - Mobile Optimized */}
           {currentStep === 3 && (
             <motion.div
               key="step3"
@@ -634,7 +655,7 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">3</span>
@@ -643,9 +664,11 @@ export default function CreaEventoPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="dataInizio">Data Inizio *</Label>
+                      <Label htmlFor="dataInizio" className="text-sm font-medium">
+                        Data Inizio *
+                      </Label>
                       <div className="relative mt-1">
                         <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                         <Input
@@ -653,13 +676,15 @@ export default function CreaEventoPage() {
                           type="date"
                           value={dataInizio}
                           onChange={(e) => setDataInizio(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 text-sm"
                           required
                         />
                       </div>
                     </div>
                     <div>
-                      <Label htmlFor="dataFine">Data Fine</Label>
+                      <Label htmlFor="dataFine" className="text-sm font-medium">
+                        Data Fine
+                      </Label>
                       <div className="relative mt-1">
                         <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                         <Input
@@ -667,13 +692,15 @@ export default function CreaEventoPage() {
                           type="date"
                           value={dataFine}
                           onChange={(e) => setDataFine(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 text-sm"
                         />
                       </div>
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="postiTotali">Numero Totale di Posti *</Label>
+                    <Label htmlFor="postiTotali" className="text-sm font-medium">
+                      Numero Totale di Posti *
+                    </Label>
                     <div className="relative mt-1">
                       <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
@@ -682,7 +709,7 @@ export default function CreaEventoPage() {
                         placeholder="es. 8"
                         value={postiTotali}
                         onChange={(e) => setPostiTotali(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 text-sm"
                         min="2"
                         max="50"
                         required
@@ -690,7 +717,9 @@ export default function CreaEventoPage() {
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="prezzo">Prezzo per Persona (€) *</Label>
+                    <Label htmlFor="prezzo" className="text-sm font-medium">
+                      Prezzo per Persona (€) *
+                    </Label>
                     <div className="relative mt-1">
                       <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
@@ -699,14 +728,16 @@ export default function CreaEventoPage() {
                         placeholder="es. 85"
                         value={prezzo}
                         onChange={(e) => setPrezzo(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 text-sm"
                         min="1"
                         required
                       />
                     </div>
                   </div>
                   <div>
-                    <Label htmlFor="bookingLink">Link di Prenotazione (opzionale)</Label>
+                    <Label htmlFor="bookingLink" className="text-sm font-medium">
+                      Link di Prenotazione (opzionale)
+                    </Label>
                     <div className="relative mt-1">
                       <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                       <Input
@@ -715,7 +746,7 @@ export default function CreaEventoPage() {
                         placeholder="https://..."
                         value={bookingLink}
                         onChange={(e) => setBookingLink(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 text-sm"
                       />
                     </div>
                   </div>
@@ -723,11 +754,11 @@ export default function CreaEventoPage() {
               </Card>
 
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm mt-4">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-md">Immagini dell'Evento</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2 sm:gap-3">
                     {images.map((image, index) => (
                       <div
                         key={index}
@@ -741,10 +772,10 @@ export default function CreaEventoPage() {
                         <Button
                           variant="destructive"
                           size="icon"
-                          className="absolute top-1 right-1 h-6 w-6"
+                          className="absolute top-1 right-1 h-5 w-5 sm:h-6 sm:w-6"
                           onClick={() => removeImage(index)}
                         >
-                          <X className="h-3 w-3" />
+                          <X className="h-2 w-2 sm:h-3 sm:w-3" />
                         </Button>
                       </div>
                     ))}
@@ -757,11 +788,11 @@ export default function CreaEventoPage() {
                         disabled={uploadingImage}
                       />
                       {uploadingImage ? (
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                        <Loader2 className="h-4 w-4 sm:h-6 sm:w-6 animate-spin text-muted-foreground" />
                       ) : (
                         <>
-                          <Camera className="h-6 w-6 mb-2 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Carica immagine</span>
+                          <Camera className="h-4 w-4 sm:h-6 sm:w-6 mb-1 sm:mb-2 text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground text-center px-1">Carica immagine</span>
                         </>
                       )}
                     </label>
@@ -774,7 +805,7 @@ export default function CreaEventoPage() {
             </motion.div>
           )}
 
-          {/* Step 4: Servizi */}
+          {/* Step 4: Servizi - Mobile Optimized */}
           {currentStep === 4 && (
             <motion.div
               key="step4"
@@ -784,7 +815,7 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">4</span>
@@ -793,7 +824,7 @@ export default function CreaEventoPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     {serviziDisponibili.map((servizio) => (
                       <motion.div key={servizio} className="flex items-center space-x-2" whileHover={{ scale: 1.02 }}>
                         <Checkbox
@@ -816,7 +847,7 @@ export default function CreaEventoPage() {
                           <Badge
                             key={servizio}
                             variant="secondary"
-                            className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                            className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 text-xs"
                           >
                             {servizio}
                           </Badge>
@@ -828,11 +859,11 @@ export default function CreaEventoPage() {
               </Card>
 
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm mt-4">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-md">Riepilogo Evento</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
                     <div>
                       <span className="text-sm font-medium">Categoria:</span>
                       <p className="text-sm text-muted-foreground">
@@ -880,15 +911,16 @@ export default function CreaEventoPage() {
           )}
         </AnimatePresence>
 
-        {/* Navigation Buttons */}
-        <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-md border-t border-border p-4">
-          <div className="flex gap-3 max-w-3xl mx-auto">
+        {/* Navigation Buttons - Mobile Optimized */}
+        <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border p-3 sm:p-4 safe-area-pb">
+          <div className="flex gap-2 sm:gap-3 max-w-3xl mx-auto">
             {currentStep > 1 && (
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setCurrentStep(currentStep - 1)}
-                className="flex-1"
+                className="flex-1 text-sm"
+                size="sm"
               >
                 <ChevronLeft className="h-4 w-4 mr-1" />
                 Indietro
@@ -900,7 +932,8 @@ export default function CreaEventoPage() {
                 type="button"
                 onClick={() => setCurrentStep(currentStep + 1)}
                 disabled={!canProceedToNextStep()}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm"
+                size="sm"
               >
                 Avanti
                 <ChevronRight className="h-4 w-4 ml-1" />
@@ -909,7 +942,8 @@ export default function CreaEventoPage() {
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
+                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-sm"
+                size="sm"
               >
                 {isSubmitting ? (
                   <>
