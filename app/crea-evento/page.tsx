@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import dynamic from "next/dynamic"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
@@ -34,8 +34,22 @@ import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import { Separator } from "@/components/ui/separator"
-import { LocationPicker } from "@/components/ui/location-picker"
 import Link from "next/link"
+
+// Carica dinamicamente il LocationPicker per evitare problemi SSR
+const LocationPicker = dynamic(
+  () => import("@/components/ui/location-picker").then((mod) => ({ default: mod.LocationPicker })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-2">
+        <Label>Località *</Label>
+        <div className="h-10 bg-muted animate-pulse rounded-md"></div>
+        <div className="h-48 bg-muted animate-pulse rounded-md"></div>
+      </div>
+    ),
+  },
+)
 
 export default function CreaEventoPage() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -59,20 +73,21 @@ export default function CreaEventoPage() {
   const [locationError, setLocationError] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
   const [placePreview, setPlacePreview] = useState<string | null>(null)
-  const [isBrowser, setIsBrowser] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
 
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  // Imposta isBrowser a true solo dopo il montaggio del componente
+  // Imposta isMounted a true solo dopo il montaggio del componente
   useEffect(() => {
-    setIsBrowser(true)
+    setIsMounted(true)
   }, [])
 
-  // Funzione per estrarre informazioni da un link di OpenStreetMap
+  // Funzione per estrarre informazioni da un link di OpenStreetMap - solo client-side
   const extractInfoFromMapLink = (link: string) => {
-    // Verifica che siamo nel browser prima di usare URL
-    if (!isBrowser) return { placeName: "", coordinates: null }
+    if (!isMounted || typeof window === "undefined") {
+      return { placeName: "", coordinates: null }
+    }
 
     try {
       const url = new URL(link)
@@ -144,7 +159,7 @@ export default function CreaEventoPage() {
 
     try {
       // Estrai informazioni dal link solo se siamo nel browser
-      const { placeName, coordinates } = isBrowser
+      const { placeName, coordinates } = isMounted
         ? extractInfoFromMapLink(placeLink)
         : { placeName: "Luogo", coordinates: null }
 
@@ -233,15 +248,24 @@ export default function CreaEventoPage() {
   }
 
   useEffect(() => {
-    // Pulisci l'anteprima quando il link cambia
-    if (placeLink && isBrowser) {
+    // Pulisci l'anteprima quando il link cambia - solo client-side
+    if (placeLink && isMounted) {
       const { placeName } = extractInfoFromMapLink(placeLink)
       setPlacePreview(placeName || null)
       setError("")
     } else {
       setPlacePreview(null)
     }
-  }, [placeLink, isBrowser])
+  }, [placeLink, isMounted])
+
+  // Loading state durante l'hydration
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   if (status === "loading") {
     return (

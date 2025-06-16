@@ -1,124 +1,148 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet"
-import L from "leaflet"
-import "leaflet/dist/leaflet.css"
+import { MapPin } from "lucide-react"
 import { Skeleton } from "./skeleton"
 
-// Risolve il problema delle icone di Leaflet in Next.js
-const createMarkerIcon = () => {
-  return L.icon({
-    iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-    iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41],
-  })
-}
-
-// Componente per aggiornare la vista della mappa quando cambiano le coordinate
-function MapUpdater({ center }: { center: [number, number] }) {
-  const map = useMap()
-
-  useEffect(() => {
-    map.setView(center, map.getZoom())
-  }, [center, map])
-
-  return null
-}
-
-// Componente per gestire gli eventi della mappa
-function MapEventHandler({ onMarkerChange }: { onMarkerChange: (lat: number, lng: number) => void }) {
-  const map = useMapEvents({
-    click(e) {
-      onMarkerChange(e.latlng.lat, e.latlng.lng)
-    },
-  })
-
-  return null
-}
-
 interface MapProps {
-  center: [number, number] | null
-  marker?: [number, number] | null
+  center?: [number, number]
+  zoom?: number
+  marker?: [number, number]
   onMarkerChange?: (lat: number, lng: number) => void
   height?: string
-  zoom?: number
   interactive?: boolean
-  className?: string
 }
 
 export function Map({
-  center,
+  center = [41.9028, 12.4964], // Default: Rome
+  zoom = 13,
   marker,
   onMarkerChange,
   height = "300px",
-  zoom = 13,
   interactive = true,
-  className = "",
 }: MapProps) {
+  const mapRef = useRef<any>(null)
+  const markerRef = useRef<any>(null)
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const [mapReady, setMapReady] = useState(false)
+  const [leaflet, setLeaflet] = useState<any>(null)
   const [isMounted, setIsMounted] = useState(false)
-  const markerRef = useRef<L.Marker | null>(null)
-  const mapRef = useRef<L.Map | null>(null)
-  const defaultCenter: [number, number] = [41.9028, 12.4964] // Roma come default
 
+  // Assicurati che il componente sia montato prima di caricare Leaflet
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
-  // Gestisce il trascinamento del marker
-  const handleMarkerDrag = (e: L.DragEndEvent) => {
-    if (onMarkerChange) {
-      const marker = e.target
-      const position = marker.getLatLng()
-      onMarkerChange(position.lat, position.lng)
-    }
-  }
+  // Carica Leaflet solo lato client
+  useEffect(() => {
+    if (!isMounted || typeof window === "undefined") return
 
-  if (!isMounted) {
-    return <Skeleton className={`w-full ${className}`} style={{ height }} />
+    import("leaflet").then((L) => {
+      // Fix Leaflet icon issue
+      delete (L.Icon.Default.prototype as any)._getIconUrl
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+        iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+        shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+      })
+      setLeaflet(L)
+    })
+  }, [isMounted])
+
+  // Inizializza la mappa quando Leaflet è caricato
+  useEffect(() => {
+    if (!leaflet || !mapContainerRef.current || mapRef.current || !isMounted) return
+
+    // Importa il CSS di Leaflet
+    import("leaflet/dist/leaflet.css")
+
+    // Crea la mappa
+    const map = leaflet.map(mapContainerRef.current, {
+      center: center,
+      zoom: zoom,
+      zoomControl: interactive,
+      dragging: interactive,
+      scrollWheelZoom: interactive,
+      doubleClickZoom: interactive,
+      boxZoom: interactive,
+      keyboard: interactive,
+      tap: interactive,
+      touchZoom: interactive,
+    })
+
+    // Aggiungi il layer di OpenStreetMap
+    leaflet
+      .tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      })
+      .addTo(map)
+
+    // Aggiungi marker se fornito
+    if (marker) {
+      markerRef.current = leaflet.marker(marker).addTo(map)
+    }
+
+    // Aggiungi handler per click sulla mappa
+    if (interactive && onMarkerChange) {
+      map.on("click", (e: any) => {
+        const { lat, lng } = e.latlng
+
+        // Aggiorna la posizione del marker
+        if (markerRef.current) {
+          markerRef.current.setLatLng([lat, lng])
+        } else {
+          markerRef.current = leaflet.marker([lat, lng]).addTo(map)
+        }
+
+        // Chiama la callback
+        onMarkerChange(lat, lng)
+      })
+    }
+
+    mapRef.current = map
+    setMapReady(true)
+
+    // Cleanup
+    return () => {
+      if (mapRef.current) {
+        mapRef.current.remove()
+        mapRef.current = null
+        markerRef.current = null
+      }
+    }
+  }, [leaflet, center, zoom, marker, onMarkerChange, interactive, isMounted])
+
+  // Aggiorna la posizione del marker quando cambia la prop marker
+  useEffect(() => {
+    if (!leaflet || !mapRef.current || !marker || !isMounted) return
+
+    if (markerRef.current) {
+      markerRef.current.setLatLng(marker)
+    } else {
+      markerRef.current = leaflet.marker(marker).addTo(mapRef.current)
+    }
+
+    // Centra la mappa sul marker
+    mapRef.current.setView(marker, mapRef.current.getZoom())
+  }, [leaflet, marker, isMounted])
+
+  // Mostra skeleton durante il caricamento
+  if (!isMounted || !mapReady) {
+    return <Skeleton className="w-full rounded-md" style={{ height }} />
   }
 
   return (
-    <div className={`w-full ${className}`} style={{ height }}>
-      <MapContainer
-        center={center || defaultCenter}
-        zoom={zoom}
-        style={{ height: "100%", width: "100%" }}
-        scrollWheelZoom={interactive}
-        dragging={interactive}
-        touchZoom={interactive}
-        doubleClickZoom={interactive}
-        zoomControl={interactive}
-        attributionControl={false}
-        whenCreated={(map) => {
-          mapRef.current = map
-        }}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+    <div className="relative w-full rounded-md overflow-hidden" style={{ height }}>
+      <div ref={mapContainerRef} className="h-full w-full" />
 
-        {center && <MapUpdater center={center} />}
-
-        {onMarkerChange && <MapEventHandler onMarkerChange={onMarkerChange} />}
-
-        {marker && (
-          <Marker
-            position={marker}
-            icon={createMarkerIcon()}
-            draggable={!!onMarkerChange}
-            eventHandlers={{
-              dragend: handleMarkerDrag,
-            }}
-            ref={markerRef}
-          />
-        )}
-      </MapContainer>
+      {!mapReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
+          <div className="flex flex-col items-center">
+            <MapPin className="h-6 w-6 text-muted-foreground animate-bounce" />
+            <span className="text-sm text-muted-foreground mt-2">Caricamento mappa...</span>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

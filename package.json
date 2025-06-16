@@ -65,7 +65,6 @@
     "react-day-picker": "^8.9.1",
     "react-dom": "^18",
     "react-hook-form": "latest",
-    "react-leaflet": "latest",
     "snappy": "latest",
     "socket.io": "latest",
     "socket.io-client": "^4.7.4",
