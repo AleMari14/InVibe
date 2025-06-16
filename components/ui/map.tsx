@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 import { MapPin } from "lucide-react"
-import { Skeleton } from "./skeleton"
 
 interface MapProps {
   center?: [number, number]
@@ -26,32 +25,26 @@ export function Map({
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const [mapReady, setMapReady] = useState(false)
   const [leaflet, setLeaflet] = useState<any>(null)
-  const [isMounted, setIsMounted] = useState(false)
-
-  // Assicurati che il componente sia montato prima di caricare Leaflet
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
 
   // Carica Leaflet solo lato client
   useEffect(() => {
-    if (!isMounted || typeof window === "undefined") return
-
-    import("leaflet").then((L) => {
-      // Fix Leaflet icon issue
-      delete (L.Icon.Default.prototype as any)._getIconUrl
-      L.Icon.Default.mergeOptions({
-        iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
-        iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
-        shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+    if (typeof window !== "undefined") {
+      import("leaflet").then((L) => {
+        // Fix Leaflet icon issue
+        delete (L.Icon.Default.prototype as any)._getIconUrl
+        L.Icon.Default.mergeOptions({
+          iconRetinaUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon-2x.png",
+          iconUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-icon.png",
+          shadowUrl: "https://unpkg.com/leaflet@1.7.1/dist/images/marker-shadow.png",
+        })
+        setLeaflet(L)
       })
-      setLeaflet(L)
-    })
-  }, [isMounted])
+    }
+  }, [])
 
   // Inizializza la mappa quando Leaflet è caricato
   useEffect(() => {
-    if (!leaflet || !mapContainerRef.current || mapRef.current || !isMounted) return
+    if (!leaflet || !mapContainerRef.current || mapRef.current) return
 
     // Importa il CSS di Leaflet
     import("leaflet/dist/leaflet.css")
@@ -110,11 +103,11 @@ export function Map({
         markerRef.current = null
       }
     }
-  }, [leaflet, center, zoom, marker, onMarkerChange, interactive, isMounted])
+  }, [leaflet, center, zoom, marker, onMarkerChange, interactive])
 
   // Aggiorna la posizione del marker quando cambia la prop marker
   useEffect(() => {
-    if (!leaflet || !mapRef.current || !marker || !isMounted) return
+    if (!leaflet || !mapRef.current || !marker) return
 
     if (markerRef.current) {
       markerRef.current.setLatLng(marker)
@@ -124,12 +117,7 @@ export function Map({
 
     // Centra la mappa sul marker
     mapRef.current.setView(marker, mapRef.current.getZoom())
-  }, [leaflet, marker, isMounted])
-
-  // Mostra skeleton durante il caricamento
-  if (!isMounted || !mapReady) {
-    return <Skeleton className="w-full rounded-md" style={{ height }} />
-  }
+  }, [leaflet, marker])
 
   return (
     <div className="relative w-full rounded-md overflow-hidden" style={{ height }}>
