@@ -14,6 +14,7 @@ import {
   CheckCircle,
   Eye,
   Loader2,
+  MessageCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -21,11 +22,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
+import { Card, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
-import { MessageHostButton } from "@/components/event/message-host-button"
 
 interface Event {
   _id: string
@@ -62,6 +63,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteLoading, setFavoriteLoading] = useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const { data: session } = useSession()
 
   useEffect(() => {
@@ -80,7 +82,6 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       }
       const data = await response.json()
       console.log("Fetched event data:", data)
-      console.log("Host data:", data.host)
       setEvent(data)
     } catch (error) {
       console.error("Error fetching event:", error)
@@ -126,7 +127,8 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     const start = new Date(startDate)
     const startFormatted = start.toLocaleDateString("it-IT", {
       day: "numeric",
-      month: "short",
+      month: "long",
+      year: "numeric",
     })
 
     if (!endDate) return startFormatted
@@ -134,10 +136,28 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     const end = new Date(endDate)
     const endFormatted = end.toLocaleDateString("it-IT", {
       day: "numeric",
-      month: "short",
+      month: "long",
+      year: "numeric",
     })
 
     return `${startFormatted} - ${endFormatted}`
+  }
+
+  const shareEvent = async () => {
+    if (navigator.share && event) {
+      try {
+        await navigator.share({
+          title: event.title,
+          text: event.description,
+          url: window.location.href,
+        })
+      } catch (error) {
+        console.log("Error sharing:", error)
+      }
+    } else {
+      // Fallback: copy to clipboard
+      navigator.clipboard.writeText(window.location.href)
+    }
   }
 
   if (loading) {
@@ -164,7 +184,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-foreground mb-2">Evento non trovato</h2>
           <p className="text-muted-foreground mb-4">L'evento che stai cercando non esiste o è stato rimosso.</p>
@@ -178,75 +198,72 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
+      {/* Header with Image Gallery */}
       <div className="relative">
-        <div className="absolute top-4 left-4 z-10">
+        {/* Navigation */}
+        <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
           <Link href="/">
-            <Button variant="ghost" size="icon" className="bg-background/80 hover:bg-background backdrop-blur-sm">
+            <Button variant="ghost" size="icon" className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-        </div>
-        <div className="absolute top-4 right-4 z-10 flex gap-2">
-          {event.host && (
-            <Avatar className="h-10 w-10 ring-2 ring-blue-200">
-              <AvatarImage src={event.host.image || "/placeholder.svg"} />
-              <AvatarFallback>
-                {event.host.name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .join("")}
-              </AvatarFallback>
-            </Avatar>
-          )}
-          <Button variant="ghost" size="icon" className="bg-background/80 hover:bg-background backdrop-blur-sm">
-            <Share className="h-4 w-4" />
-          </Button>
-          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+          <div className="flex gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="bg-background/80 hover:bg-background backdrop-blur-sm"
-              onClick={toggleFavorite}
-              disabled={favoriteLoading || !session}
+              className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
+              onClick={shareEvent}
             >
-              {favoriteLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-foreground"}`} />
-              )}
+              <Share className="h-4 w-4" />
             </Button>
-          </motion.div>
+            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
+                onClick={toggleFavorite}
+                disabled={favoriteLoading || !session}
+              >
+                {favoriteLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`} />
+                )}
+              </Button>
+            </motion.div>
+          </div>
         </div>
 
         {/* Image Gallery */}
-        <div className="overflow-x-auto">
-          <div className="flex gap-2">
-            {event.images && event.images.length > 0 ? (
-              event.images.map((image, index) => (
-                <Image
+        <div className="relative aspect-[16/10] overflow-hidden">
+          <Image
+            src={event.images?.[currentImageIndex] || "/placeholder.svg?height=400&width=600&query=event"}
+            alt={event.title}
+            fill
+            className="object-cover"
+            sizes="100vw"
+            priority
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+
+          {/* Image indicators */}
+          {event.images && event.images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+              {event.images.map((_, index) => (
+                <button
                   key={index}
-                  src={image || "/placeholder.svg"}
-                  alt={`${event.title} ${index + 1}`}
-                  width={400}
-                  height={300}
-                  className="w-full h-64 object-cover flex-shrink-0"
+                  className={`w-2 h-2 rounded-full transition-colors ${
+                    index === currentImageIndex ? "bg-white" : "bg-white/50"
+                  }`}
+                  onClick={() => setCurrentImageIndex(index)}
                 />
-              ))
-            ) : (
-              <Image
-                src="/placeholder.svg?height=300&width=400"
-                alt={event.title}
-                width={400}
-                height={300}
-                className="w-full h-64 object-cover flex-shrink-0"
-              />
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="px-4 py-4 space-y-6">
+      <div className="px-4 py-4 space-y-6 pb-24">
         {/* Verification Badge */}
         {event.verified && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
@@ -259,23 +276,23 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           </motion.div>
         )}
 
-        {/* Title and Rating */}
+        {/* Title and Basic Info */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <div className="flex justify-between items-start mb-2">
-            <h1 className="text-2xl font-bold leading-tight text-foreground">{event.title}</h1>
-            <div className="flex items-center gap-1">
+          <div className="flex justify-between items-start mb-3">
+            <h1 className="text-2xl font-bold leading-tight text-foreground pr-4">{event.title}</h1>
+            <div className="flex items-center gap-1 flex-shrink-0">
               <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
               <span className="font-medium">{event.rating || 4.8}</span>
-              <span className="text-muted-foreground">({event.reviewCount || 0})</span>
+              <span className="text-muted-foreground text-sm">({event.reviewCount || 0})</span>
             </div>
           </div>
 
           <div className="flex items-center gap-1 text-muted-foreground mb-3">
-            <MapPin className="h-4 w-4" />
-            <span>{event.location}</span>
+            <MapPin className="h-4 w-4 flex-shrink-0" />
+            <span className="text-sm">{event.location}</span>
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
             <div className="flex items-center gap-1">
               <Calendar className="h-4 w-4" />
               <span>{formatDateRange(event.dateStart, event.dateEnd)}</span>
@@ -292,7 +309,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               {event.availableSpots} posti liberi
             </Badge>
@@ -312,38 +329,40 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
         {/* Host Info */}
         {event.host && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Avatar className="ring-2 ring-blue-200">
-                  <AvatarImage src={event.host.image || "/placeholder.svg?height=40&width=40"} />
-                  <AvatarFallback>
-                    {event.host.name
-                      .split(" ")
-                      .map((n) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">Organizzato da {event.host.name}</span>
-                    {event.host.verified && <CheckCircle className="h-4 w-4 text-green-500" />}
+            <Card className="border-0 shadow-sm bg-card/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="ring-2 ring-blue-200">
+                      <AvatarImage src={event.host.image || "/placeholder.svg?height=40&width=40&query=host"} />
+                      <AvatarFallback>
+                        {event.host.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">Organizzato da {event.host.name}</span>
+                        {event.host.verified && <CheckCircle className="h-4 w-4 text-green-500" />}
+                      </div>
+                      <div className="text-sm text-muted-foreground flex items-center gap-1">
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        {event.host.rating || 4.8} • {event.host.reviewCount || 0} recensioni
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm text-muted-foreground flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                    {event.host.rating || 4.8} • {event.host.reviewCount || 0} recensioni
-                  </div>
+                  {session?.user?.email !== event.host.email && (
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm">
+                        <MessageCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
-              </div>
-              {session?.user?.email !== event.host.email && (
-                <MessageHostButton
-                  hostId={event.host._id || event.hostId || ""}
-                  hostName={event.host.name}
-                  hostEmail={event.host.email}
-                  eventId={event._id}
-                  eventTitle={event.title}
-                />
-              )}
-            </div>
+              </CardContent>
+            </Card>
           </motion.div>
         )}
 
@@ -351,23 +370,20 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
         {/* Description */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <h3 className="font-semibold mb-2">Descrizione</h3>
+          <h3 className="font-semibold mb-3 text-lg">Descrizione</h3>
           <p className="text-muted-foreground leading-relaxed">{event.description}</p>
         </motion.div>
 
         {/* Amenities */}
         {event.amenities && event.amenities.length > 0 && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <h3 className="font-semibold mb-3">Servizi Inclusi</h3>
-            <div className="flex flex-wrap gap-2">
+            <h3 className="font-semibold mb-3 text-lg">Servizi Inclusi</h3>
+            <div className="grid grid-cols-2 gap-2">
               {event.amenities.map((amenity) => (
-                <Badge
-                  key={amenity}
-                  variant="secondary"
-                  className="bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  {amenity}
-                </Badge>
+                <div key={amenity} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
+                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
+                  <span className="text-sm">{amenity}</span>
+                </div>
               ))}
             </div>
           </motion.div>
@@ -376,25 +392,28 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
         {/* Booking Link */}
         {event.bookingLink && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-            <h3 className="font-semibold mb-3">Prenotazione Ufficiale</h3>
+            <h3 className="font-semibold mb-3 text-lg">Prenotazione Ufficiale</h3>
             <a
               href={event.bookingLink}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-2 p-3 border border-blue-200 rounded-lg hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-900/20 transition-colors"
+              className="flex items-center gap-3 p-4 border border-blue-200 rounded-lg hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-900/20 transition-colors"
             >
-              <ExternalLink className="h-4 w-4 text-blue-600" />
-              <span className="text-blue-600 font-medium">Prenota su piattaforma ufficiale</span>
+              <ExternalLink className="h-5 w-5 text-blue-600" />
+              <div>
+                <span className="text-blue-600 font-medium">Prenota su piattaforma ufficiale</span>
+                <p className="text-xs text-muted-foreground">Clicca per prenotare l'alloggio</p>
+              </div>
             </a>
           </motion.div>
         )}
       </div>
 
       {/* Bottom Booking Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card/90 backdrop-blur-md border-t border-border p-4 safe-area-pb">
+      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4 safe-area-pb">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-xl font-bold text-foreground">€{event.price}</div>
+            <div className="text-2xl font-bold text-foreground">€{event.price}</div>
             <div className="text-sm text-muted-foreground">a persona</div>
           </div>
           {event.availableSpots > 0 ? (
@@ -415,9 +434,6 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           )}
         </div>
       </div>
-
-      {/* Bottom padding for fixed booking bar */}
-      <div className="h-20"></div>
     </div>
   )
 }

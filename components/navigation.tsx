@@ -1,55 +1,107 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, Search, Heart, MessageSquare, User } from "lucide-react"
+import { useSession } from "next-auth/react"
+import { motion } from "framer-motion"
+import { Home, Heart, User, Plus, LogIn, MessageSquare } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { useNotifications } from "@/hooks/use-notifications"
-import { cn } from "@/lib/utils"
-
-const navItems = [
-  { href: "/", icon: Home, label: "Home" },
-  { href: "/filtri", icon: Search, label: "Cerca" },
-  { href: "/preferiti", icon: Heart, label: "Preferiti" },
-  { href: "/messaggi", icon: MessageSquare, label: "Messaggi", hasNotifications: true },
-  { href: "/profile", icon: User, label: "Profilo" },
-]
 
 export function Navigation() {
   const pathname = usePathname()
-  const { unreadMessages, unreadCount } = useNotifications()
+  const { data: session } = useSession()
+  const { unreadCount } = useNotifications()
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return null
+
+  const isActive = (path: string) => {
+    if (path === "/") return pathname === "/"
+    return pathname?.startsWith(path)
+  }
+
+  const navItems = [
+    {
+      name: "Home",
+      href: "/",
+      icon: Home,
+      active: isActive("/") && !isActive("/preferiti") && !isActive("/messaggi") && !isActive("/profile"),
+    },
+    {
+      name: "Preferiti",
+      href: session ? "/preferiti" : "/auth/login",
+      icon: Heart,
+      active: isActive("/preferiti"),
+    },
+    {
+      name: "Crea",
+      href: session ? "/crea-evento" : "/auth/login",
+      icon: Plus,
+      active: isActive("/crea-evento"),
+      special: true,
+    },
+    {
+      name: "Messaggi",
+      href: session ? "/messaggi" : "/auth/login",
+      icon: MessageSquare,
+      active: isActive("/messaggi"),
+      badge: session && unreadCount > 0 ? unreadCount : undefined,
+    },
+    {
+      name: session ? "Profilo" : "Accedi",
+      href: session ? "/profile" : "/auth/login",
+      icon: session ? User : LogIn,
+      active: isActive("/profile") || isActive("/auth") || isActive("/prenotazioni") || isActive("/impostazioni"),
+    },
+  ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-t border-border z-50">
-      <div className="flex items-center justify-around py-2 px-4">
-        {navItems.map((item) => {
-          const isActive = pathname === item.href
-          const Icon = item.icon
-          const showBadge = item.hasNotifications && (unreadMessages > 0 || unreadCount > 0)
-          const badgeCount = item.href === "/messaggi" ? unreadMessages : unreadCount
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex flex-col items-center gap-1 p-2 rounded-lg transition-colors relative",
-                isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-foreground hover:bg-accent",
-              )}
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border safe-area-pb">
+      <div className="flex items-center justify-around py-1 px-1 max-w-md mx-auto">
+        {navItems.map((item) => (
+          <Link key={item.name} href={item.href} className="relative flex-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`w-full h-16 flex flex-col items-center justify-center gap-1 rounded-xl transition-all ${
+                item.active ? "text-blue-600 bg-blue-50 dark:bg-blue-950/30" : "text-muted-foreground"
+              } ${item.special ? "pt-0" : ""}`}
             >
-              <div className="relative">
-                <Icon className="h-5 w-5" />
-                {showBadge && (
-                  <Badge className="absolute -top-2 -right-2 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500 text-white">
-                    {badgeCount > 99 ? "99+" : badgeCount}
-                  </Badge>
-                )}
-              </div>
-              <span className="text-xs font-medium">{item.label}</span>
-            </Link>
-          )
-        })}
+              {item.special ? (
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 -mt-6 shadow-lg">
+                  <item.icon className="h-6 w-6 text-white" />
+                </div>
+              ) : (
+                <div className="relative">
+                  <item.icon className="h-5 w-5" />
+                  {item.badge && (
+                    <Badge className="absolute -top-2 -right-2 h-4 w-4 flex items-center justify-center p-0 text-[10px] bg-red-500 text-white">
+                      {item.badge > 99 ? "99+" : item.badge}
+                    </Badge>
+                  )}
+                </div>
+              )}
+              <span className="text-[10px] font-medium">{item.name}</span>
+
+              {/* Indicatore attivo */}
+              {item.active && !item.special && (
+                <motion.div
+                  layoutId="navigation-indicator"
+                  className="absolute bottom-1 w-1 h-1 bg-blue-600 rounded-full"
+                  transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                />
+              )}
+            </Button>
+          </Link>
+        ))}
       </div>
-    </nav>
+    </div>
   )
 }

@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-
+import dynamic from "next/dynamic"
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
@@ -9,19 +9,16 @@ import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
 import {
   ArrowLeft,
-  Calendar,
-  Users,
-  DollarSign,
-  LinkIcon,
   CheckCircle,
   Loader2,
   ImageIcon,
   Info,
-  Camera,
-  X,
   ChevronRight,
   ChevronLeft,
   Globe,
+  Wifi,
+  Car,
+  Utensils,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -30,12 +27,24 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
-import { Separator } from "@/components/ui/separator"
-import { LocationPicker } from "@/components/ui/location-picker"
 import Link from "next/link"
+
+// Carica dinamicamente il LocationPicker per evitare problemi SSR
+const LocationPicker = dynamic(
+  () => import("@/components/ui/location-picker").then((mod) => ({ default: mod.LocationPicker })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="space-y-2">
+        <Label>Località *</Label>
+        <div className="h-10 bg-muted animate-pulse rounded-md"></div>
+        <div className="h-48 bg-muted animate-pulse rounded-md"></div>
+      </div>
+    ),
+  },
+)
 
 export default function CreaEventoPage() {
   const [currentStep, setCurrentStep] = useState(1)
@@ -59,20 +68,21 @@ export default function CreaEventoPage() {
   const [locationError, setLocationError] = useState("")
   const [uploadingImage, setUploadingImage] = useState(false)
   const [placePreview, setPlacePreview] = useState<string | null>(null)
-  const [isBrowser, setIsBrowser] = useState(false)
+  const [isMounted, setIsMounted] = useState(false)
 
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  // Imposta isBrowser a true solo dopo il montaggio del componente
+  // Imposta isMounted a true solo dopo il montaggio del componente
   useEffect(() => {
-    setIsBrowser(true)
+    setIsMounted(true)
   }, [])
 
-  // Funzione per estrarre informazioni da un link di OpenStreetMap
+  // Funzione per estrarre informazioni da un link di OpenStreetMap - solo client-side
   const extractInfoFromMapLink = (link: string) => {
-    // Verifica che siamo nel browser prima di usare URL
-    if (!isBrowser) return { placeName: "", coordinates: null }
+    if (!isMounted || typeof window === "undefined") {
+      return { placeName: "", coordinates: null }
+    }
 
     try {
       const url = new URL(link)
@@ -144,7 +154,7 @@ export default function CreaEventoPage() {
 
     try {
       // Estrai informazioni dal link solo se siamo nel browser
-      const { placeName, coordinates } = isBrowser
+      const { placeName, coordinates } = isMounted
         ? extractInfoFromMapLink(placeLink)
         : { placeName: "Luogo", coordinates: null }
 
@@ -162,10 +172,9 @@ export default function CreaEventoPage() {
         // Esegui reverse geocoding per ottenere l'indirizzo completo
         try {
           const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coordinates.lat}&lon=${coordinates.lng}&zoom=18&addressdetails=1`,
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coordinates.lat}&lon=${coordinates.lng}&zoom=18&addressdetails=1&accept-language=it`,
             {
               headers: {
-                "Accept-Language": "it",
                 "User-Agent": "InVibe/1.0",
               },
             },
@@ -233,15 +242,24 @@ export default function CreaEventoPage() {
   }
 
   useEffect(() => {
-    // Pulisci l'anteprima quando il link cambia
-    if (placeLink && isBrowser) {
+    // Pulisci l'anteprima quando il link cambia - solo client-side
+    if (placeLink && isMounted) {
       const { placeName } = extractInfoFromMapLink(placeLink)
       setPlacePreview(placeName || null)
       setError("")
     } else {
       setPlacePreview(null)
     }
-  }, [placeLink, isBrowser])
+  }, [placeLink, isMounted])
+
+  // Loading state durante l'hydration
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
 
   if (status === "loading") {
     return (
@@ -288,24 +306,24 @@ export default function CreaEventoPage() {
   ]
 
   const serviziDisponibili = [
-    "WiFi",
-    "Piscina",
-    "Parcheggio",
-    "Cucina",
-    "Aria Condizionata",
-    "Riscaldamento",
-    "TV",
-    "Lavatrice",
-    "Asciugacapelli",
-    "Ferro da Stiro",
-    "Terrazza",
-    "Giardino",
-    "Trasporti Inclusi",
-    "Colazione Inclusa",
-    "Pranzi Inclusi",
-    "Guida Turistica",
-    "Attrezzature Sportive",
-    "Animali Ammessi",
+    { id: "WiFi", name: "WiFi", icon: <Wifi className="h-4 w-4" /> },
+    { id: "Piscina", name: "Piscina", icon: "🏊" },
+    { id: "Parcheggio", name: "Parcheggio", icon: <Car className="h-4 w-4" /> },
+    { id: "Cucina", name: "Cucina", icon: <Utensils className="h-4 w-4" /> },
+    { id: "Aria Condizionata", name: "Aria Condizionata", icon: "❄️" },
+    { id: "Riscaldamento", name: "Riscaldamento", icon: "🔥" },
+    { id: "TV", name: "TV", icon: "📺" },
+    { id: "Lavatrice", name: "Lavatrice", icon: "🧺" },
+    { id: "Asciugacapelli", name: "Asciugacapelli", icon: "💨" },
+    { id: "Ferro da Stiro", name: "Ferro da Stiro", icon: "👔" },
+    { id: "Terrazza", name: "Terrazza", icon: "🌅" },
+    { id: "Giardino", name: "Giardino", icon: "🌳" },
+    { id: "Trasporti Inclusi", name: "Trasporti Inclusi", icon: "🚌" },
+    { id: "Colazione Inclusa", name: "Colazione Inclusa", icon: "🥐" },
+    { id: "Pranzi Inclusi", name: "Pranzi Inclusi", icon: "🍽️" },
+    { id: "Guida Turistica", name: "Guida Turistica", icon: "🗺️" },
+    { id: "Attrezzature Sportive", name: "Attrezzature Sportive", icon: "⚽" },
+    { id: "Animali Ammessi", name: "Animali Ammessi", icon: "🐕" },
   ]
 
   const toggleServizio = (servizio: string) => {
@@ -322,11 +340,11 @@ export default function CreaEventoPage() {
       case 1:
         return categoria !== ""
       case 2:
-        return titolo && descrizione && location
+        return titolo.trim() && descrizione.trim() && location && coordinates
       case 3:
         return dataInizio && postiTotali && prezzo
       case 4:
-        return true // Servizi opzionali
+        return true // Servizi opzionali, sempre possibile procedere
       default:
         return false
     }
@@ -400,19 +418,36 @@ export default function CreaEventoPage() {
 
       console.log("Submitting event data:", eventData)
 
-      // Simuliamo una chiamata API di successo
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Effettua la chiamata API reale
+      const response = await fetch("/api/events", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(eventData),
+      })
 
-      setSuccess(true)
-      toast.success("Evento creato con successo!")
+      const result = await response.json()
+      console.log("API Response:", result)
 
-      setTimeout(() => {
-        router.push("/")
-      }, 2000)
-    } catch (error) {
+      if (!response.ok) {
+        throw new Error(result.error || `Errore HTTP: ${response.status}`)
+      }
+
+      if (result.success) {
+        setSuccess(true)
+        toast.success("Evento creato con successo!")
+
+        setTimeout(() => {
+          router.push("/")
+        }, 2000)
+      } else {
+        throw new Error(result.error || "Errore nella creazione dell'evento")
+      }
+    } catch (error: any) {
       console.error("Error creating event:", error)
-      setError("Errore nella creazione dell'evento. Riprova.")
-      toast.error("Errore nella creazione dell'evento")
+      setError(error.message || "Errore nella creazione dell'evento. Riprova.")
+      toast.error(error.message || "Errore nella creazione dell'evento")
     } finally {
       setIsSubmitting(false)
     }
@@ -445,30 +480,30 @@ export default function CreaEventoPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
+      {/* Header Mobile-Optimized */}
+      <div className="bg-card/80 backdrop-blur-md border-b border-border px-3 sm:px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center gap-2 sm:gap-3">
           <Link href="/">
-            <Button variant="ghost" size="icon">
+            <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
               Crea Nuovo Evento
             </h1>
             <div className="flex items-center gap-2 mt-1">
-              <Progress value={getProgress()} className="flex-1 h-2" />
-              <span className="text-xs text-muted-foreground">{currentStep}/4</span>
+              <Progress value={getProgress()} className="flex-1 h-1.5 sm:h-2" />
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{currentStep}/4</span>
             </div>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="px-4 py-4 space-y-4 pb-20 max-w-3xl mx-auto">
+      <form onSubmit={handleSubmit} className="px-3 sm:px-4 py-4 space-y-4 pb-24 sm:pb-20 max-w-3xl mx-auto">
         {error && (
           <Alert className="border-red-500/50 bg-red-500/10">
-            <AlertDescription className="text-red-400">{error}</AlertDescription>
+            <AlertDescription className="text-red-400 text-sm">{error}</AlertDescription>
           </Alert>
         )}
 
@@ -483,7 +518,7 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">1</span>
@@ -497,7 +532,7 @@ export default function CreaEventoPage() {
                       key={cat.id}
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                      className={`p-3 sm:p-4 rounded-lg border-2 cursor-pointer transition-all ${
                         categoria === cat.id
                           ? `border-transparent bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
                           : "border-border hover:border-gray-300 hover:shadow-md"
@@ -505,11 +540,11 @@ export default function CreaEventoPage() {
                       onClick={() => setCategoria(cat.id)}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-2xl">{cat.icon}</span>
-                        <div>
-                          <div className="font-medium">{cat.name}</div>
+                        <span className="text-xl sm:text-2xl">{cat.icon}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm sm:text-base">{cat.name}</div>
                           <div
-                            className={`text-sm ${categoria === cat.id ? "text-white/80" : "text-muted-foreground"}`}
+                            className={`text-xs sm:text-sm ${categoria === cat.id ? "text-white/80" : "text-muted-foreground"}`}
                           >
                             {cat.description}
                           </div>
@@ -532,7 +567,7 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">2</span>
@@ -542,25 +577,29 @@ export default function CreaEventoPage() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
-                    <Label htmlFor="titolo">Titolo dell'Evento *</Label>
+                    <Label htmlFor="titolo" className="text-sm font-medium">
+                      Titolo dell'Evento *
+                    </Label>
                     <Input
                       id="titolo"
                       placeholder="es. Villa con Piscina - Weekend in Toscana"
                       value={titolo}
                       onChange={(e) => setTitolo(e.target.value)}
-                      className="mt-1"
+                      className="mt-1 text-sm"
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="descrizione">Descrizione *</Label>
+                    <Label htmlFor="descrizione" className="text-sm font-medium">
+                      Descrizione *
+                    </Label>
                     <Textarea
                       id="descrizione"
                       placeholder="Descrivi il tuo evento, cosa include, cosa aspettarsi..."
                       value={descrizione}
                       onChange={(e) => setDescrizione(e.target.value)}
                       rows={4}
-                      className="mt-1"
+                      className="mt-1 text-sm resize-none"
                       required
                     />
                   </div>
@@ -570,9 +609,9 @@ export default function CreaEventoPage() {
                   {categoria === "casa" && (
                     <div className="space-y-2 p-3 border border-blue-200 bg-blue-50/50 rounded-md">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="placeLink" className="flex items-center gap-1">
+                        <Label htmlFor="placeLink" className="flex items-center gap-1 text-sm">
                           Link OpenStreetMap o Google Maps (opzionale)
-                          <Info className="h-4 w-4 text-muted-foreground cursor-help" />
+                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
                         </Label>
                       </div>
                       <div className="relative">
@@ -583,14 +622,14 @@ export default function CreaEventoPage() {
                           placeholder="https://www.openstreetmap.org/..."
                           value={placeLink}
                           onChange={(e) => setPlaceLink(e.target.value)}
-                          className="pl-10"
+                          className="pl-10 text-sm"
                         />
                       </div>
 
                       {placePreview && (
                         <div className="text-sm p-2 bg-blue-50 rounded border border-blue-100 mt-2">
-                          <p className="font-medium">Luogo rilevato:</p>
-                          <p className="text-muted-foreground">{placePreview}</p>
+                          <p className="font-medium text-xs">Luogo rilevato:</p>
+                          <p className="text-muted-foreground text-xs truncate">{placePreview}</p>
                         </div>
                       )}
 
@@ -598,17 +637,18 @@ export default function CreaEventoPage() {
                         type="button"
                         onClick={generateImageFromPlaceLink}
                         disabled={!placeLink || isLoadingImage}
-                        className="w-full mt-2"
+                        className="w-full mt-2 text-sm"
                         variant="secondary"
+                        size="sm"
                       >
                         {isLoadingImage ? (
                           <>
-                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            <Loader2 className="h-3 w-3 mr-2 animate-spin" />
                             Generazione immagine...
                           </>
                         ) : (
                           <>
-                            <ImageIcon className="h-4 w-4 mr-2" />
+                            <ImageIcon className="h-3 w-3 mr-2" />
                             Genera Immagine dal Link
                           </>
                         )}
@@ -634,7 +674,7 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">3</span>
@@ -643,132 +683,59 @@ export default function CreaEventoPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="dataInizio">Data Inizio *</Label>
-                      <div className="relative mt-1">
-                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          id="dataInizio"
-                          type="date"
-                          value={dataInizio}
-                          onChange={(e) => setDataInizio(e.target.value)}
-                          className="pl-10"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label htmlFor="dataFine">Data Fine</Label>
-                      <div className="relative mt-1">
-                        <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                        <Input
-                          id="dataFine"
-                          type="date"
-                          value={dataFine}
-                          onChange={(e) => setDataFine(e.target.value)}
-                          className="pl-10"
-                        />
-                      </div>
-                    </div>
+                  <div>
+                    <Label htmlFor="dataInizio" className="text-sm font-medium">
+                      Data di Inizio *
+                    </Label>
+                    <Input
+                      id="dataInizio"
+                      type="date"
+                      value={dataInizio}
+                      onChange={(e) => setDataInizio(e.target.value)}
+                      className="mt-1 text-sm"
+                      required
+                    />
                   </div>
                   <div>
-                    <Label htmlFor="postiTotali">Numero Totale di Posti *</Label>
-                    <div className="relative mt-1">
-                      <Users className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        id="postiTotali"
-                        type="number"
-                        placeholder="es. 8"
-                        value={postiTotali}
-                        onChange={(e) => setPostiTotali(e.target.value)}
-                        className="pl-10"
-                        min="2"
-                        max="50"
-                        required
-                      />
-                    </div>
+                    <Label htmlFor="dataFine" className="text-sm font-medium">
+                      Data di Fine (opzionale)
+                    </Label>
+                    <Input
+                      id="dataFine"
+                      type="date"
+                      value={dataFine}
+                      onChange={(e) => setDataFine(e.target.value)}
+                      className="mt-1 text-sm"
+                    />
                   </div>
                   <div>
-                    <Label htmlFor="prezzo">Prezzo per Persona (€) *</Label>
-                    <div className="relative mt-1">
-                      <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        id="prezzo"
-                        type="number"
-                        placeholder="es. 85"
-                        value={prezzo}
-                        onChange={(e) => setPrezzo(e.target.value)}
-                        className="pl-10"
-                        min="1"
-                        required
-                      />
-                    </div>
+                    <Label htmlFor="postiTotali" className="text-sm font-medium">
+                      Numero di Posti *
+                    </Label>
+                    <Input
+                      id="postiTotali"
+                      type="number"
+                      placeholder="2"
+                      value={postiTotali}
+                      onChange={(e) => setPostiTotali(e.target.value)}
+                      className="mt-1 text-sm"
+                      required
+                    />
                   </div>
                   <div>
-                    <Label htmlFor="bookingLink">Link di Prenotazione (opzionale)</Label>
-                    <div className="relative mt-1">
-                      <LinkIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                      <Input
-                        id="bookingLink"
-                        type="url"
-                        placeholder="https://..."
-                        value={bookingLink}
-                        onChange={(e) => setBookingLink(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
+                    <Label htmlFor="prezzo" className="text-sm font-medium">
+                      Prezzo per Persona *
+                    </Label>
+                    <Input
+                      id="prezzo"
+                      type="number"
+                      placeholder="0.00"
+                      value={prezzo}
+                      onChange={(e) => setPrezzo(e.target.value)}
+                      className="mt-1 text-sm"
+                      required
+                    />
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm mt-4">
-                <CardHeader>
-                  <CardTitle className="text-md">Immagini dell'Evento</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    {images.map((image, index) => (
-                      <div
-                        key={index}
-                        className="relative aspect-video rounded-md overflow-hidden border border-border"
-                      >
-                        <img
-                          src={image || "/placeholder.svg?height=200&width=300&query=event%20image"}
-                          alt={`Immagine ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <Button
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-1 right-1 h-6 w-6"
-                          onClick={() => removeImage(index)}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ))}
-                    <label className="aspect-video rounded-md border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-accent/50 transition-colors">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleImageUpload}
-                        disabled={uploadingImage}
-                      />
-                      {uploadingImage ? (
-                        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                      ) : (
-                        <>
-                          <Camera className="h-6 w-6 mb-2 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">Carica immagine</span>
-                        </>
-                      )}
-                    </label>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Aggiungi immagini per rendere il tuo evento più attraente. Formato consigliato: 16:9
-                  </p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -784,96 +751,30 @@ export default function CreaEventoPage() {
               transition={{ duration: 0.3 }}
             >
               <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader>
+                <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
                     <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
                       <span className="text-white text-xs">4</span>
                     </div>
-                    Servizi Inclusi (Opzionale)
+                    Servizi Inclusi
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-3">
-                    {serviziDisponibili.map((servizio) => (
-                      <motion.div key={servizio} className="flex items-center space-x-2" whileHover={{ scale: 1.02 }}>
-                        <Checkbox
-                          id={servizio}
-                          checked={servizi.includes(servizio)}
-                          onCheckedChange={() => toggleServizio(servizio)}
-                        />
-                        <Label htmlFor={servizio} className="text-sm cursor-pointer">
-                          {servizio}
-                        </Label>
-                      </motion.div>
-                    ))}
-                  </div>
-
-                  {servizi.length > 0 && (
-                    <motion.div className="mt-4" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-                      <div className="text-sm font-medium mb-2">Servizi selezionati:</div>
-                      <div className="flex flex-wrap gap-1">
-                        {servizi.map((servizio) => (
-                          <Badge
-                            key={servizio}
-                            variant="secondary"
-                            className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                          >
-                            {servizio}
-                          </Badge>
-                        ))}
+                <CardContent className="space-y-4">
+                  {serviziDisponibili.map((servizio) => (
+                    <div key={servizio.id} className="flex items-center gap-3">
+                      <Checkbox
+                        id={servizio.id}
+                        checked={servizi.includes(servizio.id)}
+                        onCheckedChange={() => toggleServizio(servizio.id)}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-sm sm:text-base flex items-center gap-2">
+                          {servizio.icon}
+                          {servizio.name}
+                        </div>
                       </div>
-                    </motion.div>
-                  )}
-                </CardContent>
-              </Card>
-
-              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm mt-4">
-                <CardHeader>
-                  <CardTitle className="text-md">Riepilogo Evento</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-                    <div>
-                      <span className="text-sm font-medium">Categoria:</span>
-                      <p className="text-sm text-muted-foreground">
-                        {categorieDisponibili.find((c) => c.id === categoria)?.name || categoria}
-                      </p>
                     </div>
-                    <div>
-                      <span className="text-sm font-medium">Località:</span>
-                      <p className="text-sm text-muted-foreground truncate">{location}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium">Data:</span>
-                      <p className="text-sm text-muted-foreground">
-                        {dataInizio} {dataFine ? `- ${dataFine}` : ""}
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium">Prezzo:</span>
-                      <p className="text-sm text-muted-foreground">{prezzo}€ per persona</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium">Posti disponibili:</span>
-                      <p className="text-sm text-muted-foreground">{postiTotali}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm font-medium">Immagini:</span>
-                      <p className="text-sm text-muted-foreground">{images.length} caricate</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  <div>
-                    <span className="text-sm font-medium">Titolo:</span>
-                    <p className="text-sm">{titolo}</p>
-                  </div>
-
-                  <div>
-                    <span className="text-sm font-medium">Descrizione:</span>
-                    <p className="text-sm text-muted-foreground line-clamp-3">{descrizione}</p>
-                  </div>
+                  ))}
                 </CardContent>
               </Card>
             </motion.div>
@@ -881,47 +782,38 @@ export default function CreaEventoPage() {
         </AnimatePresence>
 
         {/* Navigation Buttons */}
-        <div className="fixed bottom-0 left-0 right-0 bg-background/80 backdrop-blur-md border-t border-border p-4">
-          <div className="flex gap-3 max-w-3xl mx-auto">
-            {currentStep > 1 && (
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setCurrentStep(currentStep - 1)}
-                className="flex-1"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                Indietro
-              </Button>
-            )}
-
-            {currentStep < 4 ? (
-              <Button
-                type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
-                disabled={!canProceedToNextStep()}
-                className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              >
-                Avanti
-                <ChevronRight className="h-4 w-4 ml-1" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Pubblicazione...
-                  </>
-                ) : (
-                  "Pubblica Evento"
-                )}
-              </Button>
-            )}
-          </div>
+        <div className="flex justify-between">
+          <Button
+            type="button"
+            onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 1))}
+            disabled={currentStep === 1}
+            className="text-sm"
+            variant="outline"
+          >
+            <ChevronLeft className="h-4 w-4 mr-2" />
+            Indietro
+          </Button>
+          <Button
+            type="button"
+            onClick={() => setCurrentStep((prev) => Math.min(prev + 1, 4))}
+            disabled={!canProceedToNextStep()}
+            className="text-sm"
+          >
+            Avanti
+            <ChevronRight className="h-4 w-4 ml-2" />
+          </Button>
+          {currentStep === 4 && (
+            <Button type="submit" disabled={isSubmitting} className="text-sm">
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                  Creazione...
+                </>
+              ) : (
+                "Crea Evento"
+              )}
+            </Button>
+          )}
         </div>
       </form>
     </div>

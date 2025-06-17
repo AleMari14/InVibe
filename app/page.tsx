@@ -13,7 +13,7 @@ import {
   Sparkles,
   TrendingUp,
   MessageSquare,
-  Bell,
+  Menu,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,13 +22,12 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
-import { useNotifications } from "@/hooks/use-notifications"
 import { toast } from "sonner"
 
 const categories = [
@@ -55,7 +54,9 @@ interface Event {
   verified: boolean
   views: number
   host?: {
+    _id?: string
     name: string
+    email: string
     image?: string
     rating: number
     verified: boolean
@@ -70,9 +71,9 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [error, setError] = useState("")
+  const [refreshing, setRefreshing] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
-  const { notifications, unreadCount, markAsRead } = useNotifications()
 
   useEffect(() => {
     fetchEvents()
@@ -104,8 +105,8 @@ export default function HomePage() {
 
       if (Array.isArray(data)) {
         setEvents(data)
-        // Set featured events (top rated or most viewed)
-        const featured = data.filter((event: Event) => event.rating >= 4.8 || event.views > 50).slice(0, 3)
+        // Set featured events (eventi con rating alto o molte visualizzazioni)
+        const featured = data.filter((event: Event) => event.rating >= 4.7 || event.views > 30).slice(0, 3)
         setFeaturedEvents(featured)
       } else {
         console.error("❌ Data is not an array:", typeof data)
@@ -120,6 +121,7 @@ export default function HomePage() {
       setFeaturedEvents([])
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -175,13 +177,9 @@ export default function HomePage() {
     router.push(`/evento/${eventId}`)
   }
 
-  const handleNotificationClick = (notification: any) => {
-    markAsRead(notification._id)
-    if (notification.type === "message") {
-      router.push(`/messaggi/${notification.roomId}`)
-    } else if (notification.eventId) {
-      router.push(`/evento/${notification.eventId}`)
-    }
+  const handleRefresh = () => {
+    setRefreshing(true)
+    fetchEvents()
   }
 
   const formatDate = (dateString: string) => {
@@ -192,480 +190,453 @@ export default function HomePage() {
     })
   }
 
+  const MobileMenu = () => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" className="md:hidden">
+          <Menu className="h-5 w-5" />
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="left" className="w-80">
+        <div className="flex flex-col h-full">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+              <Sparkles className="h-4 w-4 text-white" />
+            </div>
+            <h2 className="text-lg font-bold">InVibe</h2>
+          </div>
+
+          <nav className="flex-1 space-y-2">
+            <Link href="/" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent">
+              <Search className="h-5 w-5" />
+              <span>Esplora</span>
+            </Link>
+            <Link href="/preferiti" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent">
+              <Heart className="h-5 w-5" />
+              <span>Preferiti</span>
+            </Link>
+            <Link href="/messaggi" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent">
+              <MessageSquare className="h-5 w-5" />
+              <span>Messaggi</span>
+            </Link>
+            <Link href="/prenotazioni" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent">
+              <Calendar className="h-5 w-5" />
+              <span>Prenotazioni</span>
+            </Link>
+            {session ? (
+              <>
+                <Link href="/crea-evento" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent">
+                  <Plus className="h-5 w-5" />
+                  <span>Crea Evento</span>
+                </Link>
+                <Link href="/profile" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent">
+                  <Users className="h-5 w-5" />
+                  <span>Profilo</span>
+                </Link>
+              </>
+            ) : (
+              <Link href="/auth/login" className="flex items-center gap-3 p-3 rounded-lg hover:bg-accent">
+                <Users className="h-5 w-5" />
+                <span>Accedi</span>
+              </Link>
+            )}
+          </nav>
+        </div>
+      </SheetContent>
+    </Sheet>
+  )
+
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Enhanced Header */}
-      <div className="bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 backdrop-blur-md border-b border-border sticky top-0 z-10">
-        <div className="px-3 sm:px-4 py-3">
+    <div className="min-h-screen bg-background">
+      {/* Mobile Header */}
+      <div className="bg-gradient-to-r from-blue-600/10 via-purple-600/10 to-pink-600/10 backdrop-blur-md border-b border-border sticky top-0 z-50">
+        <div className="px-4 py-3">
+          {/* Top Bar */}
           <div className="flex items-center justify-between mb-3">
-            <motion.div
-              className="flex items-center gap-2"
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.5 }}
-            >
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                <Sparkles className="h-4 w-4 text-white" />
+            <div className="flex items-center gap-3">
+              <MobileMenu />
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-white" />
+                </div>
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                  InVibe
+                </h1>
               </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                InVibe
-              </h1>
-            </motion.div>
+            </div>
 
             <div className="flex items-center gap-2">
-              <motion.div
-                className="flex items-center gap-2"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-              >
-                {session ? (
-                  <>
-                    {/* Notifications Dropdown */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="relative">
-                          <Bell className="h-5 w-5" />
-                          {unreadCount > 0 && (
-                            <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs bg-red-500 text-white">
-                              {unreadCount > 9 ? "9+" : unreadCount}
-                            </Badge>
-                          )}
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="w-80">
-                        <div className="p-2">
-                          <h3 className="font-semibold mb-2">Notifiche</h3>
-                          {notifications.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">Nessuna notifica</p>
-                          ) : (
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                              {notifications.slice(0, 5).map((notification) => (
-                                <DropdownMenuItem
-                                  key={notification._id}
-                                  className="flex flex-col items-start p-3 cursor-pointer"
-                                  onClick={() => handleNotificationClick(notification)}
-                                >
-                                  <div className="flex items-center justify-between w-full">
-                                    <span className="font-medium text-sm">{notification.title}</span>
-                                    {!notification.read && <div className="w-2 h-2 bg-blue-500 rounded-full"></div>}
-                                  </div>
-                                  <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
-                                  <span className="text-xs text-muted-foreground mt-1">
-                                    {new Date(notification.createdAt).toLocaleDateString("it-IT")}
-                                  </span>
-                                </DropdownMenuItem>
-                              ))}
-                            </div>
-                          )}
-                          {notifications.length > 5 && (
-                            <Link href="/notifiche">
-                              <Button variant="ghost" size="sm" className="w-full mt-2">
-                                Vedi tutte
-                              </Button>
-                            </Link>
-                          )}
-                        </div>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <Link href="/crea-evento">
-                      <Button
-                        size="sm"
-                        className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs sm:text-sm px-3 shadow-lg hover:shadow-xl transition-all duration-300"
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        <span className="hidden sm:inline">Crea</span>
-                      </Button>
-                    </Link>
-                    <Link href="/profile">
-                      <Avatar className="h-8 w-8 ring-2 ring-blue-500 hover:ring-purple-500 transition-all duration-300">
-                        <AvatarImage src={session?.user?.image || "/placeholder.svg?height=32&width=32"} />
-                        <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs">
-                          {session?.user?.name
-                            ?.split(" ")
-                            .map((n) => n[0])
-                            .join("") || "U"}
-                        </AvatarFallback>
-                      </Avatar>
-                    </Link>
-                  </>
-                ) : (
-                  <Link href="/auth/login">
-                    <Button
-                      size="sm"
-                      className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-xs sm:text-sm px-3 shadow-lg hover:shadow-xl transition-all duration-300"
-                    >
-                      Accedi
+              {session ? (
+                <>
+                  <Link href="/messaggi">
+                    <Button variant="ghost" size="icon" className="h-9 w-9">
+                      <MessageSquare className="h-4 w-4" />
                     </Button>
                   </Link>
-                )}
-              </motion.div>
+                  <Link href="/profile">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={session.user?.image || "/placeholder.svg?height=32&width=32&query=user"} />
+                      <AvatarFallback className="text-xs">
+                        {session.user?.name
+                          ?.split(" ")
+                          .map((n) => n[0])
+                          .join("") || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                </>
+              ) : (
+                <Link href="/auth/login">
+                  <Button size="sm" className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                    Accedi
+                  </Button>
+                </Link>
+              )}
             </div>
           </div>
 
-          {/* Enhanced Search Bar */}
-          <motion.div
-            className="relative"
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.4, delay: 0.1 }}
-          >
+          {/* Search Bar */}
+          <div className="relative mb-3">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
             <Input
-              placeholder="Cerca case, viaggi, esperienze..."
+              placeholder="Cerca eventi, luoghi..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-12 bg-background/80 backdrop-blur-sm border-border focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm shadow-lg"
+              className="pl-10 pr-12 h-10 text-sm"
             />
             <Link href="/filtri">
               <Button
                 variant="ghost"
                 size="icon"
-                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 hover:bg-blue-500/10"
+                className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8"
               >
                 <Filter className="h-4 w-4" />
               </Button>
             </Link>
-          </motion.div>
-        </div>
-      </div>
+          </div>
 
-      {/* Enhanced Categories */}
-      <div className="px-3 sm:px-4 py-2 bg-gradient-to-r from-background via-card/50 to-background">
-        <motion.div
-          className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+          {/* Categories */}
+          <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-1">
             <Button
               variant={selectedCategory === "all" ? "default" : "outline"}
               size="sm"
-              onClick={() => setSelectedCategory("all")}
-              className={`whitespace-nowrap text-xs sm:text-sm px-4 py-1 shadow-md ${
-                selectedCategory === "all"
-                  ? "bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
-                  : "border-border hover:bg-accent hover:shadow-lg transition-all duration-300"
+              className={`text-xs h-8 px-3 whitespace-nowrap ${
+                selectedCategory === "all" ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white" : ""
               }`}
+              onClick={() => setSelectedCategory("all")}
             >
-              ✨ Tutti
+              Tutti
             </Button>
-          </motion.div>
-          {categories.map((category) => (
-            <motion.div key={category.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            {categories.map((category) => (
               <Button
+                key={category.id}
                 variant={selectedCategory === category.id ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedCategory(category.id)}
-                className={`whitespace-nowrap text-xs sm:text-sm px-4 py-1 shadow-md ${
-                  selectedCategory === category.id
-                    ? `bg-gradient-to-r ${category.gradient} hover:shadow-lg text-white`
-                    : "border-border hover:bg-accent hover:shadow-lg transition-all duration-300"
+                className={`text-xs h-8 px-3 whitespace-nowrap ${
+                  selectedCategory === category.id ? `bg-gradient-to-r ${category.gradient} text-white` : ""
                 }`}
+                onClick={() => setSelectedCategory(category.id)}
               >
-                {category.icon} {category.name}
+                <span className="mr-1">{category.icon}</span>
+                {category.name}
               </Button>
-            </motion.div>
-          ))}
-        </motion.div>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Error Alert */}
-      {error && (
-        <div className="px-3 sm:px-4 py-2">
-          <Alert className="border-red-500/50 bg-red-500/10">
-            <AlertDescription className="text-red-400">{error}</AlertDescription>
-          </Alert>
-        </div>
-      )}
+      {/* Main Content */}
+      <div className="px-4 py-4 pb-20">
+        {/* Create Event CTA */}
+        {session && (
+          <Link href="/crea-evento">
+            <Card className="mb-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold mb-1">Crea il tuo evento</h3>
+                    <p className="text-sm text-white/80">Condividi esperienze uniche</p>
+                  </div>
+                  <Plus className="h-8 w-8" />
+                </div>
+              </CardContent>
+            </Card>
+          </Link>
+        )}
 
-      {/* Featured Events Section */}
-      {featuredEvents.length > 0 && (
-        <div className="px-3 sm:px-4 py-3">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="h-5 w-5 text-orange-500" />
-              <h2 className="text-lg font-bold text-foreground">In Evidenza</h2>
+        {/* Pull to Refresh */}
+        <div className="flex justify-center mb-4">
+          <Button variant="outline" size="sm" onClick={handleRefresh} disabled={refreshing} className="text-xs">
+            {refreshing ? "Aggiornamento..." : "Aggiorna"}
+          </Button>
+        </div>
+
+        {/* Error Alert */}
+        {error && (
+          <Alert variant="destructive" className="mb-4">
+            <AlertDescription className="text-sm">{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Featured Events */}
+        {featuredEvents.length > 0 && !loading && (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-orange-500" />
+                In Evidenza
+              </h2>
             </div>
-            <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+
+            <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
               {featuredEvents.map((event, index) => (
                 <motion.div
                   key={event._id}
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.5, delay: 0.1 * index }}
-                  className="min-w-[240px] cursor-pointer"
+                  transition={{ duration: 0.3, delay: index * 0.1 }}
+                  className="min-w-[280px] cursor-pointer"
                   onClick={() => handleEventClick(event._id)}
                 >
-                  <Card className="overflow-hidden border-border bg-gradient-to-br from-card/80 to-card/60 backdrop-blur-sm hover:shadow-2xl transition-all duration-500 hover:scale-105">
-                    <div className="relative">
-                      <div className="aspect-[16/10] relative overflow-hidden">
-                        <Image
-                          src={event.images?.[0] || "/placeholder.svg?height=200&width=280"}
-                          alt={event.title}
-                          fill
-                          className="object-cover"
-                          sizes="280px"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                      </div>
+                  <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-shadow">
+                    <div className="relative aspect-[16/10]">
+                      <Image
+                        src={event.images[0] || "/placeholder.svg?height=200&width=280&query=featured-event"}
+                        alt={event.title}
+                        fill
+                        className="object-cover"
+                        sizes="280px"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                       <div className="absolute top-2 left-2">
-                        <Badge className="bg-orange-500 hover:bg-orange-600 text-white text-xs shadow-lg">
-                          ⭐ Featured
-                        </Badge>
+                        <Badge className="bg-orange-500 text-white text-xs">⭐ Featured</Badge>
+                      </div>
+                      <div className="absolute top-2 right-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 bg-black/30 backdrop-blur-sm hover:bg-black/40 rounded-full"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            toggleFavorite(event._id)
+                          }}
+                        >
+                          <Heart
+                            className={`h-4 w-4 ${
+                              favorites.includes(event._id) ? "fill-red-500 text-red-500" : "text-white"
+                            }`}
+                          />
+                        </Button>
                       </div>
                       <div className="absolute bottom-2 left-2 right-2">
-                        <h3 className="font-bold text-white text-sm line-clamp-2">{event.title}</h3>
-                        <p className="text-white/80 text-xs">{event.location}</p>
+                        <h3 className="font-bold text-white text-sm line-clamp-2 mb-1">{event.title}</h3>
+                        <div className="flex items-center justify-between">
+                          <p className="text-white/80 text-xs flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            {event.location.split(",")[0]}
+                          </p>
+                          <div className="text-white font-semibold text-sm">€{event.price}</div>
+                        </div>
                       </div>
                     </div>
                   </Card>
                 </motion.div>
               ))}
             </div>
-          </motion.div>
-        </div>
-      )}
+          </div>
+        )}
 
-      {/* Events Grid - Corretto per evitare tagli */}
-      <div className="px-3 sm:px-4 py-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <AnimatePresence>
-            {loading
-              ? // Loading skeletons
-                Array.from({ length: 6 }).map((_, index) => (
-                  <motion.div key={index} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                    <Card className="overflow-hidden border-border">
-                      <Skeleton className="aspect-[4/3] w-full" />
-                      <CardContent className="p-4 space-y-3">
-                        <Skeleton className="h-4 w-3/4" />
-                        <Skeleton className="h-3 w-1/2" />
-                        <div className="flex gap-2">
-                          <Skeleton className="h-6 w-16" />
-                          <Skeleton className="h-6 w-16" />
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))
-              : events.map((event, index) => (
-                  <motion.div
-                    key={event._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3, delay: 0.05 * index }}
-                    whileHover={{ y: -5 }}
-                    className="cursor-pointer"
-                    onClick={() => handleEventClick(event._id)}
-                  >
-                    <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300 group">
-                      <div className="relative">
-                        <div className="aspect-[4/3] relative overflow-hidden">
-                          <Image
-                            src={event.images?.[0] || "/placeholder.svg?height=240&width=320"}
-                            alt={event.title}
-                            fill
-                            className="object-cover group-hover:scale-110 transition-transform duration-700"
-                            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                          />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                        </div>
+        {/* Events Grid */}
+        <div>
+          <h2 className="text-lg font-semibold mb-3">
+            {searchQuery
+              ? "Risultati della ricerca"
+              : selectedCategory !== "all"
+                ? `${categories.find((c) => c.id === selectedCategory)?.name || "Eventi"}`
+                : "Eventi Disponibili"}
+          </h2>
 
-                        <div className="absolute top-3 left-3 flex gap-2">
-                          {event.verified && (
-                            <Badge className="bg-green-600 hover:bg-green-700 text-white text-xs shadow-lg">
-                              ✓ Verificato
-                            </Badge>
-                          )}
-                          <Badge className="bg-blue-600/90 backdrop-blur-sm text-white text-xs shadow-lg">
-                            {event.availableSpots}/{event.totalSpots} posti
-                          </Badge>
-                        </div>
-
-                        {session && (
-                          <div className="absolute top-3 right-3">
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="bg-background/80 hover:bg-background backdrop-blur-sm h-8 w-8 shadow-lg"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  e.stopPropagation()
-                                  toggleFavorite(event._id)
-                                }}
-                              >
-                                <Heart
-                                  className={`h-4 w-4 transition-colors duration-300 ${
-                                    favorites.includes(event._id)
-                                      ? "fill-red-500 text-red-500"
-                                      : "text-foreground hover:text-red-500"
-                                  }`}
-                                />
-                              </Button>
-                            </motion.div>
-                          </div>
-                        )}
-                      </div>
-
-                      <CardContent className="p-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <h3 className="font-semibold text-lg leading-tight text-foreground line-clamp-2 group-hover:text-blue-600 transition-colors duration-300 flex-1 mr-2">
-                            {event.title}
-                          </h3>
-                          <div className="flex items-center gap-1 text-sm">
-                            <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-medium">{event.rating || 4.8}</span>
-                            <span className="text-muted-foreground text-xs">({event.reviewCount || 0})</span>
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1 text-muted-foreground mb-3">
-                          <MapPin className="h-4 w-4" />
-                          <span className="text-sm line-clamp-1">{event.location}</span>
-                        </div>
-
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-4 w-4" />
-                            <span>{formatDate(event.dateStart)}</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-4 w-4" />
-                            <span>{event.totalSpots} persone</span>
-                          </div>
-                        </div>
-
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {event.amenities?.slice(0, 3).map((amenity) => (
-                            <Badge
-                              key={amenity}
-                              variant="secondary"
-                              className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-                            >
-                              {amenity}
-                            </Badge>
-                          ))}
-                          {event.amenities?.length > 3 && (
-                            <Badge variant="secondary" className="text-xs">
-                              +{event.amenities.length - 3}
-                            </Badge>
-                          )}
-                        </div>
-
-                        <div className="flex items-center justify-between mb-4">
-                          <div className="text-sm text-muted-foreground">
-                            {event.host && (
-                              <span className="line-clamp-1">
-                                Organizzato da <span className="font-medium text-foreground">{event.host.name}</span>
-                                {event.host.verified && <span className="text-green-500 ml-1">✓</span>}
-                              </span>
-                            )}
-                          </div>
-                          <div className="text-right">
-                            <div className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                              €{event.price}
-                            </div>
-                            <div className="text-xs text-muted-foreground">a persona</div>
-                          </div>
-                        </div>
-
-                        <Button
-                          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-sm shadow-lg hover:shadow-xl transition-all duration-300"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleEventClick(event._id)
-                          }}
-                        >
-                          Vedi Dettagli
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-          </AnimatePresence>
-        </div>
-
-        {!loading && events.length === 0 && !error && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center py-12">
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">Nessun evento trovato</h3>
-            <p className="text-muted-foreground mb-4">
-              {searchQuery || selectedCategory !== "all"
-                ? "Prova a modificare i filtri di ricerca"
-                : "Non ci sono ancora eventi pubblicati. Sii il primo a crearne uno!"}
-            </p>
-            <div className="flex gap-2 justify-center">
-              {(searchQuery || selectedCategory !== "all") && (
-                <Button
-                  onClick={() => {
-                    setSearchQuery("")
-                    setSelectedCategory("all")
-                  }}
-                  variant="outline"
-                >
-                  Azzera filtri
-                </Button>
-              )}
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="overflow-hidden border-0 shadow-md">
+                  <Skeleton className="aspect-[4/3] w-full" />
+                  <CardContent className="p-3">
+                    <Skeleton className="h-4 w-3/4 mb-2" />
+                    <Skeleton className="h-3 w-full mb-2" />
+                    <div className="flex justify-between">
+                      <Skeleton className="h-3 w-1/4" />
+                      <Skeleton className="h-3 w-1/4" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : events.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <Search className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">Nessun evento trovato</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                {searchQuery
+                  ? "Prova a modificare i termini di ricerca"
+                  : selectedCategory !== "all"
+                    ? "Non ci sono eventi in questa categoria"
+                    : "Non ci sono eventi disponibili al momento"}
+              </p>
               {session ? (
                 <Link href="/crea-evento">
-                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                     Crea il primo evento
                   </Button>
                 </Link>
               ) : (
                 <Link href="/auth/login">
-                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700">
+                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                     Accedi per creare eventi
                   </Button>
                 </Link>
               )}
             </div>
-          </motion.div>
-        )}
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AnimatePresence>
+                {events.map((event, index) => (
+                  <motion.div
+                    key={event._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                  >
+                    <Card
+                      className="overflow-hidden border-0 shadow-md hover:shadow-lg transition-all cursor-pointer"
+                      onClick={() => handleEventClick(event._id)}
+                    >
+                      <div className="relative aspect-[4/3]">
+                        <Image
+                          src={event.images[0] || "/placeholder.svg?height=300&width=400&query=event"}
+                          alt={event.title}
+                          fill
+                          className="object-cover transition-transform hover:scale-105"
+                          sizes="(max-width: 768px) 100vw, 50vw"
+                        />
+                        <div className="absolute top-2 right-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 bg-black/30 backdrop-blur-sm hover:bg-black/40 rounded-full"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              toggleFavorite(event._id)
+                            }}
+                          >
+                            <Heart
+                              className={`h-4 w-4 ${
+                                favorites.includes(event._id) ? "fill-red-500 text-red-500" : "text-white"
+                              }`}
+                            />
+                          </Button>
+                        </div>
+                        {event.verified && (
+                          <Badge className="absolute top-2 left-2 bg-green-600 text-white text-xs">✓ Verificato</Badge>
+                        )}
+                        <div className="absolute bottom-2 left-2 right-2">
+                          <div className="flex items-center justify-between">
+                            <Badge className="bg-blue-600/90 text-white text-xs">
+                              {event.availableSpots}/{event.totalSpots} posti
+                            </Badge>
+                            <div className="flex items-center gap-1 bg-black/30 backdrop-blur-sm rounded px-2 py-1">
+                              <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
+                              <span className="text-white text-xs font-medium">{event.rating.toFixed(1)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <CardContent className="p-3">
+                        <h3 className="font-semibold text-sm line-clamp-2 mb-2">{event.title}</h3>
+
+                        <div className="flex items-center gap-1 mb-2">
+                          <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                          <p className="text-xs text-muted-foreground truncate">{event.location}</p>
+                        </div>
+
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-1">
+                            <Calendar className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">{formatDate(event.dateStart)}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Users className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">{event.totalSpots} persone</span>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                          <div className="text-lg font-bold text-blue-600">
+                            €{event.price}
+                            <span className="text-xs font-normal text-muted-foreground ml-1">/ persona</span>
+                          </div>
+                          {event.host && (
+                            <div className="flex items-center gap-1">
+                              <Avatar className="h-5 w-5">
+                                <AvatarImage
+                                  src={event.host.image || "/placeholder.svg?height=20&width=20&query=host"}
+                                />
+                                <AvatarFallback className="text-[8px]">
+                                  {event.host.name?.charAt(0) || "H"}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-xs text-muted-foreground truncate max-w-[80px]">
+                                {event.host.name}
+                              </span>
+                              {event.host.verified && <span className="text-green-500 text-xs">✓</span>}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Enhanced Bottom Navigation */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border safe-area-pb shadow-2xl">
-        <div className="flex justify-around py-2">
-          <Link href="/" className="flex flex-col items-center p-2 min-w-0 group">
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <Search className="h-5 w-5 text-blue-500 group-hover:text-blue-600 transition-colors" />
-            </motion.div>
-            <span className="text-xs text-blue-500 font-medium">Cerca</span>
+      {/* Mobile Navigation */}
+      <div className="fixed bottom-0 left-0 right-0 bg-background/95 backdrop-blur-md border-t border-border z-50">
+        <div className="flex items-center justify-around py-2 px-2 max-w-md mx-auto">
+          <Link href="/" className="flex flex-col items-center p-2 min-w-0">
+            <div className="relative">
+              <Search className="h-5 w-5 text-blue-600" />
+              <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-1 h-1 bg-blue-600 rounded-full"></div>
+            </div>
+            <span className="text-[10px] text-blue-600 font-medium">Home</span>
           </Link>
-          <Link href="/preferiti" className="flex flex-col items-center p-2 min-w-0 group">
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <Heart className="h-5 w-5 text-muted-foreground group-hover:text-red-500 transition-colors" />
-            </motion.div>
-            <span className="text-xs text-muted-foreground">Preferiti</span>
+
+          <Link href="/preferiti" className="flex flex-col items-center p-2 min-w-0">
+            <Heart className="h-5 w-5 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">Preferiti</span>
           </Link>
-          <Link href="/crea-evento" className="flex flex-col items-center p-2 min-w-0 group">
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center mb-1 shadow-lg group-hover:shadow-xl transition-all duration-300">
-                <Plus className="h-4 w-4 text-white" />
-              </div>
-            </motion.div>
-            <span className="text-xs text-muted-foreground">Crea</span>
+
+          <Link href={session ? "/crea-evento" : "/auth/login"} className="flex flex-col items-center p-2 min-w-0">
+            <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center -mt-6 shadow-lg">
+              <Plus className="h-6 w-6 text-white" />
+            </div>
+            <span className="text-[10px] text-muted-foreground mt-1">Crea</span>
           </Link>
-          <Link href="/prenotazioni" className="flex flex-col items-center p-2 min-w-0 group">
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <Calendar className="h-5 w-5 text-muted-foreground group-hover:text-blue-500 transition-colors" />
-            </motion.div>
-            <span className="text-xs text-muted-foreground">Prenotazioni</span>
+
+          <Link href="/messaggi" className="flex flex-col items-center p-2 min-w-0">
+            <MessageSquare className="h-5 w-5 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">Messaggi</span>
           </Link>
-          <Link href="/messaggi" className="flex flex-col items-center p-2 min-w-0 group">
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <MessageSquare className="h-5 w-5 text-muted-foreground group-hover:text-blue-500 transition-colors" />
-            </motion.div>
-            <span className="text-xs text-muted-foreground">Messaggi</span>
+
+          <Link href={session ? "/profile" : "/auth/login"} className="flex flex-col items-center p-2 min-w-0">
+            <Users className="h-5 w-5 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">Profilo</span>
           </Link>
         </div>
       </div>
