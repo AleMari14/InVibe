@@ -14,6 +14,7 @@ import {
   TrendingUp,
   MessageSquare,
   Menu,
+  Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -347,21 +348,62 @@ export default function HomePage() {
 
       {/* Main Content */}
       <div className="px-4 py-4 pb-20">
-        {/* Create Event CTA */}
+        {/* Create Event CTA - Migliorato */}
         {session && (
-          <Link href="/crea-evento">
-            <Card className="mb-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white border-0 shadow-lg">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="font-semibold mb-1">Crea il tuo evento</h3>
-                    <p className="text-sm text-white/80">Condividi esperienze uniche</p>
-                  </div>
-                  <Plus className="h-8 w-8" />
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-6"
+          >
+            <Link href="/crea-evento">
+              <Card className="relative overflow-hidden border-0 shadow-xl hover:shadow-2xl transition-all duration-300 cursor-pointer group">
+                {/* Background gradient animato */}
+                <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-90 group-hover:opacity-100 transition-opacity" />
+
+                {/* Pattern decorativo */}
+                <div className="absolute inset-0 opacity-10">
+                  <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full -translate-x-16 -translate-y-16" />
+                  <div className="absolute bottom-0 right-0 w-24 h-24 bg-white rounded-full translate-x-12 translate-y-12" />
+                  <div className="absolute top-1/2 left-1/2 w-16 h-16 bg-white rounded-full -translate-x-8 -translate-y-8" />
                 </div>
-              </CardContent>
-            </Card>
-          </Link>
+
+                <CardContent className="relative p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Zap className="h-5 w-5 text-yellow-300" />
+                        <h3 className="text-lg font-bold text-white">Crea il tuo evento</h3>
+                      </div>
+                      <p className="text-white/90 text-sm mb-3">
+                        Condividi esperienze uniche e incontra persone fantastiche
+                      </p>
+                      <div className="flex items-center gap-4 text-white/80 text-xs">
+                        <span className="flex items-center gap-1">
+                          <Users className="h-3 w-3" />
+                          Trova compagni
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Star className="h-3 w-3" />
+                          Crea ricordi
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <Heart className="h-3 w-3" />
+                          Dividi i costi
+                        </span>
+                      </div>
+                    </div>
+
+                    <motion.div className="ml-4" whileHover={{ scale: 1.1, rotate: 90 }} transition={{ duration: 0.3 }}>
+                      <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center group-hover:bg-white/30 transition-colors">
+                        <Plus className="h-7 w-7 text-white" />
+                      </div>
+                    </motion.div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </motion.div>
         )}
 
         {/* Pull to Refresh */}

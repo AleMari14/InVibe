@@ -1,5 +1,7 @@
 "use client"
 
+import { Badge } from "@/components/ui/badge"
+
 import type React from "react"
 import dynamic from "next/dynamic"
 import { useState, useEffect } from "react"
@@ -15,10 +17,19 @@ import {
   Info,
   ChevronRight,
   ChevronLeft,
-  Globe,
   Wifi,
   Car,
   Utensils,
+  Calendar,
+  Users,
+  DollarSign,
+  LinkIcon,
+  MapPin,
+  Camera,
+  X,
+  Sparkles,
+  PartyPopper,
+  Gift,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -26,7 +37,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Progress } from "@/components/ui/progress"
 import Link from "next/link"
@@ -310,7 +320,7 @@ export default function CreaEventoPage() {
     { id: "Piscina", name: "Piscina", icon: "🏊" },
     { id: "Parcheggio", name: "Parcheggio", icon: <Car className="h-4 w-4" /> },
     { id: "Cucina", name: "Cucina", icon: <Utensils className="h-4 w-4" /> },
-    { id: "Aria Condizionata", name: "Aria Condizionata", icon: "❄️" },
+    { id: "Aria Condizionata", name: "A/C", icon: "❄️" },
     { id: "Riscaldamento", name: "Riscaldamento", icon: "🔥" },
     { id: "TV", name: "TV", icon: "📺" },
     { id: "Lavatrice", name: "Lavatrice", icon: "🧺" },
@@ -318,12 +328,12 @@ export default function CreaEventoPage() {
     { id: "Ferro da Stiro", name: "Ferro da Stiro", icon: "👔" },
     { id: "Terrazza", name: "Terrazza", icon: "🌅" },
     { id: "Giardino", name: "Giardino", icon: "🌳" },
-    { id: "Trasporti Inclusi", name: "Trasporti Inclusi", icon: "🚌" },
-    { id: "Colazione Inclusa", name: "Colazione Inclusa", icon: "🥐" },
-    { id: "Pranzi Inclusi", name: "Pranzi Inclusi", icon: "🍽️" },
-    { id: "Guida Turistica", name: "Guida Turistica", icon: "🗺️" },
-    { id: "Attrezzature Sportive", name: "Attrezzature Sportive", icon: "⚽" },
-    { id: "Animali Ammessi", name: "Animali Ammessi", icon: "🐕" },
+    { id: "Trasporti Inclusi", name: "Trasporti", icon: "🚌" },
+    { id: "Colazione Inclusa", name: "Colazione", icon: "🥐" },
+    { id: "Pranzi Inclusi", name: "Pranzi", icon: "🍽️" },
+    { id: "Guida Turistica", name: "Guida", icon: "🗺️" },
+    { id: "Attrezzature Sportive", name: "Sport", icon: "⚽" },
+    { id: "Animali Ammessi", name: "Pet-friendly", icon: "🐕" },
   ]
 
   const toggleServizio = (servizio: string) => {
@@ -440,7 +450,7 @@ export default function CreaEventoPage() {
 
         setTimeout(() => {
           router.push("/")
-        }, 2000)
+        }, 3000)
       } else {
         throw new Error(result.error || "Errore nella creazione dell'evento")
       }
@@ -453,24 +463,167 @@ export default function CreaEventoPage() {
     }
   }
 
+  // Pagina di successo completamente ridisegnata
   if (success) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-pink-600/20 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-5">
+          <div className="absolute top-10 left-10 w-32 h-32 bg-blue-600 rounded-full animate-pulse" />
+          <div className="absolute top-40 right-20 w-24 h-24 bg-purple-600 rounded-full animate-bounce" />
+          <div className="absolute bottom-20 left-20 w-28 h-28 bg-pink-600 rounded-full animate-pulse" />
+          <div className="absolute bottom-40 right-10 w-20 h-20 bg-green-600 rounded-full animate-bounce" />
+        </div>
+
         <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
+          initial={{ opacity: 0, scale: 0.5, y: 50 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{
+            duration: 0.8,
+            type: "spring",
+            stiffness: 100,
+            damping: 15,
+          }}
+          className="relative z-10"
         >
-          <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm w-full max-w-md">
-            <CardContent className="pt-6 text-center">
-              <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-              </div>
-              <h2 className="text-2xl font-bold text-foreground mb-2">Evento Creato!</h2>
-              <p className="text-muted-foreground mb-4">
-                Il tuo evento è stato pubblicato con successo. Verrai reindirizzato alla home.
-              </p>
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-xl w-full max-w-md overflow-hidden">
+            {/* Header con gradiente */}
+            <div className="relative p-6 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white">
+              <motion.div
+                initial={{ rotate: 0 }}
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, delay: 0.5 }}
+                className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4"
+              >
+                <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.5, delay: 1 }}>
+                  <CheckCircle className="h-10 w-10 text-white" />
+                </motion.div>
+              </motion.div>
+
+              <motion.h2
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.2 }}
+                className="text-2xl font-bold text-center mb-2"
+              >
+                Evento Creato! 🎉
+              </motion.h2>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.4 }}
+                className="text-white/90 text-center text-sm"
+              >
+                Il tuo evento è ora live su InVibe
+              </motion.p>
+            </div>
+
+            <CardContent className="p-6 text-center">
+              {/* Confetti Animation */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 1, 0] }}
+                transition={{ duration: 2, delay: 0.5 }}
+                className="absolute inset-0 pointer-events-none"
+              >
+                {[...Array(20)].map((_, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{
+                      y: -20,
+                      x: Math.random() * 400 - 200,
+                      opacity: 1,
+                    }}
+                    animate={{
+                      y: 400,
+                      x: Math.random() * 400 - 200,
+                      opacity: 0,
+                      rotate: Math.random() * 360,
+                    }}
+                    transition={{
+                      duration: 2,
+                      delay: Math.random() * 0.5,
+                    }}
+                    className={`absolute w-2 h-2 ${
+                      ["bg-blue-500", "bg-purple-500", "bg-pink-500", "bg-green-500", "bg-yellow-500"][i % 5]
+                    } rounded-full`}
+                  />
+                ))}
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1.6 }}
+                className="mb-6"
+              >
+                <h3 className="text-lg font-semibold text-gray-800 mb-2">"{titolo}"</h3>
+                <div className="flex items-center justify-center gap-4 text-sm text-gray-600 mb-4">
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-4 w-4" />
+                    <span>{location.split(",")[0]}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Calendar className="h-4 w-4" />
+                    <span>{new Date(dataInizio).toLocaleDateString("it-IT")}</span>
+                  </div>
+                </div>
+                <div className="flex items-center justify-center gap-2 text-sm">
+                  <Badge className="bg-green-100 text-green-700">
+                    <Users className="h-3 w-3 mr-1" />
+                    {postiTotali} posti
+                  </Badge>
+                  <Badge className="bg-blue-100 text-blue-700">€{prezzo} / persona</Badge>
+                </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 1.8 }}
+                className="space-y-3"
+              >
+                <div className="flex items-center justify-center gap-6 text-xs text-gray-500 mb-4">
+                  <div className="flex items-center gap-1">
+                    <PartyPopper className="h-4 w-4 text-purple-600" />
+                    <span>Pronto per essere scoperto</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Gift className="h-4 w-4 text-pink-600" />
+                    <span>Condivisioni attive</span>
+                  </div>
+                </div>
+
+                <p className="text-sm text-gray-600 mb-4">
+                  Il tuo evento è ora visibile a tutti gli utenti InVibe. Riceverai notifiche per ogni nuova
+                  prenotazione.
+                </p>
+
+                <div className="flex gap-2">
+                  <Link href="/" className="flex-1">
+                    <Button
+                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
+                      size="sm"
+                    >
+                      Torna alla Home
+                    </Button>
+                  </Link>
+                  <Link href="/profile" className="flex-1">
+                    <Button variant="outline" className="w-full border-gray-300 hover:bg-gray-50" size="sm">
+                      I Miei Eventi
+                    </Button>
+                  </Link>
+                </div>
+              </motion.div>
+
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2 }} className="mt-4">
+                <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                  <Sparkles className="h-3 w-3" />
+                  <span>Grazie per aver scelto InVibe</span>
+                  <Sparkles className="h-3 w-3" />
+                </div>
+              </motion.div>
             </CardContent>
           </Card>
         </motion.div>
@@ -479,343 +632,500 @@ export default function CreaEventoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header Mobile-Optimized */}
-      <div className="bg-card/80 backdrop-blur-md border-b border-border px-3 sm:px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center gap-2 sm:gap-3">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Header migliorato */}
+      <div className="bg-white/95 backdrop-blur-md border-b border-gray-200 px-4 py-4 sticky top-0 z-10 shadow-sm">
+        <div className="flex items-center gap-3 max-w-3xl mx-auto">
           <Link href="/">
-            <Button variant="ghost" size="icon" className="h-8 w-8 sm:h-10 sm:w-10">
-              <ArrowLeft className="h-4 w-4" />
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-gray-100">
+              <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-lg sm:text-xl font-semibold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent truncate">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
               Crea Nuovo Evento
             </h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Progress value={getProgress()} className="flex-1 h-1.5 sm:h-2" />
-              <span className="text-xs text-muted-foreground whitespace-nowrap">{currentStep}/4</span>
+            <div className="flex items-center gap-3 mt-2">
+              <Progress value={getProgress()} className="flex-1 h-2 bg-gray-200" />
+              <span className="text-sm text-gray-500 font-medium">{currentStep}/4</span>
             </div>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="px-3 sm:px-4 py-4 space-y-4 pb-24 sm:pb-20 max-w-3xl mx-auto">
+      <div className="max-w-3xl mx-auto p-4 pb-24">
         {error && (
-          <Alert className="border-red-500/50 bg-red-500/10">
-            <AlertDescription className="text-red-400 text-sm">{error}</AlertDescription>
+          <Alert className="border-red-200 bg-red-50 mb-6">
+            <AlertDescription className="text-red-700">{error}</AlertDescription>
           </Alert>
         )}
 
-        <AnimatePresence mode="wait">
-          {/* Step 1: Categoria */}
-          {currentStep === 1 && (
-            <motion.div
-              key="step1"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">1</span>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <AnimatePresence mode="wait">
+            {/* Step 1: Categoria - Design migliorato */}
+            {currentStep === 1 && (
+              <motion.div
+                key="step1"
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100">
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold">1</span>
+                      </div>
+                      Che tipo di evento vuoi creare?
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-4">
+                    {categorieDisponibili.map((cat) => (
+                      <motion.div key={cat.id} whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                        <Card
+                          className={`cursor-pointer transition-all duration-300 border-2 hover:shadow-lg ${
+                            categoria === cat.id
+                              ? `border-transparent bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
+                              : "border-gray-200 hover:border-gray-300 bg-white"
+                          }`}
+                          onClick={() => setCategoria(cat.id)}
+                        >
+                          <CardContent className="p-4">
+                            <div className="flex items-center gap-4">
+                              <div className={`text-3xl ${categoria === cat.id ? "" : "grayscale"}`}>{cat.icon}</div>
+                              <div className="flex-1">
+                                <h3
+                                  className={`font-semibold text-lg ${categoria === cat.id ? "text-white" : "text-gray-800"}`}
+                                >
+                                  {cat.name}
+                                </h3>
+                                <p className={`text-sm ${categoria === cat.id ? "text-white/90" : "text-gray-600"}`}>
+                                  {cat.description}
+                                </p>
+                              </div>
+                              {categoria === cat.id && (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ duration: 0.2 }}
+                                >
+                                  <CheckCircle className="h-6 w-6 text-white" />
+                                </motion.div>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    ))}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Step 2: Dettagli - Design migliorato */}
+            {currentStep === 2 && (
+              <motion.div
+                key="step2"
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3 }}
+                className="space-y-6"
+              >
+                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-100">
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold">2</span>
+                      </div>
+                      Descrivi il tuo evento
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="titolo" className="text-base font-medium">
+                        Titolo dell'evento *
+                      </Label>
+                      <Input
+                        id="titolo"
+                        value={titolo}
+                        onChange={(e) => setTitolo(e.target.value)}
+                        placeholder="Es: Weekend in villa con piscina a Toscana"
+                        className="h-12 text-base border-2 focus:border-blue-500"
+                        required
+                      />
                     </div>
-                    Tipo di Evento
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {categorieDisponibili.map((cat) => (
-                    <motion.div
-                      key={cat.id}
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      className={`p-3 sm:p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                        categoria === cat.id
-                          ? `border-transparent bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
-                          : "border-border hover:border-gray-300 hover:shadow-md"
-                      }`}
-                      onClick={() => setCategoria(cat.id)}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl sm:text-2xl">{cat.icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm sm:text-base">{cat.name}</div>
-                          <div
-                            className={`text-xs sm:text-sm ${categoria === cat.id ? "text-white/80" : "text-muted-foreground"}`}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="descrizione" className="text-base font-medium">
+                        Descrizione *
+                      </Label>
+                      <Textarea
+                        id="descrizione"
+                        value={descrizione}
+                        onChange={(e) => setDescrizione(e.target.value)}
+                        placeholder="Descrivi nel dettaglio cosa include l'evento, cosa farete, cosa è incluso nel prezzo..."
+                        className="min-h-[120px] text-base border-2 focus:border-blue-500 resize-none"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <LocationPicker
+                        onLocationChange={handleLocationChange}
+                        initialLocation={location}
+                        initialCoordinates={coordinates}
+                      />
+                      {locationError && (
+                        <p className="text-sm text-red-600 flex items-center gap-1">
+                          <Info className="h-4 w-4" />
+                          {locationError}
+                        </p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Sezione Immagini migliorata */}
+                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-100">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <Camera className="h-5 w-5" />
+                      Immagini dell'evento
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="placeLink" className="text-sm font-medium">
+                          Link della mappa (opzionale)
+                        </Label>
+                        <div className="flex gap-2">
+                          <Input
+                            id="placeLink"
+                            value={placeLink}
+                            onChange={(e) => setPlaceLink(e.target.value)}
+                            placeholder="https://openstreetmap.org/..."
+                            className="flex-1"
+                          />
+                          <Button
+                            type="button"
+                            onClick={generateImageFromPlaceLink}
+                            disabled={isLoadingImage || !placeLink}
+                            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
                           >
-                            {cat.description}
-                          </div>
+                            {isLoadingImage ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <LinkIcon className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </div>
+                        {placePreview && (
+                          <p className="text-xs text-green-600 flex items-center gap-1">
+                            <CheckCircle className="h-3 w-3" />
+                            Rilevato: {placePreview}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="imageUpload" className="text-sm font-medium">
+                          Carica immagini
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="imageUpload"
+                            type="file"
+                            accept="image/*"
+                            multiple
+                            onChange={handleImageUpload}
+                            className="hidden"
+                          />
+                          <Button
+                            type="button"
+                            onClick={() => document.getElementById("imageUpload")?.click()}
+                            disabled={uploadingImage}
+                            variant="outline"
+                            className="w-full border-2 border-dashed border-gray-300 hover:border-blue-500"
+                          >
+                            {uploadingImage ? (
+                              <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                            ) : (
+                              <ImageIcon className="h-4 w-4 mr-2" />
+                            )}
+                            Carica Foto
+                          </Button>
                         </div>
                       </div>
-                    </motion.div>
-                  ))}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* Step 2: Informazioni Base */}
-          {currentStep === 2 && (
-            <motion.div
-              key="step2"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">2</span>
                     </div>
-                    Informazioni Base
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="titolo" className="text-sm font-medium">
-                      Titolo dell'Evento *
-                    </Label>
-                    <Input
-                      id="titolo"
-                      placeholder="es. Villa con Piscina - Weekend in Toscana"
-                      value={titolo}
-                      onChange={(e) => setTitolo(e.target.value)}
-                      className="mt-1 text-sm"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="descrizione" className="text-sm font-medium">
-                      Descrizione *
-                    </Label>
-                    <Textarea
-                      id="descrizione"
-                      placeholder="Descrivi il tuo evento, cosa include, cosa aspettarsi..."
-                      value={descrizione}
-                      onChange={(e) => setDescrizione(e.target.value)}
-                      rows={4}
-                      className="mt-1 text-sm resize-none"
-                      required
-                    />
-                  </div>
 
-                  <LocationPicker value={location} onChange={handleLocationChange} error={locationError} />
-
-                  {categoria === "casa" && (
-                    <div className="space-y-2 p-3 border border-blue-200 bg-blue-50/50 rounded-md">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="placeLink" className="flex items-center gap-1 text-sm">
-                          Link OpenStreetMap o Google Maps (opzionale)
-                          <Info className="h-3 w-3 text-muted-foreground cursor-help" />
-                        </Label>
+                    {images.length > 0 && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        {images.map((image, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={image || "/placeholder.svg"}
+                              alt={`Immagine ${index + 1}`}
+                              className="w-full h-24 object-cover rounded-lg border-2 border-gray-200"
+                            />
+                            <Button
+                              type="button"
+                              onClick={() => removeImage(index)}
+                              className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              size="icon"
+                            >
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ))}
                       </div>
-                      <div className="relative">
-                        <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Step 3: Date e Prezzi - Design migliorato */}
+            {currentStep === 3 && (
+              <motion.div
+                key="step3"
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 border-b border-gray-100">
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-orange-600 to-red-600 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold">3</span>
+                      </div>
+                      Date e dettagli pratici
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="dataInizio" className="text-base font-medium flex items-center gap-2">
+                          <Calendar className="h-4 w-4" />
+                          Data di inizio *
+                        </Label>
                         <Input
-                          id="placeLink"
-                          type="url"
-                          placeholder="https://www.openstreetmap.org/..."
-                          value={placeLink}
-                          onChange={(e) => setPlaceLink(e.target.value)}
-                          className="pl-10 text-sm"
+                          id="dataInizio"
+                          type="datetime-local"
+                          value={dataInizio}
+                          onChange={(e) => setDataInizio(e.target.value)}
+                          className="h-12 text-base border-2 focus:border-orange-500"
+                          required
                         />
                       </div>
 
-                      {placePreview && (
-                        <div className="text-sm p-2 bg-blue-50 rounded border border-blue-100 mt-2">
-                          <p className="font-medium text-xs">Luogo rilevato:</p>
-                          <p className="text-muted-foreground text-xs truncate">{placePreview}</p>
-                        </div>
-                      )}
-
-                      <Button
-                        type="button"
-                        onClick={generateImageFromPlaceLink}
-                        disabled={!placeLink || isLoadingImage}
-                        className="w-full mt-2 text-sm"
-                        variant="secondary"
-                        size="sm"
-                      >
-                        {isLoadingImage ? (
-                          <>
-                            <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                            Generazione immagine...
-                          </>
-                        ) : (
-                          <>
-                            <ImageIcon className="h-3 w-3 mr-2" />
-                            Genera Immagine dal Link
-                          </>
-                        )}
-                      </Button>
-                      <p className="text-xs text-muted-foreground">
-                        Inserisci un link di OpenStreetMap o Google Maps per generare automaticamente un'immagine del
-                        luogo
-                      </p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* Step 3: Date, Partecipanti e Prezzo */}
-          {currentStep === 3 && (
-            <motion.div
-              key="step3"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">3</span>
-                    </div>
-                    Date, Partecipanti e Prezzo
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="dataInizio" className="text-sm font-medium">
-                      Data di Inizio *
-                    </Label>
-                    <Input
-                      id="dataInizio"
-                      type="date"
-                      value={dataInizio}
-                      onChange={(e) => setDataInizio(e.target.value)}
-                      className="mt-1 text-sm"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="dataFine" className="text-sm font-medium">
-                      Data di Fine (opzionale)
-                    </Label>
-                    <Input
-                      id="dataFine"
-                      type="date"
-                      value={dataFine}
-                      onChange={(e) => setDataFine(e.target.value)}
-                      className="mt-1 text-sm"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="postiTotali" className="text-sm font-medium">
-                      Numero di Posti *
-                    </Label>
-                    <Input
-                      id="postiTotali"
-                      type="number"
-                      placeholder="2"
-                      value={postiTotali}
-                      onChange={(e) => setPostiTotali(e.target.value)}
-                      className="mt-1 text-sm"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="prezzo" className="text-sm font-medium">
-                      Prezzo per Persona *
-                    </Label>
-                    <Input
-                      id="prezzo"
-                      type="number"
-                      placeholder="0.00"
-                      value={prezzo}
-                      onChange={(e) => setPrezzo(e.target.value)}
-                      className="mt-1 text-sm"
-                      required
-                    />
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-
-          {/* Step 4: Servizi */}
-          {currentStep === 4 && (
-            <motion.div
-              key="step4"
-              initial={{ opacity: 0, x: 50 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -50 }}
-              transition={{ duration: 0.3 }}
-            >
-              <Card className="border-0 shadow-lg bg-card/80 backdrop-blur-sm">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <div className="w-6 h-6 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                      <span className="text-white text-xs">4</span>
-                    </div>
-                    Servizi Inclusi
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {serviziDisponibili.map((servizio) => (
-                    <div key={servizio.id} className="flex items-center gap-3">
-                      <Checkbox
-                        id={servizio.id}
-                        checked={servizi.includes(servizio.id)}
-                        onCheckedChange={() => toggleServizio(servizio.id)}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-sm sm:text-base flex items-center gap-2">
-                          {servizio.icon}
-                          {servizio.name}
-                        </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="dataFine" className="text-base font-medium">
+                          Data di fine (opzionale)
+                        </Label>
+                        <Input
+                          id="dataFine"
+                          type="datetime-local"
+                          value={dataFine}
+                          onChange={(e) => setDataFine(e.target.value)}
+                          className="h-12 text-base border-2 focus:border-orange-500"
+                        />
                       </div>
                     </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </motion.div>
-          )}
-        </AnimatePresence>
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between">
-          <Button
-            type="button"
-            onClick={() => setCurrentStep((prev) => Math.max(prev - 1, 1))}
-            disabled={currentStep === 1}
-            className="text-sm"
-            variant="outline"
-          >
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Indietro
-          </Button>
-          <Button
-            type="button"
-            onClick={() => setCurrentStep((prev) => Math.min(prev + 1, 4))}
-            disabled={!canProceedToNextStep()}
-            className="text-sm"
-          >
-            Avanti
-            <ChevronRight className="h-4 w-4 ml-2" />
-          </Button>
-          {currentStep === 4 && (
-            <Button type="submit" disabled={isSubmitting} className="text-sm">
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                  Creazione...
-                </>
-              ) : (
-                "Crea Evento"
-              )}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="postiTotali" className="text-base font-medium flex items-center gap-2">
+                          <Users className="h-4 w-4" />
+                          Numero di posti *
+                        </Label>
+                        <Input
+                          id="postiTotali"
+                          type="number"
+                          min="2"
+                          max="50"
+                          value={postiTotali}
+                          onChange={(e) => setPostiTotali(e.target.value)}
+                          placeholder="Es: 6"
+                          className="h-12 text-base border-2 focus:border-orange-500"
+                          required
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="prezzo" className="text-base font-medium flex items-center gap-2">
+                          <DollarSign className="h-4 w-4" />
+                          Prezzo per persona (€) *
+                        </Label>
+                        <Input
+                          id="prezzo"
+                          type="number"
+                          min="1"
+                          step="0.01"
+                          value={prezzo}
+                          onChange={(e) => setPrezzo(e.target.value)}
+                          placeholder="Es: 150.00"
+                          className="h-12 text-base border-2 focus:border-orange-500"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="bookingLink" className="text-base font-medium">
+                        Link di prenotazione (opzionale)
+                      </Label>
+                      <Input
+                        id="bookingLink"
+                        type="url"
+                        value={bookingLink}
+                        onChange={(e) => setBookingLink(e.target.value)}
+                        placeholder="https://..."
+                        className="h-12 text-base border-2 focus:border-orange-500"
+                      />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {/* Step 4: Servizi - Design completamente migliorato */}
+            {currentStep === 4 && (
+              <motion.div
+                key="step4"
+                initial={{ opacity: 0, x: 50 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -50 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-100">
+                    <CardTitle className="text-xl flex items-center gap-3">
+                      <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
+                        <span className="text-white font-bold">4</span>
+                      </div>
+                      Servizi e comfort inclusi
+                    </CardTitle>
+                    <p className="text-sm text-gray-600 mt-2">
+                      Seleziona tutti i servizi e comfort che saranno disponibili durante l'evento
+                    </p>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {serviziDisponibili.map((servizio) => (
+                        <motion.div key={servizio.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                          <Card
+                            className={`cursor-pointer transition-all duration-300 border-2 hover:shadow-md ${
+                              servizi.includes(servizio.id)
+                                ? "border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 shadow-md"
+                                : "border-gray-200 hover:border-gray-300 bg-white"
+                            }`}
+                            onClick={() => toggleServizio(servizio.id)}
+                          >
+                            <CardContent className="p-3 text-center">
+                              <div className={`text-2xl mb-2 ${servizi.includes(servizio.id) ? "" : "grayscale"}`}>
+                                {typeof servizio.icon === "string" ? servizio.icon : servizio.icon}
+                              </div>
+                              <p
+                                className={`text-xs font-medium ${
+                                  servizi.includes(servizio.id) ? "text-purple-700" : "text-gray-600"
+                                }`}
+                              >
+                                {servizio.name}
+                              </p>
+                              {servizi.includes(servizio.id) && (
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ duration: 0.2 }}
+                                  className="mt-2"
+                                >
+                                  <CheckCircle className="h-4 w-4 text-purple-600 mx-auto" />
+                                </motion.div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    {servizi.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200"
+                      >
+                        <h4 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
+                          <CheckCircle className="h-4 w-4" />
+                          Servizi selezionati ({servizi.length})
+                        </h4>
+                        <div className="flex flex-wrap gap-2">
+                          {servizi.map((servizio) => (
+                            <Badge key={servizio} className="bg-purple-100 text-purple-700 border-purple-300">
+                              {servizio}
+                            </Badge>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Navigation Buttons - Design migliorato */}
+          <div className="flex justify-between items-center pt-6 border-t border-gray-200 bg-white/80 backdrop-blur-sm rounded-lg p-4 shadow-lg">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
+              disabled={currentStep === 1}
+              className="flex items-center gap-2 border-2"
+            >
+              <ChevronLeft className="h-4 w-4" />
+              Indietro
             </Button>
-          )}
-        </div>
-      </form>
+
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <span>Step {currentStep} di 4</span>
+            </div>
+
+            {currentStep < 4 ? (
+              <Button
+                type="button"
+                onClick={() => setCurrentStep(currentStep + 1)}
+                disabled={!canProceedToNextStep()}
+                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
+              >
+                Avanti
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={isSubmitting || !canProceedToNextStep()}
+                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-blue-600 text-white hover:from-green-700 hover:to-blue-700 px-8"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creazione...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    Crea Evento
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
