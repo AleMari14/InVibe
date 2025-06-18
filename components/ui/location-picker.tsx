@@ -12,7 +12,7 @@ import dynamic from "next/dynamic"
 // Importa la mappa in modo dinamico per evitare problemi SSR
 const Map = dynamic(() => import("@/components/ui/map"), {
   ssr: false,
-  loading: () => <div className="h-[300px] bg-muted animate-pulse rounded-md"></div>,
+  loading: () => <div className="h-[250px] bg-muted animate-pulse rounded-md"></div>,
 })
 
 interface LocationPickerProps {
@@ -30,6 +30,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   const [showSuggestions, setShowSuggestions] = useState(false)
   const suggestionsRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const { theme } = useNextTheme()
 
   // Gestisci i click fuori dal menu dei suggerimenti
@@ -51,43 +52,60 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
     }
   }, [])
 
-  // Cerca luoghi quando l'utente digita
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Cerca luoghi quando l'utente digita con debounce
   const searchPlaces = async (query: string) => {
-    if (!query.trim() || query.length < 3) {
+    if (!query.trim() || query.length < 2) {
       setSuggestions([])
       setShowSuggestions(false)
       return
     }
 
-    setIsLoading(true)
-    setShowSuggestions(true)
-
-    try {
-      // Usa Nominatim per la ricerca di luoghi
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-          query,
-        )}&addressdetails=1&limit=5&accept-language=it`,
-        {
-          headers: {
-            "User-Agent": "InVibe/1.0",
-          },
-        },
-      )
-
-      if (response.ok) {
-        const data = await response.json()
-        setSuggestions(data)
-      } else {
-        console.error("Errore nella ricerca dei luoghi:", response.statusText)
-        setSuggestions([])
-      }
-    } catch (error) {
-      console.error("Errore nella ricerca dei luoghi:", error)
-      setSuggestions([])
-    } finally {
-      setIsLoading(false)
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
     }
+
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsLoading(true)
+      setShowSuggestions(true)
+
+      try {
+        // Usa Nominatim per la ricerca di luoghi
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            query,
+          )}&addressdetails=1&limit=5&accept-language=it&countrycodes=it`,
+          {
+            headers: {
+              "User-Agent": "InVibe/1.0",
+            },
+          },
+        )
+
+        if (response.ok) {
+          const data = await response.json()
+          setSuggestions(data)
+        } else {
+          console.error("Errore nella ricerca dei luoghi:", response.statusText)
+          setSuggestions([])
+        }
+      } catch (error) {
+        console.error("Errore nella ricerca dei luoghi:", error)
+        setSuggestions([])
+      } finally {
+        setIsLoading(false)
+      }
+    }, 300) // 300ms debounce
   }
 
   // Gestisci la selezione di un luogo
@@ -135,7 +153,7 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <Label htmlFor="location" className="text-base font-medium flex items-center gap-2">
         <MapPin className="h-4 w-4" />
         Località *
@@ -153,12 +171,12 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
               searchPlaces(e.target.value)
             }}
             onFocus={() => {
-              if (searchQuery.length >= 3) {
+              if (searchQuery.length >= 2) {
                 setShowSuggestions(true)
               }
             }}
-            placeholder="Cerca una località..."
-            className="pl-10 bg-background text-foreground"
+            placeholder="Cerca una località in Italia..."
+            className="pl-10 h-12 text-base bg-background text-foreground border-2 focus:border-primary"
           />
           {isLoading && (
             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -167,23 +185,29 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
           )}
         </div>
 
-        {/* Suggerimenti di ricerca */}
+        {/* Suggerimenti di ricerca con z-index alto */}
         {showSuggestions && suggestions.length > 0 && (
           <Card
             ref={suggestionsRef}
-            className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto shadow-lg border border-border bg-card"
+            className="absolute z-[9999] mt-2 w-full max-h-48 overflow-auto shadow-2xl border-2 border-primary/20 bg-card backdrop-blur-sm"
+            style={{ zIndex: 9999 }}
           >
-            <div className="p-1">
-              {suggestions.map((place) => (
+            <div className="p-2">
+              {suggestions.map((place, index) => (
                 <Button
-                  key={place.place_id}
+                  key={place.place_id || index}
                   variant="ghost"
-                  className="w-full justify-start text-left px-3 py-2 h-auto"
+                  className="w-full justify-start text-left px-3 py-3 h-auto hover:bg-primary/10 rounded-md"
                   onClick={() => handleSelectLocation(place)}
                 >
-                  <div>
-                    <div className="font-medium text-foreground">{place.name || place.display_name.split(",")[0]}</div>
-                    <div className="text-xs text-muted-foreground truncate">{place.display_name}</div>
+                  <div className="flex items-start gap-3 w-full">
+                    <MapPin className="h-4 w-4 text-primary mt-1 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-foreground text-sm">
+                        {place.name || place.display_name.split(",")[0]}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">{place.display_name}</div>
+                    </div>
                   </div>
                 </Button>
               ))}
@@ -194,24 +218,38 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
 
       {/* Mostra la posizione selezionata */}
       {selectedLocation && (
-        <div className="text-sm flex items-start gap-2 mt-2">
-          <MapPin className="h-4 w-4 text-primary mt-0.5" />
-          <span className="text-foreground">{selectedLocation}</span>
+        <div className="p-3 bg-primary/5 rounded-lg border border-primary/20">
+          <div className="flex items-start gap-2">
+            <MapPin className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground">Località selezionata:</p>
+              <p className="text-sm text-muted-foreground break-words">{selectedLocation}</p>
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Mappa interattiva */}
-      <div className="h-[300px] mt-3 rounded-md overflow-hidden border-2 border-border">
-        <Map
-          center={coordinates || { lat: 41.9028, lng: 12.4964 }} // Default: Roma
-          zoom={coordinates ? 15 : 5}
-          onLocationChange={handleMapLocationChange}
-          selectedLocation={coordinates}
-          isDarkMode={theme === "dark"}
-        />
+      {/* Mappa interattiva con altezza ridotta */}
+      <div className="relative">
+        <div className="h-[250px] rounded-lg overflow-hidden border-2 border-border shadow-sm">
+          <Map
+            center={coordinates || { lat: 41.9028, lng: 12.4964 }} // Default: Roma
+            zoom={coordinates ? 15 : 6}
+            onLocationChange={handleMapLocationChange}
+            selectedLocation={coordinates}
+            isDarkMode={theme === "dark"}
+          />
+        </div>
+        <div className="absolute top-2 left-2 bg-card/90 backdrop-blur-sm px-2 py-1 rounded text-xs text-muted-foreground border">
+          Clicca sulla mappa per selezionare una posizione
+        </div>
       </div>
 
-      {error && <p className="text-sm text-destructive mt-2">{error}</p>}
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive">{error}</p>
+        </div>
+      )}
     </div>
   )
 }

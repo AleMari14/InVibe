@@ -20,18 +20,21 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
     const chatRoom = await db.collection("chatRooms").findOne({ roomId })
 
     if (!chatRoom) {
+      console.log("Chat room not found:", roomId)
       return NextResponse.json({ error: "Chat room not found" }, { status: 404 })
     }
 
     // Check if user is participant
     const userEmails = chatRoom.participants.map((p: any) => p.email)
     if (!userEmails.includes(session.user.email)) {
+      console.log("User not authorized for chat room:", session.user.email, userEmails)
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     // Get other user
     const otherUser = chatRoom.participants.find((p: any) => p.email !== session.user.email)
 
+    console.log("Chat room found successfully:", roomId)
     return NextResponse.json({
       roomId: chatRoom.roomId,
       eventId: chatRoom.eventId,
