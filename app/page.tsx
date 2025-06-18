@@ -75,13 +75,31 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
+  const [userProfileImage, setUserProfileImage] = useState<string | null>(null)
 
   useEffect(() => {
     fetchEvents()
     if (session?.user?.email) {
       fetchFavorites()
+      fetchUserProfile()
     }
   }, [selectedCategory, searchQuery, session])
+
+  const fetchUserProfile = async () => {
+    if (!session?.user?.email) return
+
+    try {
+      const response = await fetch("/api/profile")
+      if (response.ok) {
+        const userData = await response.json()
+        if (userData.image) {
+          setUserProfileImage(userData.image)
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error)
+    }
+  }
 
   const fetchEvents = async () => {
     try {
@@ -276,7 +294,11 @@ export default function HomePage() {
                   </Link>
                   <Link href="/profile">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={session.user?.image || "/placeholder.svg?height=32&width=32&query=user"} />
+                      <AvatarImage
+                        src={
+                          userProfileImage || session.user?.image || "/placeholder.svg?height=32&width=32&query=user"
+                        }
+                      />
                       <AvatarFallback className="text-xs">
                         {session.user?.name
                           ?.split(" ")

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { MessageSquare } from "lucide-react"
+import { MessageSquare, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
@@ -48,6 +48,7 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
         currentUser: session.user.email,
       })
 
+      // Create or find existing chat room
       const response = await fetch("/api/messages/room", {
         method: "POST",
         headers: {
@@ -81,35 +82,54 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
         throw new Error("Nessun ID della chat ricevuto dal server")
       }
 
-      // If it's a new chat, send an initial message with event info
-      if (data.isNew) {
-        try {
-          const initialMessage = `Ciao! Sono interessato/a al tuo evento "${eventTitle}". Potresti darmi maggiori informazioni?`
+      // Send initial message if it's a new chat or if no messages exist
+      try {
+        const initialMessage = `Ciao ${hostName}! 👋
 
-          const messageResponse = await fetch(`/api/messages/${data.roomId}`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              content: initialMessage,
-            }),
-          })
+Sono interessato/a al tuo evento "${eventTitle}".
 
-          if (messageResponse.ok) {
+Potresti darmi maggiori informazioni? Grazie! 😊
+
+---
+📅 Evento: ${eventTitle}
+🆔 ID: ${eventId}`
+
+        const messageResponse = await fetch(`/api/messages/${data.roomId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            content: initialMessage,
+          }),
+        })
+
+        if (messageResponse.ok) {
+          console.log("Initial message sent successfully")
+          if (data.isNew) {
             toast.success("Chat creata e messaggio inviato!")
           } else {
-            toast.success("Chat creata!")
+            toast.success("Messaggio inviato!")
           }
-        } catch (error) {
-          console.error("Error sending initial message:", error)
-          toast.success("Chat creata!")
+        } else {
+          console.error("Failed to send initial message")
+          if (data.isNew) {
+            toast.success("Chat creata!")
+          } else {
+            toast.success("Chat aperta!")
+          }
         }
-      } else {
-        toast.success("Chat esistente aperta!")
+      } catch (error) {
+        console.error("Error sending initial message:", error)
+        if (data.isNew) {
+          toast.success("Chat creata!")
+        } else {
+          toast.success("Chat aperta!")
+        }
       }
 
       // Navigate to the chat room
+      console.log("Navigating to chat room:", data.roomId)
       router.push(`/messaggi/${data.roomId}`)
     } catch (error) {
       console.error("Error handling chat room:", error)
@@ -125,8 +145,14 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
   }
 
   return (
-    <Button variant="outline" size="sm" onClick={handleClick} disabled={isLoading} className="flex items-center gap-2">
-      <MessageSquare className="h-4 w-4" />
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={handleClick}
+      disabled={isLoading}
+      className="flex items-center gap-2 hover:bg-primary hover:text-primary-foreground transition-colors"
+    >
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
       {isLoading ? "Caricamento..." : `Contatta ${hostName}`}
     </Button>
   )

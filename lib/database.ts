@@ -84,6 +84,29 @@ export interface Message {
   createdAt: Date
 }
 
+export interface ChatRoom {
+  _id?: ObjectId
+  participants: ObjectId[]
+  eventId?: ObjectId
+  eventTitle?: string
+  lastMessage?: string
+  lastMessageAt?: Date
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Export della funzione connectToDatabase richiesta
+export async function connectToDatabase() {
+  try {
+    const client = await clientPromise
+    const db = client.db("invibe")
+    return { client, db }
+  } catch (error) {
+    console.error("Database connection error:", error)
+    throw error
+  }
+}
+
 export class Database {
   static async getEvents(filters?: {
     category?: string
@@ -306,5 +329,97 @@ export class Database {
     const users = client.db().collection("users")
 
     return await users.findOne({ _id: new ObjectId(userId) })
+  }
+
+  static async updateUser(userId: string, updateData: Partial<User>) {
+    const client = await clientPromise
+    const users = client.db().collection("users")
+
+    const result = await users.updateOne(
+      { _id: new ObjectId(userId) },
+      {
+        $set: {
+          ...updateData,
+          updatedAt: new Date(),
+        },
+      },
+    )
+
+    return result
+  }
+
+  static async createChatRoom(roomData: Omit<ChatRoom, "_id" | "createdAt" | "updatedAt">) {
+    const client = await clientPromise
+    const chatRooms = client.db().collection("chatRooms")
+
+    const room = {
+      ...roomData,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    return await chatRooms.insertOne(room)
+  }
+
+  static async getChatRoom(participants: string[], eventId?: string) {
+    const client = await clientPromise
+    const chatRooms = client.db().collection("chatRooms")
+
+    const participantIds = participants.map((id) => new ObjectId(id))
+
+    const query: any = {
+      participants: { $all: participantIds, $size: participantIds.length },
+    }
+
+    if (eventId) {
+      query.eventId = new ObjectId(eventId)
+    }
+
+    return await chatRooms.findOne(query)
+  }
+
+  static async getChatRoomById(roomId: string) {
+    const client = await clientPromise
+    const chatRooms = client.db().collection("chatRooms")
+
+    return await chatRooms.findOne({ _id: new ObjectId(roomId) })
+  }
+
+  static async updateChatRoom(roomId: string, updateData: Partial<ChatRoom>) {
+    const client = await clientPromise
+    const chatRooms = client.db().collection("chatRooms")
+
+    return await chatRooms.updateOne(
+      { _id: new ObjectId(roomId) },
+      {
+        $set: {
+          ...updateData,
+          updatedAt: new Date(),
+        },
+      },
+    )
+  }
+
+  static async createMessage(messageData: Omit<Message, "_id" | "createdAt">) {
+    const client = await clientPromise
+    const messages = client.db().collection("messages")
+
+    const message = {
+      ...messageData,
+      createdAt: new Date(),
+    }
+
+    return await messages.insertOne(message)
+  }
+
+  static async getMessages(roomId: string, limit = 50) {
+    const client = await clientPromise
+    const messages = client.db().collection("messages")
+
+    return await messages
+      .find({ roomId: new ObjectId(roomId) })
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .toArray()
   }
 }

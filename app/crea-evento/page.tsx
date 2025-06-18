@@ -101,6 +101,22 @@ export default function CreaEventoPage() {
     }
   }, [session, status, router])
 
+  // Debug per controllare lo stato
+  useEffect(() => {
+    console.log("Current step:", currentStep)
+    console.log("Can proceed:", canProceedToNextStep())
+    console.log("Form data:", {
+      categoria,
+      titolo,
+      descrizione,
+      location,
+      coordinates,
+      dataInizio,
+      postiTotali,
+      prezzo,
+    })
+  }, [currentStep, categoria, titolo, descrizione, location, coordinates, dataInizio, postiTotali, prezzo])
+
   // Funzioni di utilità
   const extractInfoFromMapLink = (link: string) => {
     if (!isMounted || typeof window === "undefined") {
@@ -306,11 +322,11 @@ export default function CreaEventoPage() {
       case 1:
         return categoria !== ""
       case 2:
-        return titolo.trim() && descrizione.trim() && location && coordinates
+        return titolo.trim() !== "" && descrizione.trim() !== "" && location !== "" && coordinates !== null
       case 3:
-        return dataInizio && postiTotali && prezzo
+        return dataInizio !== "" && postiTotali !== "" && prezzo !== ""
       case 4:
-        return true
+        return true // Servizi opzionali, sempre possibile procedere
       default:
         return false
     }
@@ -415,6 +431,18 @@ export default function CreaEventoPage() {
       toast.error(error.message || "Errore nella creazione dell'evento")
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleNextStep = () => {
+    if (canProceedToNextStep()) {
+      setCurrentStep(currentStep + 1)
+    }
+  }
+
+  const handlePrevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1)
     }
   }
 
@@ -636,7 +664,7 @@ export default function CreaEventoPage() {
         </div>
       </div>
 
-      <div className="max-w-3xl mx-auto p-4 pb-24">
+      <div className="max-w-3xl mx-auto p-4 pb-32">
         {error && (
           <Alert className="border-destructive/50 bg-destructive/10 mb-6">
             <AlertDescription className="text-destructive">{error}</AlertDescription>
@@ -1066,56 +1094,71 @@ export default function CreaEventoPage() {
               </motion.div>
             )}
           </AnimatePresence>
-
-          {/* Navigation Buttons */}
-          <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4 z-30">
-            <div className="max-w-3xl mx-auto flex justify-between items-center gap-4">
-              {currentStep > 1 ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCurrentStep(currentStep - 1)}
-                  className="flex items-center gap-2 border-border hover:bg-accent"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Indietro
-                </Button>
-              ) : (
-                <div></div>
-              )}
-
-              {currentStep < 4 ? (
-                <Button
-                  type="button"
-                  onClick={() => setCurrentStep(currentStep + 1)}
-                  disabled={!canProceedToNextStep()}
-                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Avanti
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              ) : (
-                <Button
-                  type="submit"
-                  disabled={isSubmitting || !canProceedToNextStep()}
-                  className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold px-8 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Creazione...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle className="h-4 w-4" />
-                      Crea Evento
-                    </>
-                  )}
-                </Button>
-              )}
-            </div>
-          </div>
         </form>
+
+        {/* Navigation Buttons - SEMPRE VISIBILI */}
+        <div className="fixed bottom-0 left-0 right-0 bg-card/98 backdrop-blur-lg border-t border-border p-4 z-50 shadow-lg">
+          <div className="max-w-3xl mx-auto flex justify-between items-center gap-4">
+            {currentStep > 1 ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handlePrevStep}
+                className="flex items-center gap-2 border-border hover:bg-accent min-w-[100px]"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Indietro
+              </Button>
+            ) : (
+              <div className="min-w-[100px]"></div>
+            )}
+
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span className="font-medium">Passo {currentStep} di 4</span>
+              <div className="flex gap-1">
+                {[1, 2, 3, 4].map((step) => (
+                  <div
+                    key={step}
+                    className={`w-2 h-2 rounded-full transition-colors ${
+                      step <= currentStep ? "bg-primary" : "bg-muted"
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {currentStep < 4 ? (
+              <Button
+                type="button"
+                onClick={handleNextStep}
+                disabled={!canProceedToNextStep()}
+                className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed min-w-[100px]"
+              >
+                Avanti
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                onClick={handleSubmit}
+                disabled={isSubmitting || !canProceedToNextStep()}
+                className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold px-6 disabled:opacity-50 disabled:cursor-not-allowed min-w-[120px]"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Creazione...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4" />
+                    Crea Evento
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
