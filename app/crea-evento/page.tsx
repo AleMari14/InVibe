@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
-import { useTheme } from "@/contexts/theme-context"
+import { useTheme as useNextTheme } from "next-themes"
 import {
   ArrowLeft,
   CheckCircle,
@@ -59,7 +59,8 @@ const LocationPicker = dynamic(
 )
 
 export default function CreaEventoPage() {
-  const { theme } = useTheme()
+  // Utilizziamo useNextTheme invece di useTheme dal context personalizzato
+  const { theme, setTheme } = useNextTheme()
   const [currentStep, setCurrentStep] = useState(1)
   const [categoria, setCategoria] = useState("")
   const [titolo, setTitolo] = useState("")
@@ -466,6 +467,9 @@ export default function CreaEventoPage() {
     }
   }
 
+  // Determina le classi di colore in base al tema
+  const isDark = theme === "dark"
+
   // Pagina di successo con supporto tema
   if (success) {
     return (
@@ -575,9 +579,7 @@ export default function CreaEventoPage() {
                     <Users className="h-3 w-3 mr-1" />
                     {postiTotali} posti
                   </Badge>
-                  <Badge className="bg-secondary/10 text-secondary-foreground border-secondary/20">
-                    €{prezzo} / persona
-                  </Badge>
+                  <Badge className="bg-secondary/10 text-secondary border-secondary/20">€{prezzo} / persona</Badge>
                 </div>
               </motion.div>
 

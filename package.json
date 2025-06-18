@@ -13,7 +13,7 @@
     "@auth/mongodb-adapter": "latest",
     "@aws-sdk/credential-providers": "latest",
     "@emotion/is-prop-valid": "latest",
-    "@hookform/resolvers": "latest",
+    "@hookform/resolvers": "^3.3.2",
     "@mongodb-js/zstd": "latest",
     "@next-auth/mongodb-adapter": "^1.1.3",
     "@radix-ui/react-alert-dialog": "latest",
@@ -51,7 +51,6 @@
     "http": "latest",
     "kerberos": "latest",
     "leaflet": "latest",
-    "lodash": "latest",
     "lucide-react": "^0.454.0",
     "mongodb": "latest",
     "mongodb-client-encryption": "latest",
@@ -64,8 +63,7 @@
     "react": "^18",
     "react-day-picker": "^8.9.1",
     "react-dom": "^18",
-    "react-hook-form": "latest",
-    "react-leaflet": "latest",
+    "react-hook-form": "^7.48.2",
     "snappy": "latest",
     "socket.io": "latest",
     "socket.io-client": "^4.7.4",
@@ -78,7 +76,7 @@
     "url": "latest",
     "utf-8-validate": "latest",
     "ws": "latest",
-    "zod": "latest"
+    "zod": "^3.22.4"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

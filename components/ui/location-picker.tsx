@@ -1,245 +1,119 @@
 "use client"
 
-import { useState, useCallback, useEffect, useRef } from "react"
-import { Label } from "./label"
-import { Alert, AlertDescription } from "./alert"
-import { MapPin, Loader2, X, Search, Navigation, Globe, Eye, EyeOff } from "lucide-react"
-import { Button } from "./button"
-import { Map } from "./map"
-import { debounce } from "lodash"
-import { Card, CardContent, CardHeader, CardTitle } from "./card"
-import { useTheme } from "@/contexts/theme-context"
+import { useState, useEffect, useRef } from "react"
+import { Search, MapPin, Loader2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Button } from "@/components/ui/button"
+import { Card } from "@/components/ui/card"
+import { useTheme as useNextTheme } from "next-themes"
+import dynamic from "next/dynamic"
+
+// Importa la mappa in modo dinamico per evitare problemi SSR
+const Map = dynamic(() => import("@/components/ui/map"), {
+  ssr: false,
+  loading: () => <div className="h-[300px] bg-muted animate-pulse rounded-md"></div>,
+})
 
 interface LocationPickerProps {
-  value: string
+  value?: string
   onChange: (location: string, coordinates: { lat: number; lng: number }) => void
   error?: string
 }
 
-interface NominatimResult {
-  place_id: number
-  licence: string
-  osm_type: string
-  osm_id: number
-  boundingbox: string[]
-  lat: string
-  lon: string
-  display_name: string
-  class: string
-  type: string
-  importance: number
-  address?: {
-    house_number?: string
-    road?: string
-    suburb?: string
-    city?: string
-    state?: string
-    postcode?: string
-    country?: string
-  }
-}
-
 export function LocationPicker({ value, onChange, error }: LocationPickerProps) {
-  const { theme } = useTheme()
   const [searchQuery, setSearchQuery] = useState("")
-  const [suggestions, setSuggestions] = useState<NominatimResult[]>([])
+  const [suggestions, setSuggestions] = useState<any[]>([])
+  const [selectedLocation, setSelectedLocation] = useState(value || "")
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null)
   const [isLoading, setIsLoading] = useState(false)
-  const [coordinates, setCoordinates] = useState<[number, number] | null>(null)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [selectedPlace, setSelectedPlace] = useState<{
-    name: string
-    location: { lat: number; lng: number }
-  } | null>(null)
-  const [showMap, setShowMap] = useState(false)
-  const [isGettingLocation, setIsGettingLocation] = useState(false)
-
   const suggestionsRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const { theme } = useNextTheme()
 
-  // Funzione per ottenere la posizione corrente
-  const getCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) {
-      alert("La geolocalizzazione non è supportata dal tuo browser")
+  // Gestisci i click fuori dal menu dei suggerimenti
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(event.target as Node)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+    }
+  }, [])
+
+  // Cerca luoghi quando l'utente digita
+  const searchPlaces = async (query: string) => {
+    if (!query.trim() || query.length < 3) {
+      setSuggestions([])
+      setShowSuggestions(false)
       return
     }
 
-    setIsGettingLocation(true)
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const lat = position.coords.latitude
-        const lng = position.coords.longitude
+    setIsLoading(true)
+    setShowSuggestions(true)
 
-        try {
-          // Reverse geocoding per ottenere l'indirizzo
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=it`,
-            {
-              headers: {
-                "User-Agent": "InVibe/1.0",
-              },
-            },
-          )
+    try {
+      // Usa Nominatim per la ricerca di luoghi
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          query,
+        )}&addressdetails=1&limit=5&accept-language=it`,
+        {
+          headers: {
+            "User-Agent": "InVibe/1.0",
+          },
+        },
+      )
 
-          if (response.ok) {
-            const data = await response.json()
-            if (data.display_name) {
-              onChange(data.display_name, { lat, lng })
-              setCoordinates([lat, lng])
-              setSelectedPlace({ name: data.display_name, location: { lat, lng } })
-              setShowMap(true)
-            }
-          }
-        } catch (error) {
-          console.error("Errore nel reverse geocoding:", error)
-          // Fallback: usa le coordinate come nome del luogo
-          const locationName = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`
-          onChange(locationName, { lat, lng })
-          setSelectedPlace({ name: locationName, location: { lat, lng } })
-          setShowMap(true)
-        } finally {
-          setIsGettingLocation(false)
-        }
-      },
-      (error) => {
-        console.error("Errore nella geolocalizzazione:", error)
-        setIsGettingLocation(false)
-        alert("Impossibile ottenere la posizione corrente")
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000, // 5 minuti
-      },
-    )
-  }, [onChange])
-
-  // Funzione migliorata per cercare luoghi
-  const searchPlaces = useCallback(
-    debounce(async (query: string) => {
-      if (!query || query.length < 2) {
+      if (response.ok) {
+        const data = await response.json()
+        setSuggestions(data)
+      } else {
+        console.error("Errore nella ricerca dei luoghi:", response.statusText)
         setSuggestions([])
-        setShowSuggestions(false)
-        return
       }
-
-      setIsLoading(true)
-      try {
-        // Cerca prima in Italia, poi globalmente
-        const searches = [
-          // Ricerca specifica per l'Italia
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            query,
-          )}&countrycodes=it&limit=5&addressdetails=1&accept-language=it`,
-          // Ricerca globale se non troviamo risultati in Italia
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
-            query,
-          )}&limit=3&addressdetails=1&accept-language=it`,
-        ]
-
-        let allResults: NominatimResult[] = []
-
-        for (const searchUrl of searches) {
-          try {
-            const response = await fetch(searchUrl, {
-              headers: {
-                "User-Agent": "InVibe/1.0",
-              },
-            })
-
-            if (response.ok) {
-              const data: NominatimResult[] = await response.json()
-              allResults = [...allResults, ...data]
-            }
-          } catch (error) {
-            console.error("Errore in una ricerca:", error)
-          }
-        }
-
-        // Rimuovi duplicati basati su place_id
-        const uniqueResults = allResults.filter(
-          (result, index, self) => index === self.findIndex((r) => r.place_id === result.place_id),
-        )
-
-        // Ordina per importanza e rilevanza
-        const sortedResults = uniqueResults
-          .sort((a, b) => {
-            // Priorità per luoghi in Italia
-            const aIsItaly =
-              a.display_name.toLowerCase().includes("italia") || a.display_name.toLowerCase().includes("italy")
-            const bIsItaly =
-              b.display_name.toLowerCase().includes("italia") || b.display_name.toLowerCase().includes("italy")
-
-            if (aIsItaly && !bIsItaly) return -1
-            if (!aIsItaly && bIsItaly) return 1
-
-            // Poi per importanza
-            return (b.importance || 0) - (a.importance || 0)
-          })
-          .slice(0, 8)
-
-        setSuggestions(sortedResults)
-        setShowSuggestions(sortedResults.length > 0)
-      } catch (error) {
-        console.error("Errore nella ricerca dei luoghi:", error)
-        setSuggestions([])
-        setShowSuggestions(false)
-      } finally {
-        setIsLoading(false)
-      }
-    }, 300),
-    [],
-  )
-
-  useEffect(() => {
-    if (searchQuery.length >= 2) {
-      searchPlaces(searchQuery)
-    } else {
+    } catch (error) {
+      console.error("Errore nella ricerca dei luoghi:", error)
       setSuggestions([])
-      setShowSuggestions(false)
-    }
-  }, [searchQuery, searchPlaces])
-
-  const formatDisplayName = (place: NominatimResult) => {
-    const parts = place.display_name.split(",")
-    const mainPart = parts[0]?.trim()
-    const secondaryPart = parts.slice(1, 3).join(",").trim()
-
-    return {
-      main: mainPart || place.display_name,
-      secondary: secondaryPart || parts.slice(1).join(",").trim(),
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const getPlaceIcon = (place: NominatimResult) => {
-    const type = place.type?.toLowerCase()
-    const className = place.class?.toLowerCase()
+  // Gestisci la selezione di un luogo
+  const handleSelectLocation = (place: any) => {
+    const locationName = place.display_name
+    const newCoordinates = {
+      lat: Number.parseFloat(place.lat),
+      lng: Number.parseFloat(place.lon),
+    }
 
-    if (type === "city" || type === "town" || type === "village") return "🏙️"
-    if (type === "house" || className === "building") return "🏠"
-    if (type === "restaurant" || type === "cafe") return "🍽️"
-    if (type === "hotel" || type === "guest_house") return "🏨"
-    if (className === "tourism") return "🎯"
-    if (className === "leisure") return "🎪"
-    if (type === "beach") return "🏖️"
-    if (type === "mountain" || type === "peak") return "⛰️"
-    return "📍"
-  }
-
-  const handleSelect = (place: NominatimResult) => {
-    const lat = Number.parseFloat(place.lat)
-    const lng = Number.parseFloat(place.lon)
-
-    onChange(place.display_name, { lat, lng })
-    setCoordinates([lat, lng])
-    setSelectedPlace({ name: place.display_name, location: { lat, lng } })
+    setSelectedLocation(locationName)
+    setCoordinates(newCoordinates)
     setSearchQuery("")
+    setSuggestions([])
     setShowSuggestions(false)
-    setShowMap(true)
+
+    // Notifica il componente padre
+    onChange(locationName, newCoordinates)
   }
 
-  const handleMarkerChange = (lat: number, lng: number) => {
-    // Reverse geocoding per ottenere l'indirizzo dalle coordinate
+  // Gestisci il cambio di posizione sulla mappa
+  const handleMapLocationChange = (lat: number, lng: number) => {
+    const newCoordinates = { lat, lng }
+    setCoordinates(newCoordinates)
+
+    // Esegui reverse geocoding per ottenere l'indirizzo
     fetch(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1&accept-language=it`,
       {
@@ -251,241 +125,93 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
       .then((response) => response.json())
       .then((data) => {
         if (data.display_name) {
-          onChange(data.display_name, { lat, lng })
-          setSelectedPlace({ name: data.display_name, location: { lat, lng } })
+          setSelectedLocation(data.display_name)
+          onChange(data.display_name, newCoordinates)
         }
       })
       .catch((error) => {
         console.error("Errore nel reverse geocoding:", error)
-        // Fallback: usa le coordinate come nome del luogo
-        const locationName = `Lat: ${lat.toFixed(6)}, Lng: ${lng.toFixed(6)}`
-        onChange(locationName, { lat, lng })
-        setSelectedPlace({ name: locationName, location: { lat, lng } })
       })
   }
 
-  // Chiudi i suggerimenti quando si clicca fuori
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false)
-      }
-    }
-
-    document.addEventListener("mousedown", handleClickOutside)
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside)
-    }
-  }, [])
-
-  // Aggiorna le coordinate quando cambia il valore
-  useEffect(() => {
-    if (!value) {
-      setCoordinates(null)
-      setSelectedPlace(null)
-      setShowMap(false)
-    } else if (value && !selectedPlace) {
-      // Se abbiamo un valore ma non un luogo selezionato, proviamo a geocodificarlo
-      fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&limit=1&accept-language=it`,
-        {
-          headers: {
-            "User-Agent": "InVibe/1.0",
-          },
-        },
-      )
-        .then((response) => response.json())
-        .then((data) => {
-          if (data && data.length > 0) {
-            const lat = Number.parseFloat(data[0].lat)
-            const lng = Number.parseFloat(data[0].lon)
-            setCoordinates([lat, lng])
-            setSelectedPlace({ name: value, location: { lat, lng } })
-            setShowMap(true)
-          }
-        })
-        .catch((error) => {
-          console.error("Errore nella geocodifica:", error)
-        })
-    }
-  }, [value, selectedPlace])
-
-  const handleClearSelection = () => {
-    setSelectedPlace(null)
-    setCoordinates(null)
-    setShowMap(false)
-    setSearchQuery("")
-    onChange("", { lat: 0, lng: 0 })
-    if (inputRef.current) {
-      inputRef.current.focus()
-    }
-  }
-
-  const toggleMap = () => {
-    setShowMap(!showMap)
-  }
-
   return (
-    <div ref={containerRef} className="space-y-4 relative">
-      <Label htmlFor="location" className="text-base font-medium text-foreground">
+    <div className="space-y-3">
+      <Label htmlFor="location" className="text-base font-medium flex items-center gap-2">
+        <MapPin className="h-4 w-4" />
         Località *
       </Label>
 
-      {/* Campo di ricerca con tema */}
-      <Card className="border-2 border-border hover:border-primary/50 transition-colors bg-card">
-        <CardContent className="p-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-5 w-5" />
-            <input
-              ref={inputRef}
-              id="location"
-              placeholder="Cerca una località (es. Roma, Milano, Firenze...)"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex h-12 w-full rounded-lg border-0 bg-transparent px-12 py-2 text-base text-foreground ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              onFocus={() => {
-                if (suggestions.length > 0) {
-                  setShowSuggestions(true)
-                }
-              }}
-            />
-            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex gap-2">
-              {isLoading && <Loader2 className="h-5 w-5 animate-spin text-primary" />}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={getCurrentLocation}
-                disabled={isGettingLocation}
-                className="h-8 w-8 p-0 hover:bg-primary/10"
-                title="Usa posizione corrente"
-              >
-                {isGettingLocation ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Navigation className="h-4 w-4 text-primary" />
-                )}
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Suggerimenti con z-index corretto */}
-      {showSuggestions && (
+      <div className="relative">
         <div className="relative">
-          <div
-            ref={suggestionsRef}
-            className="absolute top-0 left-0 right-0 z-[100] max-h-80 overflow-y-auto shadow-2xl border-2 border-primary/20 bg-card rounded-lg"
-          >
-            <CardContent className="p-2">
-              {suggestions.length === 0 && searchQuery.length >= 2 && !isLoading ? (
-                <div className="py-8 text-center text-muted-foreground">
-                  <Globe className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p className="font-medium">Nessun risultato trovato</p>
-                  <p className="text-sm mt-1">Prova con un termine di ricerca diverso</p>
-                </div>
-              ) : (
-                suggestions.map((place) => {
-                  const formatted = formatDisplayName(place)
-                  const icon = getPlaceIcon(place)
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+          <Input
+            ref={inputRef}
+            id="location-search"
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              searchPlaces(e.target.value)
+            }}
+            onFocus={() => {
+              if (searchQuery.length >= 3) {
+                setShowSuggestions(true)
+              }
+            }}
+            placeholder="Cerca una località..."
+            className="pl-10 bg-background text-foreground"
+          />
+          {isLoading && (
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+            </div>
+          )}
+        </div>
 
-                  return (
-                    <Button
-                      key={place.place_id}
-                      variant="ghost"
-                      className="w-full justify-start text-left p-4 h-auto hover:bg-accent rounded-lg"
-                      onClick={() => handleSelect(place)}
-                    >
-                      <div className="flex items-start gap-3 w-full">
-                        <span className="text-2xl flex-shrink-0 mt-1">{icon}</span>
-                        <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-base text-foreground truncate">{formatted.main}</div>
-                          <div className="text-sm text-muted-foreground line-clamp-2 mt-1">{formatted.secondary}</div>
-                          {place.address?.country && (
-                            <div className="text-xs text-primary mt-2 font-medium">{place.address.country}</div>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground flex-shrink-0 bg-muted px-2 py-1 rounded">
-                          {place.type}
-                        </div>
-                      </div>
-                    </Button>
-                  )
-                })
-              )}
-            </CardContent>
-          </div>
+        {/* Suggerimenti di ricerca */}
+        {showSuggestions && suggestions.length > 0 && (
+          <Card
+            ref={suggestionsRef}
+            className="absolute z-[100] mt-1 w-full max-h-60 overflow-auto shadow-lg border border-border bg-card"
+          >
+            <div className="p-1">
+              {suggestions.map((place) => (
+                <Button
+                  key={place.place_id}
+                  variant="ghost"
+                  className="w-full justify-start text-left px-3 py-2 h-auto"
+                  onClick={() => handleSelectLocation(place)}
+                >
+                  <div>
+                    <div className="font-medium text-foreground">{place.name || place.display_name.split(",")[0]}</div>
+                    <div className="text-xs text-muted-foreground truncate">{place.display_name}</div>
+                  </div>
+                </Button>
+              ))}
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* Mostra la posizione selezionata */}
+      {selectedLocation && (
+        <div className="text-sm flex items-start gap-2 mt-2">
+          <MapPin className="h-4 w-4 text-primary mt-0.5" />
+          <span className="text-foreground">{selectedLocation}</span>
         </div>
       )}
 
-      {/* Luogo selezionato con tema */}
-      {selectedPlace && (
-        <Card className="border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-primary/10">
-          <CardContent className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3 min-w-0 flex-1">
-                <div className="w-10 h-10 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center flex-shrink-0">
-                  <MapPin className="h-5 w-5 text-primary-foreground" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-foreground line-clamp-1">{selectedPlace.name.split(",")[0]}</p>
-                  <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{selectedPlace.name}</p>
-                  <p className="text-xs text-primary mt-2 font-mono bg-background/50 px-2 py-1 rounded">
-                    {selectedPlace.location.lat.toFixed(4)}, {selectedPlace.location.lng.toFixed(4)}
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={toggleMap}
-                  className="h-9 px-3 bg-background/80 hover:bg-background border-primary/30"
-                >
-                  {showMap ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
-                  {showMap ? "Nascondi" : "Mostra"}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearSelection}
-                  className="h-9 w-9 p-0 bg-background/80 hover:bg-destructive/10 border-destructive/30 text-destructive"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Mappa interattiva */}
+      <div className="h-[300px] mt-3 rounded-md overflow-hidden border-2 border-border">
+        <Map
+          center={coordinates || { lat: 41.9028, lng: 12.4964 }} // Default: Roma
+          zoom={coordinates ? 15 : 5}
+          onLocationChange={handleMapLocationChange}
+          selectedLocation={coordinates}
+          isDarkMode={theme === "dark"}
+        />
+      </div>
 
-      {/* Mappa con tema */}
-      {showMap && coordinates && (
-        <Card className="border-2 border-primary/30 overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b border-primary/20 py-3">
-            <CardTitle className="text-base flex items-center gap-2 text-foreground">
-              <MapPin className="h-5 w-5 text-primary" />
-              Posizione sulla mappa
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Map
-              center={coordinates}
-              marker={coordinates}
-              onMarkerChange={handleMarkerChange}
-              height="300px"
-              interactive={true}
-            />
-          </CardContent>
-        </Card>
-      )}
-
-      {error && (
-        <Alert variant="destructive" className="border-destructive/30 bg-destructive/10">
-          <AlertDescription className="text-destructive font-medium">{error}</AlertDescription>
-        </Alert>
-      )}
+      {error && <p className="text-sm text-destructive mt-2">{error}</p>}
     </div>
   )
 }

@@ -2,287 +2,314 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import * as z from "zod"
+import { toast } from "sonner"
+import { Camera, Loader2, User, Mail, Phone, MapPin, Calendar, Edit3, Save, X } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Loader2, Edit, Camera } from "lucide-react"
-import { toast } from "sonner"
-import { Progress } from "@/components/ui/progress"
+import { Card, CardContent } from "@/components/ui/card"
 
-const profileFormSchema = z.object({
-  name: z.string().min(2, "Il nome deve contenere almeno 2 caratteri"),
-  bio: z.string().max(160, "La bio non può superare i 160 caratteri").optional(),
-  phone: z
-    .string()
-    .regex(/^\+?[0-9]{10,15}$/, "Numero di telefono non valido")
-    .optional()
-    .or(z.string().length(0)),
-  location: z.string().min(2, "La località deve contenere almeno 2 caratteri").optional().or(z.string().length(0)),
-})
+interface EditProfileDialogProps {
+  user: {
+    id: string
+    name?: string | null
+    email?: string | null
+    image?: string | null
+    bio?: string | null
+    phone?: string | null
+    location?: string | null
+    dateOfBirth?: string | null
+  }
+  onProfileUpdate: (updatedUser: any) => void
+}
 
-type ProfileFormValues = z.infer<typeof profileFormSchema>
-
-export function EditProfileDialog() {
+export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogProps) {
   const { data: session, update } = useSession()
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
-  const [uploadProgress, setUploadProgress] = useState(0)
+  const [isUploadingImage, setIsUploadingImage] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const form = useForm<ProfileFormValues>({
-    resolver: zodResolver(profileFormSchema),
-    defaultValues: {
-      name: session?.user?.name || "",
-      bio: "",
-      phone: "",
-      location: "",
-    },
+  const [formData, setFormData] = useState({
+    name: user.name || "",
+    bio: user.bio || "",
+    phone: user.phone || "",
+    location: user.location || "",
+    dateOfBirth: user.dateOfBirth || "",
+    image: user.image || "",
   })
 
-  // Update form values when session changes
-  useEffect(() => {
-    if (session?.user) {
-      form.reset({
-        name: session.user.name || "",
-        bio: "",
-        phone: "",
-        location: "",
-      })
-    }
-  }, [session, form])
-
-  // Simulate progress for better UX
-  useEffect(() => {
-    if (isLoading && avatarFile) {
-      const interval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 95) {
-            clearInterval(interval)
-            return prev
-          }
-          return prev + 5
-        })
-      }, 100)
-
-      return () => clearInterval(interval)
-    } else if (!isLoading) {
-      setUploadProgress(0)
-    }
-  }, [isLoading, avatarFile])
-
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        toast.error("L'immagine non può superare i 5MB")
-        return
-      }
+    if (!file) return
 
-      setAvatarFile(file)
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setAvatarPreview(reader.result as string)
-      }
-      reader.readAsDataURL(file)
+    // Verifica il tipo di file
+    if (!file.type.startsWith("image/")) {
+      toast.error("Seleziona un file immagine valido")
+      return
     }
-  }
 
-  async function onSubmit(data: ProfileFormValues) {
-    setIsLoading(true)
+    // Verifica la dimensione del file (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("L'immagine deve essere inferiore a 5MB")
+      return
+    }
+
+    setIsUploadingImage(true)
+
     try {
-      // Upload avatar if changed
-      let imageUrl = session?.user?.image
-      if (avatarFile) {
-        const formData = new FormData()
-        formData.append("file", avatarFile)
-        const uploadResponse = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        })
-        if (!uploadResponse.ok) throw new Error("Errore nel caricamento dell'avatar")
-        const { url } = await uploadResponse.json()
-        imageUrl = url
-      }
+      // Crea FormData per l'upload
+      const uploadFormData = new FormData()
+      uploadFormData.append("file", file)
+      uploadFormData.append("type", "profile")
 
-      // Update profile
-      const response = await fetch("/api/profile", {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ...data,
-          image: imageUrl,
-        }),
+      // Carica l'immagine
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadFormData,
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Errore nell'aggiornamento del profilo")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nel caricamento dell'immagine")
       }
 
-      // Update session with new data
-      await update({
-        ...session,
-        user: {
-          ...session?.user,
-          name: data.name,
-          image: imageUrl,
+      const data = await response.json()
+
+      if (data.success && data.url) {
+        setFormData((prev) => ({ ...prev, image: data.url }))
+        toast.success("Immagine caricata con successo!")
+      } else {
+        throw new Error(data.error || "Errore nel caricamento dell'immagine")
+      }
+    } catch (error: any) {
+      console.error("Errore upload immagine:", error)
+      toast.error(error.message || "Errore nel caricamento dell'immagine")
+    } finally {
+      setIsUploadingImage(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+
+    try {
+      const response = await fetch("/api/profile", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify(formData),
       })
 
-      // Reset form and preview
-      setAvatarFile(null)
-      setAvatarPreview(null)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nell'aggiornamento del profilo")
+      }
 
-      toast.success("Profilo aggiornato con successo")
-      setOpen(false)
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Errore nell'aggiornamento del profilo")
+      const data = await response.json()
+
+      if (data.success) {
+        // Aggiorna la sessione con i nuovi dati
+        await update({
+          ...session,
+          user: {
+            ...session?.user,
+            name: formData.name,
+            image: formData.image,
+          },
+        })
+
+        // Notifica il componente padre
+        onProfileUpdate(data.user)
+
+        toast.success("Profilo aggiornato con successo!")
+        setOpen(false)
+      } else {
+        throw new Error(data.error || "Errore nell'aggiornamento del profilo")
+      }
+    } catch (error: any) {
+      console.error("Errore aggiornamento profilo:", error)
+      toast.error(error.message || "Errore nell'aggiornamento del profilo")
     } finally {
       setIsLoading(false)
     }
   }
 
+  const handleInputChange = (field: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+  }
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="border-border hover:bg-accent">
-          <Edit className="h-4 w-4 mr-2" />
-          Modifica
+        <Button variant="outline" className="gap-2">
+          <Edit3 className="h-4 w-4" />
+          Modifica Profilo
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Modifica Profilo</DialogTitle>
-          <DialogDescription>
-            Aggiorna le informazioni del tuo profilo. Clicca salva quando hai finito.
-          </DialogDescription>
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Modifica Profilo
+          </DialogTitle>
+          <DialogDescription>Aggiorna le tue informazioni personali</DialogDescription>
         </DialogHeader>
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="flex flex-col items-center gap-4">
-              <div className="relative">
-                <Avatar className="h-24 w-24 border-4 border-background">
-                  <AvatarImage src={avatarPreview || session?.user?.image || "/placeholder.svg"} />
-                  <AvatarFallback className="bg-gradient-to-r from-blue-600 to-purple-600 text-white text-2xl">
-                    {session?.user?.name
-                      ?.split(" ")
-                      .map((n) => n[0])
-                      .join("") || "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="absolute -bottom-2 -right-2">
-                  <label
-                    htmlFor="avatar-upload"
-                    className="bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2 cursor-pointer shadow-lg flex items-center justify-center"
-                  >
-                    <Camera className="h-4 w-4" />
-                    <span className="sr-only">Cambia avatar</span>
-                  </label>
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    className="hidden"
-                    id="avatar-upload"
-                  />
-                </div>
-              </div>
 
-              {avatarFile && uploadProgress > 0 && isLoading && (
-                <div className="w-full space-y-2">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Caricamento...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <Progress value={uploadProgress} className="h-1" />
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Sezione Immagine Profilo */}
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  <Avatar className="h-24 w-24">
+                    <AvatarImage src={formData.image || undefined} alt="Profilo" />
+                    <AvatarFallback className="text-lg">
+                      {formData.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="secondary"
+                    className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full shadow-lg"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingImage}
+                  >
+                    {isUploadingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                  </Button>
                 </div>
-              )}
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+
+                <p className="text-sm text-muted-foreground text-center">
+                  Clicca sull'icona della fotocamera per cambiare l'immagine del profilo
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Informazioni Personali */}
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="flex items-center gap-2">
+                <User className="h-4 w-4" />
+                Nome completo
+              </Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                placeholder="Il tuo nome completo"
+              />
             </div>
 
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nome</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Il tuo nome" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="email" className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Email
+              </Label>
+              <Input id="email" type="email" value={user.email || ""} disabled className="bg-muted" />
+              <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
+            </div>
 
-            <FormField
-              control={form.control}
-              name="bio"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Bio</FormLabel>
-                  <FormControl>
-                    <Textarea placeholder="Racconta qualcosa di te" className="resize-none" {...field} />
-                  </FormControl>
-                  <FormDescription>Breve descrizione che apparirà nel tuo profilo.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={formData.bio}
+                onChange={(e) => handleInputChange("bio", e.target.value)}
+                placeholder="Raccontaci qualcosa di te..."
+                className="min-h-[80px] resize-none"
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-right">{formData.bio.length}/500 caratteri</p>
+            </div>
 
-            <FormField
-              control={form.control}
-              name="phone"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Telefono</FormLabel>
-                  <FormControl>
-                    <Input placeholder="+39 XXX XXX XXXX" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="phone" className="flex items-center gap-2">
+                <Phone className="h-4 w-4" />
+                Telefono
+              </Label>
+              <Input
+                id="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                placeholder="+39 123 456 7890"
+              />
+            </div>
 
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Località</FormLabel>
-                  <FormControl>
-                    <Input placeholder="La tua città" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            <div className="space-y-2">
+              <Label htmlFor="location" className="flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                Località
+              </Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => handleInputChange("location", e.target.value)}
+                placeholder="La tua città"
+              />
+            </div>
 
-            <DialogFooter>
-              <Button type="submit" disabled={isLoading} className="w-full sm:w-auto">
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Salva Modifiche
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
+            <div className="space-y-2">
+              <Label htmlFor="dateOfBirth" className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Data di nascita
+              </Label>
+              <Input
+                id="dateOfBirth"
+                type="date"
+                value={formData.dateOfBirth}
+                onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* Pulsanti */}
+          <div className="flex gap-3 pt-4">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="flex-1">
+              <X className="h-4 w-4 mr-2" />
+              Annulla
+            </Button>
+            <Button type="submit" disabled={isLoading || isUploadingImage} className="flex-1">
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Salva Modifiche
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
       </DialogContent>
     </Dialog>
   )
