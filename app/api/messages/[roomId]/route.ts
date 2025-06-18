@@ -7,7 +7,7 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { roomId } = params
@@ -16,21 +16,23 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
     const client = await clientPromise
     const db = client.db("invibe")
 
-    // Check if chat room exists and user has access
+    // Verifica che la chat room esista e l'utente abbia accesso
     const chatRoom = await db.collection("chatRooms").findOne({ roomId })
     if (!chatRoom) {
+      console.log("Chat room not found:", roomId)
       return NextResponse.json({ error: "Chat room not found" }, { status: 404 })
     }
 
     const userEmails = chatRoom.participants.map((p: any) => p.email)
     if (!userEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      console.log("User not authorized for this chat room")
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
     }
 
-    // Get messages for this room
+    // Ottieni i messaggi per questa room
     const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
 
-    // Mark messages as read by current user
+    // Marca i messaggi come letti dall'utente corrente
     await db.collection("messages").updateMany(
       {
         roomId,
@@ -44,7 +46,7 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
     return NextResponse.json({ messages })
   } catch (error) {
     console.error("Error fetching messages:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
 
@@ -52,14 +54,14 @@ export async function POST(request: Request, { params }: { params: { roomId: str
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { roomId } = params
     const { content } = await request.json()
 
     if (!content || content.trim() === "") {
-      return NextResponse.json({ error: "Message content is required" }, { status: 400 })
+      return NextResponse.json({ error: "Il contenuto del messaggio è obbligatorio" }, { status: 400 })
     }
 
     console.log("Sending message to room:", roomId, "Content:", content)
@@ -67,7 +69,7 @@ export async function POST(request: Request, { params }: { params: { roomId: str
     const client = await clientPromise
     const db = client.db("invibe")
 
-    // Check if chat room exists and user has access
+    // Verifica che la chat room esista e l'utente abbia accesso
     const chatRoom = await db.collection("chatRooms").findOne({ roomId })
     if (!chatRoom) {
       return NextResponse.json({ error: "Chat room not found" }, { status: 404 })
@@ -75,14 +77,14 @@ export async function POST(request: Request, { params }: { params: { roomId: str
 
     const userEmails = chatRoom.participants.map((p: any) => p.email)
     if (!userEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
     }
 
-    // Get sender and recipient info
+    // Trova i dati del mittente
     const sender = chatRoom.participants.find((p: any) => p.email === session.user.email)
     const recipient = chatRoom.participants.find((p: any) => p.email !== session.user.email)
 
-    // Create message
+    // Crea il messaggio
     const message = {
       roomId,
       content: content.trim(),
@@ -93,10 +95,10 @@ export async function POST(request: Request, { params }: { params: { roomId: str
       readBy: [session.user.email],
     }
 
-    // Insert message
+    // Inserisci il messaggio
     const result = await db.collection("messages").insertOne(message)
 
-    // Update chat room's last message and timestamp
+    // Aggiorna la chat room con l'ultimo messaggio
     await db.collection("chatRooms").updateOne(
       { roomId },
       {
@@ -111,7 +113,7 @@ export async function POST(request: Request, { params }: { params: { roomId: str
       },
     )
 
-    // Create notification for recipient
+    // Crea notifica per il destinatario
     if (recipient) {
       const notification = {
         userId: recipient.email,
@@ -129,13 +131,12 @@ export async function POST(request: Request, { params }: { params: { roomId: str
       }
 
       await db.collection("notifications").insertOne(notification)
-      console.log("Notification created for:", recipient.email)
     }
 
     console.log("Message sent successfully:", result.insertedId)
     return NextResponse.json({ ...message, _id: result.insertedId })
   } catch (error) {
     console.error("Error sending message:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
