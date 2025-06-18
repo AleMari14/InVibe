@@ -44,13 +44,17 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
-    name: user.name || "",
-    bio: user.bio || "",
-    phone: user.phone || "",
-    location: user.location || "",
-    dateOfBirth: user.dateOfBirth || "",
-    image: user.image || "",
+    name: user?.name || "",
+    bio: user?.bio || "",
+    phone: user?.phone || "",
+    location: user?.location || "",
+    dateOfBirth: user?.dateOfBirth || "",
+    image: user?.image || "",
   })
+
+  if (!user) {
+    return null
+  }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -180,7 +184,10 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
                   <Avatar className="h-24 w-24">
                     <AvatarImage src={formData.image || undefined} alt="Profilo" />
                     <AvatarFallback className="text-lg">
-                      {formData.name?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || "U"}
+                      {formData.name?.charAt(0)?.toUpperCase() ||
+                        user?.email?.charAt(0)?.toUpperCase() ||
+                        session?.user?.email?.charAt(0)?.toUpperCase() ||
+                        "U"}
                     </AvatarFallback>
                   </Avatar>
 

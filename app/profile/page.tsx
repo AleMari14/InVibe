@@ -122,6 +122,8 @@ interface ProfileData {
   reviews: Review[]
   bookings: Booking[]
   activities: ProfileActivity[]
+  phone?: string
+  dateOfBirth?: string
 }
 
 export default function ProfilePage() {
@@ -398,7 +400,23 @@ export default function ProfilePage() {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-2 sm:mt-0">
-                  <EditProfileDialog />
+                  {profileData && (
+                    <EditProfileDialog
+                      user={{
+                        id: session?.user?.email || "",
+                        name: profileData.name,
+                        email: profileData.email,
+                        image: profileData.image,
+                        bio: profileData.bio,
+                        phone: profileData.phone || "",
+                        location: profileData.location,
+                        dateOfBirth: profileData.dateOfBirth || "",
+                      }}
+                      onProfileUpdate={(updatedUser) => {
+                        setProfileData((prev) => (prev ? { ...prev, ...updatedUser } : null))
+                      }}
+                    />
+                  )}
                 </div>
               </div>
 
