@@ -112,31 +112,35 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
     setIsLoading(true)
 
     try {
+      console.log("Sending profile update:", formData)
+
       const response = await fetch("/api/profile", {
-        method: "PUT",
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Errore nell'aggiornamento del profilo")
-      }
-
       const data = await response.json()
+      console.log("Profile update response:", data)
+
+      if (!response.ok) {
+        throw new Error(data.error || data.message || "Errore nell'aggiornamento del profilo")
+      }
 
       if (data.success) {
         // Aggiorna la sessione con i nuovi dati
-        await update({
-          ...session,
-          user: {
-            ...session?.user,
-            name: formData.name,
-            image: formData.image,
-          },
-        })
+        if (session && update) {
+          await update({
+            ...session,
+            user: {
+              ...session.user,
+              name: formData.name,
+              image: formData.image,
+            },
+          })
+        }
 
         // Notifica il componente padre
         onProfileUpdate(data.user)

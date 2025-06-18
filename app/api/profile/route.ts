@@ -99,6 +99,8 @@ export async function GET() {
       image: user.image,
       bio: user.bio || "",
       location: user.location || "",
+      phone: user.phone || "",
+      dateOfBirth: user.dateOfBirth || "",
       verified: user.verified || false,
       rating: user.rating || 0,
       reviewCount: user.reviewCount || 0,
@@ -124,19 +126,44 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, bio, phone, location, preferences, image } = body
+    const { name, bio, phone, location, dateOfBirth, image } = body
+
+    // Validazione dei dati
+    if (name && typeof name !== "string") {
+      return NextResponse.json({ error: "Nome non valido" }, { status: 400 })
+    }
+
+    if (bio && typeof bio !== "string") {
+      return NextResponse.json({ error: "Bio non valida" }, { status: 400 })
+    }
+
+    if (phone && typeof phone !== "string") {
+      return NextResponse.json({ error: "Telefono non valido" }, { status: 400 })
+    }
+
+    if (location && typeof location !== "string") {
+      return NextResponse.json({ error: "Località non valida" }, { status: 400 })
+    }
+
+    if (image && typeof image !== "string") {
+      return NextResponse.json({ error: "Immagine non valida" }, { status: 400 })
+    }
 
     const { db } = await connectToDatabase()
 
-    const updateData: any = {}
-    if (name !== undefined) updateData.name = name
-    if (bio !== undefined) updateData.bio = bio
-    if (phone !== undefined) updateData.phone = phone
-    if (location !== undefined) updateData.location = location
-    if (preferences !== undefined) updateData.preferences = preferences
+    const updateData: any = {
+      updatedAt: new Date(),
+    }
+
+    // Aggiorna solo i campi forniti
+    if (name !== undefined) updateData.name = name.trim()
+    if (bio !== undefined) updateData.bio = bio.trim()
+    if (phone !== undefined) updateData.phone = phone.trim()
+    if (location !== undefined) updateData.location = location.trim()
+    if (dateOfBirth !== undefined) updateData.dateOfBirth = dateOfBirth
     if (image !== undefined) updateData.image = image
 
-    updateData.updatedAt = new Date()
+    console.log("Updating user with data:", updateData)
 
     const result = await db.collection("users").updateOne({ email: session.user.email }, { $set: updateData })
 
@@ -146,27 +173,32 @@ export async function PATCH(request: NextRequest) {
 
     const updatedUser = await db.collection("users").findOne({ email: session.user.email })
 
+    if (!updatedUser) {
+      return NextResponse.json({ error: "Errore nel recupero dell'utente aggiornato" }, { status: 500 })
+    }
+
     return NextResponse.json({
-      status: "success",
+      success: true,
       message: "Profilo aggiornato con successo",
       user: {
-        id: updatedUser?._id,
-        name: updatedUser?.name,
-        email: updatedUser?.email,
-        image: updatedUser?.image,
-        bio: updatedUser?.bio,
-        phone: updatedUser?.phone,
-        location: updatedUser?.location,
-        preferences: updatedUser?.preferences,
-        updatedAt: updatedUser?.updatedAt,
+        id: updatedUser._id.toString(),
+        name: updatedUser.name,
+        email: updatedUser.email,
+        image: updatedUser.image,
+        bio: updatedUser.bio,
+        phone: updatedUser.phone,
+        location: updatedUser.location,
+        dateOfBirth: updatedUser.dateOfBirth,
+        updatedAt: updatedUser.updatedAt,
       },
     })
   } catch (error) {
     console.error("Errore nell'aggiornamento del profilo:", error)
     return NextResponse.json(
       {
-        status: "error",
-        message: "Errore interno del server",
+        success: false,
+        error: "Errore interno del server",
+        message: "Si è verificato un errore durante l'aggiornamento del profilo",
       },
       { status: 500 },
     )
