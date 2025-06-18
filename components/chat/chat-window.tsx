@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { toast } from "sonner"
 
 interface Message {
   _id: string
@@ -90,9 +89,6 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
       setMessages(data.messages || [])
     } catch (error) {
       console.error("Error fetching messages:", error)
-      if (!silent) {
-        toast.error("Errore nel caricamento dei messaggi")
-      }
     } finally {
       if (!silent) setIsLoading(false)
     }
@@ -126,11 +122,8 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
       setTimeout(() => {
         fetchMessages(true)
       }, 500)
-
-      toast.success("Messaggio inviato")
     } catch (error) {
       console.error("Error sending message:", error)
-      toast.error("Errore nell'invio del messaggio")
       setNewMessage(messageContent)
     } finally {
       setIsSending(false)
@@ -177,7 +170,7 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4 pb-24" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
