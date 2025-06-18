@@ -14,7 +14,6 @@ import {
   CheckCircle,
   Eye,
   Loader2,
-  MessageCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +26,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
+import { MessageHostButton } from "@/components/event/message-host-button"
 
 interface Event {
   _id: string
@@ -353,11 +353,15 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                       </div>
                     </div>
                   </div>
-                  {session?.user?.email !== event.host.email && (
+                  {session?.user?.email !== event.host.email && event.host && (
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm">
-                        <MessageCircle className="h-4 w-4" />
-                      </Button>
+                      <MessageHostButton
+                        hostId={event.host._id || event.hostId || ""}
+                        hostName={event.host.name}
+                        hostEmail={event.host.email}
+                        eventId={event._id}
+                        eventTitle={event.title}
+                      />
                     </div>
                   )}
                 </div>
