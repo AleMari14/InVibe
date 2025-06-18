@@ -142,11 +142,19 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
           })
         }
 
-        // Notifica il componente padre
-        onProfileUpdate(data.user)
+        // Notifica il componente padre con tutti i dati aggiornati
+        onProfileUpdate({
+          ...user,
+          ...formData,
+          id: user.id,
+          email: user.email,
+        })
 
         toast.success("Profilo aggiornato con successo!")
         setOpen(false)
+
+        // Forza il refresh della pagina per aggiornare l'immagine
+        window.location.reload()
       } else {
         throw new Error(data.error || "Errore nell'aggiornamento del profilo")
       }

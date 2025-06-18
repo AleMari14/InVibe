@@ -1,99 +1,101 @@
-import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import clientPromise from "@/lib/mongodb"
+import { type NextRequest, NextResponse } from "next/server"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ObjectId } from "mongodb"
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
+
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const { hostEmail, eventId, eventTitle } = await request.json()
+    const body = await request.json()
+    const { hostEmail, eventId, eventTitle } = body
 
     if (!hostEmail || !eventId || !eventTitle) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+      return NextResponse.json(
+        { error: "Parametri mancanti: hostEmail, eventId e eventTitle sono richiesti" },
+        { status: 400 },
+      )
     }
 
-    if (hostEmail === session.user.email) {
-      return NextResponse.json({ error: "Cannot message yourself" }, { status: 400 })
-    }
+    const { db } = await connectToDatabase()
 
-    console.log("Looking for chat between:", session.user.email, "and", hostEmail)
-
-    const client = await clientPromise
-    const db = client.db("invibe")
-
-    // Create a consistent room ID based on the two users (sorted to ensure uniqueness)
-    const participants = [session.user.email, hostEmail].sort()
-    const roomId = `${participants[0]}_${participants[1]}`.replace(/[^a-zA-Z0-9_]/g, "_")
-
-    console.log("Generated room ID:", roomId)
-
-    // Check if chat room already exists between these two users
-    const existingRoom = await db.collection("chatRooms").findOne({
-      $or: [
-        { roomId },
-        {
-          "participants.email": { $all: [session.user.email, hostEmail] },
-        },
-      ],
-    })
-
-    if (existingRoom) {
-      console.log("Found existing chat room:", existingRoom.roomId)
-      return NextResponse.json({
-        roomId: existingRoom.roomId,
-        isNew: false,
-        message: "Chat esistente trovata",
-      })
-    }
-
-    // Get user details
+    // Trova l'utente corrente e l'host
     const currentUser = await db.collection("users").findOne({ email: session.user.email })
     const hostUser = await db.collection("users").findOne({ email: hostEmail })
 
+    if (!currentUser) {
+      return NextResponse.json({ error: "Utente corrente non trovato" }, { status: 404 })
+    }
+
     if (!hostUser) {
-      return NextResponse.json({ error: "Host not found" }, { status: 404 })
+      return NextResponse.json({ error: "Host non trovato" }, { status: 404 })
     }
 
-    // Create new chat room
-    const chatRoom = {
-      roomId,
-      participants: [
-        {
-          email: session.user.email,
-          name: currentUser?.name || session.user.name || "Utente",
-          image: currentUser?.image || session.user.image,
-        },
-        {
-          email: hostEmail,
-          name: hostUser.name || "Utente",
-          image: hostUser.image,
-        },
-      ],
-      // Store the event that initiated this chat (but chat is not limited to this event)
-      initialEvent: {
-        eventId,
+    // Verifica che l'evento esista
+    const event = await db.collection("events").findOne({ _id: new ObjectId(eventId) })
+    if (!event) {
+      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
+    }
+
+    // Crea un ID univoco per la chat room basato sui partecipanti e l'evento
+    const participants = [currentUser._id.toString(), hostUser._id.toString()].sort()
+    const roomId = `${eventId}_${participants.join("_")}`
+
+    // Controlla se la chat room esiste già
+    let chatRoom = await db.collection("chatRooms").findOne({ roomId })
+
+    let isNew = false
+    if (!chatRoom) {
+      // Crea una nuova chat room
+      const newChatRoom = {
+        roomId,
+        eventId: new ObjectId(eventId),
         eventTitle,
-      },
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      lastMessage: null,
-      archived: false,
-    }
+        participants: [
+          {
+            userId: currentUser._id,
+            email: currentUser.email,
+            name: currentUser.name || "Utente",
+            image: currentUser.image || null,
+          },
+          {
+            userId: hostUser._id,
+            email: hostUser.email,
+            name: hostUser.name || "Host",
+            image: hostUser.image || null,
+          },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        lastMessage: null,
+        unreadCount: {
+          [currentUser._id.toString()]: 0,
+          [hostUser._id.toString()]: 0,
+        },
+      }
 
-    const result = await db.collection("chatRooms").insertOne(chatRoom)
-    console.log("New chat room created:", result.insertedId)
+      const result = await db.collection("chatRooms").insertOne(newChatRoom)
+      chatRoom = { ...newChatRoom, _id: result.insertedId }
+      isNew = true
+    } else {
+      // Aggiorna la data di ultimo accesso
+      await db.collection("chatRooms").updateOne({ roomId }, { $set: { updatedAt: new Date() } })
+    }
 
     return NextResponse.json({
-      roomId,
-      isNew: true,
-      message: "Nuova chat creata",
+      success: true,
+      roomId: chatRoom.roomId,
+      isNew,
+      participants: chatRoom.participants,
+      eventTitle: chatRoom.eventTitle,
     })
   } catch (error) {
-    console.error("Error creating/finding chat room:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("Errore nella creazione/ricerca della chat room:", error)
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }

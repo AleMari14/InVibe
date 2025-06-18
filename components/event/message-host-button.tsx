@@ -61,20 +61,32 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        console.error("API Error:", errorData)
+        const errorText = await response.text()
+        console.error("API Error Response:", errorText)
+
+        let errorData
+        try {
+          errorData = JSON.parse(errorText)
+        } catch {
+          errorData = { error: "Errore nella comunicazione con il server" }
+        }
+
         throw new Error(errorData.error || "Errore nella gestione della chat")
       }
 
       const data = await response.json()
       console.log("Chat room result:", data)
 
+      if (!data.roomId) {
+        throw new Error("Nessun ID della chat ricevuto dal server")
+      }
+
       // If it's a new chat, send an initial message with event info
       if (data.isNew) {
         try {
           const initialMessage = `Ciao! Sono interessato/a al tuo evento "${eventTitle}". Potresti darmi maggiori informazioni?`
 
-          await fetch(`/api/messages/${data.roomId}`, {
+          const messageResponse = await fetch(`/api/messages/${data.roomId}`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -84,7 +96,11 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
             }),
           })
 
-          toast.success("Chat creata e messaggio inviato!")
+          if (messageResponse.ok) {
+            toast.success("Chat creata e messaggio inviato!")
+          } else {
+            toast.success("Chat creata!")
+          }
         } catch (error) {
           console.error("Error sending initial message:", error)
           toast.success("Chat creata!")

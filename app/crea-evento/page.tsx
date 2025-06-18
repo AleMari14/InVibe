@@ -87,6 +87,22 @@ export default function CreaEventoPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
 
+  // Debug per controllare lo stato
+  useEffect(() => {
+    console.log("Current step:", currentStep)
+    console.log("Can proceed:", canProceedToNextStep())
+    console.log("Form data:", {
+      categoria,
+      titolo,
+      descrizione,
+      location,
+      coordinates,
+      dataInizio,
+      postiTotali,
+      prezzo,
+    })
+  }, [currentStep, categoria, titolo, descrizione, location, coordinates, dataInizio, postiTotali, prezzo])
+
   // Imposta isMounted a true solo dopo il montaggio del componente
   useEffect(() => {
     setIsMounted(true)
@@ -1088,8 +1104,8 @@ export default function CreaEventoPage() {
 
           {/* Navigation Buttons con tema */}
           <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4 z-30">
-            <div className="max-w-3xl mx-auto flex justify-between gap-4">
-              {currentStep > 1 && (
+            <div className="max-w-3xl mx-auto flex justify-between items-center gap-4">
+              {currentStep > 1 ? (
                 <Button
                   type="button"
                   variant="outline"
@@ -1099,16 +1115,16 @@ export default function CreaEventoPage() {
                   <ChevronLeft className="h-4 w-4" />
                   Indietro
                 </Button>
+              ) : (
+                <div></div>
               )}
-
-              <div className="flex-1" />
 
               {currentStep < 4 ? (
                 <Button
                   type="button"
                   onClick={() => setCurrentStep(currentStep + 1)}
                   disabled={!canProceedToNextStep()}
-                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Avanti
                   <ChevronRight className="h-4 w-4" />
@@ -1117,7 +1133,7 @@ export default function CreaEventoPage() {
                 <Button
                   type="submit"
                   disabled={isSubmitting || !canProceedToNextStep()}
-                  className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold px-8"
+                  className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold px-8 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {isSubmitting ? (
                     <>
