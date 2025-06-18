@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { toast } from "sonner"
+import { useTheme } from "@/contexts/theme-context"
 import {
   ArrowLeft,
   CheckCircle,
@@ -30,6 +31,7 @@ import {
   Sparkles,
   PartyPopper,
   Gift,
+  Globe,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -57,6 +59,7 @@ const LocationPicker = dynamic(
 )
 
 export default function CreaEventoPage() {
+  const { theme } = useTheme()
   const [currentStep, setCurrentStep] = useState(1)
   const [categoria, setCategoria] = useState("")
   const [titolo, setTitolo] = useState("")
@@ -266,7 +269,7 @@ export default function CreaEventoPage() {
   if (!isMounted) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -274,7 +277,7 @@ export default function CreaEventoPage() {
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
@@ -463,16 +466,16 @@ export default function CreaEventoPage() {
     }
   }
 
-  // Pagina di successo completamente ridisegnata
+  // Pagina di successo con supporto tema
   if (success) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-600/20 via-purple-600/20 to-pink-600/20 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Background Pattern */}
+      <div className="min-h-screen bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Background Pattern con tema */}
         <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-10 left-10 w-32 h-32 bg-blue-600 rounded-full animate-pulse" />
-          <div className="absolute top-40 right-20 w-24 h-24 bg-purple-600 rounded-full animate-bounce" />
-          <div className="absolute bottom-20 left-20 w-28 h-28 bg-pink-600 rounded-full animate-pulse" />
-          <div className="absolute bottom-40 right-10 w-20 h-20 bg-green-600 rounded-full animate-bounce" />
+          <div className="absolute top-10 left-10 w-32 h-32 bg-primary rounded-full animate-pulse" />
+          <div className="absolute top-40 right-20 w-24 h-24 bg-secondary rounded-full animate-bounce" />
+          <div className="absolute bottom-20 left-20 w-28 h-28 bg-accent rounded-full animate-pulse" />
+          <div className="absolute bottom-40 right-10 w-20 h-20 bg-primary/80 rounded-full animate-bounce" />
         </div>
 
         <motion.div
@@ -486,17 +489,17 @@ export default function CreaEventoPage() {
           }}
           className="relative z-10"
         >
-          <Card className="border-0 shadow-2xl bg-white/95 backdrop-blur-xl w-full max-w-md overflow-hidden">
-            {/* Header con gradiente */}
-            <div className="relative p-6 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 text-white">
+          <Card className="border-0 shadow-2xl bg-card/95 backdrop-blur-xl w-full max-w-md overflow-hidden">
+            {/* Header con gradiente tema */}
+            <div className="relative p-6 bg-gradient-to-r from-primary via-primary/90 to-primary/80 text-primary-foreground">
               <motion.div
                 initial={{ rotate: 0 }}
                 animate={{ rotate: 360 }}
                 transition={{ duration: 1, delay: 0.5 }}
-                className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4"
+                className="w-20 h-20 bg-primary-foreground/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4"
               >
                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ duration: 0.5, delay: 1 }}>
-                  <CheckCircle className="h-10 w-10 text-white" />
+                  <CheckCircle className="h-10 w-10 text-primary-foreground" />
                 </motion.div>
               </motion.div>
 
@@ -513,7 +516,7 @@ export default function CreaEventoPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 1.4 }}
-                className="text-white/90 text-center text-sm"
+                className="text-primary-foreground/90 text-center text-sm"
               >
                 Il tuo evento è ora live su InVibe
               </motion.p>
@@ -545,9 +548,7 @@ export default function CreaEventoPage() {
                       duration: 2,
                       delay: Math.random() * 0.5,
                     }}
-                    className={`absolute w-2 h-2 ${
-                      ["bg-blue-500", "bg-purple-500", "bg-pink-500", "bg-green-500", "bg-yellow-500"][i % 5]
-                    } rounded-full`}
+                    className={`absolute w-2 h-2 bg-primary rounded-full`}
                   />
                 ))}
               </motion.div>
@@ -558,8 +559,8 @@ export default function CreaEventoPage() {
                 transition={{ delay: 1.6 }}
                 className="mb-6"
               >
-                <h3 className="text-lg font-semibold text-gray-800 mb-2">"{titolo}"</h3>
-                <div className="flex items-center justify-center gap-4 text-sm text-gray-600 mb-4">
+                <h3 className="text-lg font-semibold text-foreground mb-2">"{titolo}"</h3>
+                <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground mb-4">
                   <div className="flex items-center gap-1">
                     <MapPin className="h-4 w-4" />
                     <span>{location.split(",")[0]}</span>
@@ -570,11 +571,13 @@ export default function CreaEventoPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-center gap-2 text-sm">
-                  <Badge className="bg-green-100 text-green-700">
+                  <Badge className="bg-primary/10 text-primary border-primary/20">
                     <Users className="h-3 w-3 mr-1" />
                     {postiTotali} posti
                   </Badge>
-                  <Badge className="bg-blue-100 text-blue-700">€{prezzo} / persona</Badge>
+                  <Badge className="bg-secondary/10 text-secondary-foreground border-secondary/20">
+                    €{prezzo} / persona
+                  </Badge>
                 </div>
               </motion.div>
 
@@ -584,33 +587,30 @@ export default function CreaEventoPage() {
                 transition={{ delay: 1.8 }}
                 className="space-y-3"
               >
-                <div className="flex items-center justify-center gap-6 text-xs text-gray-500 mb-4">
+                <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground mb-4">
                   <div className="flex items-center gap-1">
-                    <PartyPopper className="h-4 w-4 text-purple-600" />
+                    <PartyPopper className="h-4 w-4 text-primary" />
                     <span>Pronto per essere scoperto</span>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Gift className="h-4 w-4 text-pink-600" />
+                    <Gift className="h-4 w-4 text-secondary" />
                     <span>Condivisioni attive</span>
                   </div>
                 </div>
 
-                <p className="text-sm text-gray-600 mb-4">
+                <p className="text-sm text-muted-foreground mb-4">
                   Il tuo evento è ora visibile a tutti gli utenti InVibe. Riceverai notifiche per ogni nuova
                   prenotazione.
                 </p>
 
                 <div className="flex gap-2">
                   <Link href="/" className="flex-1">
-                    <Button
-                      className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white"
-                      size="sm"
-                    >
+                    <Button className="w-full bg-primary hover:bg-primary/90 text-primary-foreground" size="sm">
                       Torna alla Home
                     </Button>
                   </Link>
                   <Link href="/profile" className="flex-1">
-                    <Button variant="outline" className="w-full border-gray-300 hover:bg-gray-50" size="sm">
+                    <Button variant="outline" className="w-full border-border hover:bg-accent" size="sm">
                       I Miei Eventi
                     </Button>
                   </Link>
@@ -618,7 +618,7 @@ export default function CreaEventoPage() {
               </motion.div>
 
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2 }} className="mt-4">
-                <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
                   <Sparkles className="h-3 w-3" />
                   <span>Grazie per aver scelto InVibe</span>
                   <Sparkles className="h-3 w-3" />
@@ -632,22 +632,22 @@ export default function CreaEventoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Header migliorato */}
-      <div className="bg-white/95 backdrop-blur-md border-b border-gray-200 px-4 py-4 sticky top-0 z-10 shadow-sm">
+    <div className="min-h-screen bg-background">
+      {/* Header con tema */}
+      <div className="bg-card/95 backdrop-blur-md border-b border-border px-4 py-4 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center gap-3 max-w-3xl mx-auto">
           <Link href="/">
-            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-gray-100">
+            <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full hover:bg-accent">
               <ArrowLeft className="h-5 w-5" />
             </Button>
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
               Crea Nuovo Evento
             </h1>
             <div className="flex items-center gap-3 mt-2">
-              <Progress value={getProgress()} className="flex-1 h-2 bg-gray-200" />
-              <span className="text-sm text-gray-500 font-medium">{currentStep}/4</span>
+              <Progress value={getProgress()} className="flex-1 h-2 bg-muted" />
+              <span className="text-sm text-muted-foreground font-medium">{currentStep}/4</span>
             </div>
           </div>
         </div>
@@ -655,14 +655,14 @@ export default function CreaEventoPage() {
 
       <div className="max-w-3xl mx-auto p-4 pb-24">
         {error && (
-          <Alert className="border-red-200 bg-red-50 mb-6">
-            <AlertDescription className="text-red-700">{error}</AlertDescription>
+          <Alert className="border-destructive/50 bg-destructive/10 mb-6">
+            <AlertDescription className="text-destructive">{error}</AlertDescription>
           </Alert>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <AnimatePresence mode="wait">
-            {/* Step 1: Categoria - Design migliorato */}
+            {/* Step 1: Categoria con tema */}
             {currentStep === 1 && (
               <motion.div
                 key="step1"
@@ -671,11 +671,11 @@ export default function CreaEventoPage() {
                 exit={{ opacity: 0, x: -50 }}
                 transition={{ duration: 0.3 }}
               >
-                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm overflow-hidden">
-                  <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-gray-100">
-                    <CardTitle className="text-xl flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold">1</span>
+                <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b border-border">
+                    <CardTitle className="text-xl flex items-center gap-3 text-foreground">
+                      <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center">
+                        <span className="text-primary-foreground font-bold">1</span>
                       </div>
                       Che tipo di evento vuoi creare?
                     </CardTitle>
@@ -687,7 +687,7 @@ export default function CreaEventoPage() {
                           className={`cursor-pointer transition-all duration-300 border-2 hover:shadow-lg ${
                             categoria === cat.id
                               ? `border-transparent bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
-                              : "border-gray-200 hover:border-gray-300 bg-white"
+                              : "border-border hover:border-primary/30 bg-card"
                           }`}
                           onClick={() => setCategoria(cat.id)}
                         >
@@ -696,11 +696,13 @@ export default function CreaEventoPage() {
                               <div className={`text-3xl ${categoria === cat.id ? "" : "grayscale"}`}>{cat.icon}</div>
                               <div className="flex-1">
                                 <h3
-                                  className={`font-semibold text-lg ${categoria === cat.id ? "text-white" : "text-gray-800"}`}
+                                  className={`font-semibold text-lg ${categoria === cat.id ? "text-white" : "text-foreground"}`}
                                 >
                                   {cat.name}
                                 </h3>
-                                <p className={`text-sm ${categoria === cat.id ? "text-white/90" : "text-gray-600"}`}>
+                                <p
+                                  className={`text-sm ${categoria === cat.id ? "text-white/90" : "text-muted-foreground"}`}
+                                >
                                   {cat.description}
                                 </p>
                               </div>
@@ -723,7 +725,7 @@ export default function CreaEventoPage() {
               </motion.div>
             )}
 
-            {/* Step 2: Dettagli - Design migliorato */}
+            {/* Step 2: Dettagli con tema */}
             {currentStep === 2 && (
               <motion.div
                 key="step2"
@@ -733,18 +735,18 @@ export default function CreaEventoPage() {
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
-                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-                  <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50 border-b border-gray-100">
-                    <CardTitle className="text-xl flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-r from-green-600 to-blue-600 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold">2</span>
+                <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-secondary/5 to-secondary/10 border-b border-border">
+                    <CardTitle className="text-xl flex items-center gap-3 text-foreground">
+                      <div className="w-8 h-8 bg-gradient-to-r from-secondary to-secondary/80 rounded-full flex items-center justify-center">
+                        <span className="text-secondary-foreground font-bold">2</span>
                       </div>
                       Descrivi il tuo evento
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
                     <div className="space-y-2">
-                      <Label htmlFor="titolo" className="text-base font-medium">
+                      <Label htmlFor="titolo" className="text-base font-medium text-foreground">
                         Titolo dell'evento *
                       </Label>
                       <Input
@@ -752,13 +754,13 @@ export default function CreaEventoPage() {
                         value={titolo}
                         onChange={(e) => setTitolo(e.target.value)}
                         placeholder="Es: Weekend in villa con piscina a Toscana"
-                        className="h-12 text-base border-2 focus:border-blue-500"
+                        className="h-12 text-base border-2 focus:border-primary bg-background text-foreground"
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="descrizione" className="text-base font-medium">
+                      <Label htmlFor="descrizione" className="text-base font-medium text-foreground">
                         Descrizione *
                       </Label>
                       <Textarea
@@ -766,54 +768,47 @@ export default function CreaEventoPage() {
                         value={descrizione}
                         onChange={(e) => setDescrizione(e.target.value)}
                         placeholder="Descrivi nel dettaglio cosa include l'evento, cosa farete, cosa è incluso nel prezzo..."
-                        className="min-h-[120px] text-base border-2 focus:border-blue-500 resize-none"
+                        className="min-h-[120px] text-base border-2 focus:border-primary resize-none bg-background text-foreground"
                         required
                       />
                     </div>
 
                     <div className="space-y-2">
-                      <LocationPicker
-                        onLocationChange={handleLocationChange}
-                        initialLocation={location}
-                        initialCoordinates={coordinates}
-                      />
-                      {locationError && (
-                        <p className="text-sm text-red-600 flex items-center gap-1">
-                          <Info className="h-4 w-4" />
-                          {locationError}
-                        </p>
-                      )}
+                      <LocationPicker value={location} onChange={handleLocationChange} error={locationError} />
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Sezione Immagini migliorata */}
-                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-100">
-                    <CardTitle className="text-lg flex items-center gap-2">
+                {/* Sezione Immagini con tema */}
+                <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-accent/5 to-accent/10 border-b border-border">
+                    <CardTitle className="text-lg flex items-center gap-2 text-foreground">
                       <Camera className="h-5 w-5" />
                       Immagini dell'evento
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="placeLink" className="text-sm font-medium">
+                        <Label htmlFor="placeLink" className="text-sm font-medium text-foreground">
                           Link della mappa (opzionale)
                         </Label>
                         <div className="flex gap-2">
-                          <Input
-                            id="placeLink"
-                            value={placeLink}
-                            onChange={(e) => setPlaceLink(e.target.value)}
-                            placeholder="https://openstreetmap.org/..."
-                            className="flex-1"
-                          />
+                          <div className="relative flex-1">
+                            <Globe className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+                            <Input
+                              id="placeLink"
+                              value={placeLink}
+                              onChange={(e) => setPlaceLink(e.target.value)}
+                              placeholder="https://openstreetmap.org/..."
+                              className="pl-10 bg-background text-foreground"
+                            />
+                          </div>
                           <Button
                             type="button"
                             onClick={generateImageFromPlaceLink}
                             disabled={isLoadingImage || !placeLink}
-                            className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
+                            className="bg-primary hover:bg-primary/90 text-primary-foreground"
                           >
                             {isLoadingImage ? (
                               <Loader2 className="h-4 w-4 animate-spin" />
@@ -823,7 +818,7 @@ export default function CreaEventoPage() {
                           </Button>
                         </div>
                         {placePreview && (
-                          <p className="text-xs text-green-600 flex items-center gap-1">
+                          <p className="text-xs text-primary flex items-center gap-1">
                             <CheckCircle className="h-3 w-3" />
                             Rilevato: {placePreview}
                           </p>
@@ -831,7 +826,7 @@ export default function CreaEventoPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="imageUpload" className="text-sm font-medium">
+                        <Label htmlFor="imageUpload" className="text-sm font-medium text-foreground">
                           Carica immagini
                         </Label>
                         <div className="relative">
@@ -848,7 +843,7 @@ export default function CreaEventoPage() {
                             onClick={() => document.getElementById("imageUpload")?.click()}
                             disabled={uploadingImage}
                             variant="outline"
-                            className="w-full border-2 border-dashed border-gray-300 hover:border-blue-500"
+                            className="w-full border-2 border-dashed border-border hover:border-primary bg-background"
                           >
                             {uploadingImage ? (
                               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -868,12 +863,12 @@ export default function CreaEventoPage() {
                             <img
                               src={image || "/placeholder.svg"}
                               alt={`Immagine ${index + 1}`}
-                              className="w-full h-24 object-cover rounded-lg border-2 border-gray-200"
+                              className="w-full h-24 object-cover rounded-lg border-2 border-border"
                             />
                             <Button
                               type="button"
                               onClick={() => removeImage(index)}
-                              className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-destructive hover:bg-destructive/90 text-destructive-foreground opacity-0 group-hover:opacity-100 transition-opacity"
                               size="icon"
                             >
                               <X className="h-3 w-3" />
@@ -887,7 +882,7 @@ export default function CreaEventoPage() {
               </motion.div>
             )}
 
-            {/* Step 3: Date e Prezzi - Design migliorato */}
+            {/* Step 3: Date e Prezzi con tema */}
             {currentStep === 3 && (
               <motion.div
                 key="step3"
@@ -896,11 +891,11 @@ export default function CreaEventoPage() {
                 exit={{ opacity: 0, x: -50 }}
                 transition={{ duration: 0.3 }}
               >
-                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-                  <CardHeader className="bg-gradient-to-r from-orange-50 to-red-50 border-b border-gray-100">
-                    <CardTitle className="text-xl flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-r from-orange-600 to-red-600 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold">3</span>
+                <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-accent/5 to-accent/10 border-b border-border">
+                    <CardTitle className="text-xl flex items-center gap-3 text-foreground">
+                      <div className="w-8 h-8 bg-gradient-to-r from-accent to-accent/80 rounded-full flex items-center justify-center">
+                        <span className="text-accent-foreground font-bold">3</span>
                       </div>
                       Date e dettagli pratici
                     </CardTitle>
@@ -908,7 +903,10 @@ export default function CreaEventoPage() {
                   <CardContent className="p-6 space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label htmlFor="dataInizio" className="text-base font-medium flex items-center gap-2">
+                        <Label
+                          htmlFor="dataInizio"
+                          className="text-base font-medium flex items-center gap-2 text-foreground"
+                        >
                           <Calendar className="h-4 w-4" />
                           Data di inizio *
                         </Label>
@@ -917,13 +915,13 @@ export default function CreaEventoPage() {
                           type="datetime-local"
                           value={dataInizio}
                           onChange={(e) => setDataInizio(e.target.value)}
-                          className="h-12 text-base border-2 focus:border-orange-500"
+                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
                           required
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="dataFine" className="text-base font-medium">
+                        <Label htmlFor="dataFine" className="text-base font-medium text-foreground">
                           Data di fine (opzionale)
                         </Label>
                         <Input
@@ -931,14 +929,17 @@ export default function CreaEventoPage() {
                           type="datetime-local"
                           value={dataFine}
                           onChange={(e) => setDataFine(e.target.value)}
-                          className="h-12 text-base border-2 focus:border-orange-500"
+                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                       <div className="space-y-2">
-                        <Label htmlFor="postiTotali" className="text-base font-medium flex items-center gap-2">
+                        <Label
+                          htmlFor="postiTotali"
+                          className="text-base font-medium flex items-center gap-2 text-foreground"
+                        >
                           <Users className="h-4 w-4" />
                           Numero di posti *
                         </Label>
@@ -946,53 +947,57 @@ export default function CreaEventoPage() {
                           id="postiTotali"
                           type="number"
                           min="2"
-                          max="50"
                           value={postiTotali}
                           onChange={(e) => setPostiTotali(e.target.value)}
                           placeholder="Es: 6"
-                          className="h-12 text-base border-2 focus:border-orange-500"
+                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
                           required
                         />
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="prezzo" className="text-base font-medium flex items-center gap-2">
+                        <Label
+                          htmlFor="prezzo"
+                          className="text-base font-medium flex items-center gap-2 text-foreground"
+                        >
                           <DollarSign className="h-4 w-4" />
                           Prezzo per persona (€) *
                         </Label>
                         <Input
                           id="prezzo"
                           type="number"
-                          min="1"
+                          min="0"
                           step="0.01"
                           value={prezzo}
                           onChange={(e) => setPrezzo(e.target.value)}
                           placeholder="Es: 150.00"
-                          className="h-12 text-base border-2 focus:border-orange-500"
+                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
                           required
                         />
                       </div>
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="bookingLink" className="text-base font-medium">
-                        Link di prenotazione (opzionale)
+                      <Label htmlFor="bookingLink" className="text-base font-medium text-foreground">
+                        Link per prenotazioni esterne (opzionale)
                       </Label>
                       <Input
                         id="bookingLink"
-                        type="url"
                         value={bookingLink}
                         onChange={(e) => setBookingLink(e.target.value)}
                         placeholder="https://..."
-                        className="h-12 text-base border-2 focus:border-orange-500"
+                        className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
                       />
+                      <p className="text-sm text-muted-foreground">
+                        Se hai già un sistema di prenotazione, inserisci il link qui
+                      </p>
                     </div>
                   </CardContent>
                 </Card>
               </motion.div>
             )}
 
-            {/* Step 4: Servizi - Design completamente migliorato */}
+            {/* Step 4: Servizi con tema */}
             {currentStep === 4 && (
               <motion.div
                 key="step4"
@@ -1001,51 +1006,60 @@ export default function CreaEventoPage() {
                 exit={{ opacity: 0, x: -50 }}
                 transition={{ duration: 0.3 }}
               >
-                <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-                  <CardHeader className="bg-gradient-to-r from-purple-50 to-pink-50 border-b border-gray-100">
-                    <CardTitle className="text-xl flex items-center gap-3">
-                      <div className="w-8 h-8 bg-gradient-to-r from-purple-600 to-pink-600 rounded-full flex items-center justify-center">
-                        <span className="text-white font-bold">4</span>
+                <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
+                  <CardHeader className="bg-gradient-to-r from-primary/5 to-primary/10 border-b border-border">
+                    <CardTitle className="text-xl flex items-center gap-3 text-foreground">
+                      <div className="w-8 h-8 bg-gradient-to-r from-primary to-primary/80 rounded-full flex items-center justify-center">
+                        <span className="text-primary-foreground font-bold">4</span>
                       </div>
                       Servizi e comfort inclusi
                     </CardTitle>
-                    <p className="text-sm text-gray-600 mt-2">
-                      Seleziona tutti i servizi e comfort che saranno disponibili durante l'evento
-                    </p>
                   </CardHeader>
                   <CardContent className="p-6">
+                    <div className="mb-4">
+                      <Alert className="border-info/50 bg-info/10">
+                        <Info className="h-4 w-4" />
+                        <AlertDescription className="text-info-foreground">
+                          Seleziona tutti i servizi e comfort che sono inclusi nel prezzo del tuo evento
+                        </AlertDescription>
+                      </Alert>
+                    </div>
+
                     <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                       {serviziDisponibili.map((servizio) => (
                         <motion.div key={servizio.id} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                           <Card
-                            className={`cursor-pointer transition-all duration-300 border-2 hover:shadow-md ${
+                            className={`cursor-pointer transition-all duration-200 border-2 ${
                               servizi.includes(servizio.id)
-                                ? "border-purple-500 bg-gradient-to-br from-purple-50 to-pink-50 shadow-md"
-                                : "border-gray-200 hover:border-gray-300 bg-white"
+                                ? "border-primary bg-primary/10 shadow-md"
+                                : "border-border hover:border-primary/50 bg-card"
                             }`}
                             onClick={() => toggleServizio(servizio.id)}
                           >
                             <CardContent className="p-3 text-center">
-                              <div className={`text-2xl mb-2 ${servizi.includes(servizio.id) ? "" : "grayscale"}`}>
-                                {typeof servizio.icon === "string" ? servizio.icon : servizio.icon}
-                              </div>
-                              <p
-                                className={`text-xs font-medium ${
-                                  servizi.includes(servizio.id) ? "text-purple-700" : "text-gray-600"
-                                }`}
-                              >
-                                {servizio.name}
-                              </p>
-                              {servizi.includes(servizio.id) && (
-                                <motion.div
-                                  initial={{ scale: 0 }}
-                                  animate={{ scale: 1 }}
-                                  transition={{ duration: 0.2 }}
-                                  className="mt-2"
+                              <div className="flex flex-col items-center gap-2">
+                                <div
+                                  className={`text-2xl ${servizi.includes(servizio.id) ? "" : "grayscale opacity-70"}`}
                                 >
-                                  <CheckCircle className="h-4 w-4 text-purple-600 mx-auto" />
-                                </motion.div>
-                              )}
+                                  {typeof servizio.icon === "string" ? servizio.icon : servizio.icon}
+                                </div>
+                                <span
+                                  className={`text-xs font-medium ${
+                                    servizi.includes(servizio.id) ? "text-primary" : "text-muted-foreground"
+                                  }`}
+                                >
+                                  {servizio.name}
+                                </span>
+                                {servizi.includes(servizio.id) && (
+                                  <motion.div
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    transition={{ duration: 0.2 }}
+                                  >
+                                    <CheckCircle className="h-4 w-4 text-primary" />
+                                  </motion.div>
+                                )}
+                              </div>
                             </CardContent>
                           </Card>
                         </motion.div>
@@ -1053,23 +1067,16 @@ export default function CreaEventoPage() {
                     </div>
 
                     {servizi.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mt-6 p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200"
-                      >
-                        <h4 className="font-medium text-purple-800 mb-2 flex items-center gap-2">
-                          <CheckCircle className="h-4 w-4" />
-                          Servizi selezionati ({servizi.length})
-                        </h4>
+                      <div className="mt-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
+                        <h4 className="font-medium text-foreground mb-2">Servizi selezionati:</h4>
                         <div className="flex flex-wrap gap-2">
                           {servizi.map((servizio) => (
-                            <Badge key={servizio} className="bg-purple-100 text-purple-700 border-purple-300">
+                            <Badge key={servizio} className="bg-primary/10 text-primary border-primary/20">
                               {servizio}
                             </Badge>
                           ))}
                         </div>
-                      </motion.div>
+                      </div>
                     )}
                   </CardContent>
                 </Card>
@@ -1077,52 +1084,53 @@ export default function CreaEventoPage() {
             )}
           </AnimatePresence>
 
-          {/* Navigation Buttons - Design migliorato */}
-          <div className="flex justify-between items-center pt-6 border-t border-gray-200 bg-white/80 backdrop-blur-sm rounded-lg p-4 shadow-lg">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-              disabled={currentStep === 1}
-              className="flex items-center gap-2 border-2"
-            >
-              <ChevronLeft className="h-4 w-4" />
-              Indietro
-            </Button>
+          {/* Navigation Buttons con tema */}
+          <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4 z-30">
+            <div className="max-w-3xl mx-auto flex justify-between gap-4">
+              {currentStep > 1 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setCurrentStep(currentStep - 1)}
+                  className="flex items-center gap-2 border-border hover:bg-accent"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Indietro
+                </Button>
+              )}
 
-            <div className="flex items-center gap-2 text-sm text-gray-500">
-              <span>Step {currentStep} di 4</span>
+              <div className="flex-1" />
+
+              {currentStep < 4 ? (
+                <Button
+                  type="button"
+                  onClick={() => setCurrentStep(currentStep + 1)}
+                  disabled={!canProceedToNextStep()}
+                  className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground"
+                >
+                  Avanti
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || !canProceedToNextStep()}
+                  className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-semibold px-8"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Creazione...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="h-4 w-4" />
+                      Crea Evento
+                    </>
+                  )}
+                </Button>
+              )}
             </div>
-
-            {currentStep < 4 ? (
-              <Button
-                type="button"
-                onClick={() => setCurrentStep(currentStep + 1)}
-                disabled={!canProceedToNextStep()}
-                className="flex items-center gap-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white hover:from-blue-700 hover:to-purple-700"
-              >
-                Avanti
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            ) : (
-              <Button
-                type="submit"
-                disabled={isSubmitting || !canProceedToNextStep()}
-                className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-blue-600 text-white hover:from-green-700 hover:to-blue-700 px-8"
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Creazione...
-                  </>
-                ) : (
-                  <>
-                    <CheckCircle className="h-4 w-4" />
-                    Crea Evento
-                  </>
-                )}
-              </Button>
-            )}
           </div>
         </form>
       </div>
