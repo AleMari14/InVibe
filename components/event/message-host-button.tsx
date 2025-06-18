@@ -1,10 +1,10 @@
 "use client"
 
 import { useState } from "react"
-import { MessageSquare, Loader2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { MessageCircle, Loader2 } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 
 interface MessageHostButtonProps {
@@ -13,42 +13,39 @@ interface MessageHostButtonProps {
   hostEmail: string
   eventId: string
   eventTitle: string
+  className?: string
 }
 
-export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventTitle }: MessageHostButtonProps) {
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+export function MessageHostButton({
+  hostId,
+  hostName,
+  hostEmail,
+  eventId,
+  eventTitle,
+  className = "",
+}: MessageHostButtonProps) {
   const { data: session } = useSession()
+  const router = useRouter()
+  const [isLoading, setIsLoading] = useState(false)
 
-  const handleClick = async () => {
+  const handleMessageHost = async () => {
     if (!session?.user) {
       toast.error("Devi effettuare l'accesso per inviare messaggi")
       router.push("/auth/login")
       return
     }
 
-    // Check if user is trying to message themselves
-    if (hostEmail === session.user.email) {
+    if (session.user.email === hostEmail) {
       toast.error("Non puoi inviare messaggi a te stesso")
       return
     }
 
-    if (!hostEmail || !eventId || !eventTitle) {
-      console.error("Missing required props:", { hostEmail, eventId, eventTitle })
-      toast.error("Errore: dati mancanti per la chat")
-      return
-    }
-
     setIsLoading(true)
-    try {
-      console.log("Creating/finding chat room with data:", {
-        hostEmail,
-        eventId,
-        eventTitle,
-        currentUser: session.user.email,
-      })
 
-      // Create or find existing chat room
+    try {
+      console.log("Creating/finding chat room...")
+
+      // Crea o trova la chat room
       const response = await fetch("/api/messages/room", {
         method: "POST",
         headers: {
@@ -56,104 +53,50 @@ export function MessageHostButton({ hostId, hostName, hostEmail, eventId, eventT
         },
         body: JSON.stringify({
           hostEmail,
+          hostName,
           eventId,
           eventTitle,
         }),
       })
 
       if (!response.ok) {
-        const errorText = await response.text()
-        console.error("API Error Response:", errorText)
-
-        let errorData
-        try {
-          errorData = JSON.parse(errorText)
-        } catch {
-          errorData = { error: "Errore nella comunicazione con il server" }
-        }
-
-        throw new Error(errorData.error || "Errore nella gestione della chat")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nella creazione della chat")
       }
 
-      const data = await response.json()
-      console.log("Chat room result:", data)
+      const { roomId, isNewRoom } = await response.json()
+      console.log("Chat room ready:", roomId, "New room:", isNewRoom)
 
-      if (!data.roomId) {
-        throw new Error("Nessun ID della chat ricevuto dal server")
+      // Prepara il messaggio iniziale come parametro URL invece di inviarlo
+      const initialMessage = encodeURIComponent(
+        `Ciao ${hostName}! 👋\n\nSono interessato/a al tuo evento "${eventTitle}".\n\nPotresti darmi maggiori informazioni? Grazie! 😊`,
+      )
+
+      // Naviga alla chat con il messaggio pre-compilato
+      router.push(`/messaggi/${roomId}?initialMessage=${initialMessage}`)
+
+      if (isNewRoom) {
+        toast.success("Chat creata! Scrivi il tuo messaggio.")
+      } else {
+        toast.success("Chat aperta!")
       }
-
-      // Send initial message if it's a new chat or if no messages exist
-      try {
-        const initialMessage = `Ciao ${hostName}! 👋
-
-Sono interessato/a al tuo evento "${eventTitle}".
-
-Potresti darmi maggiori informazioni? Grazie! 😊
-
----
-📅 Evento: ${eventTitle}
-🆔 ID: ${eventId}`
-
-        const messageResponse = await fetch(`/api/messages/${data.roomId}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            content: initialMessage,
-          }),
-        })
-
-        if (messageResponse.ok) {
-          console.log("Initial message sent successfully")
-          if (data.isNew) {
-            toast.success("Chat creata e messaggio inviato!")
-          } else {
-            toast.success("Messaggio inviato!")
-          }
-        } else {
-          console.error("Failed to send initial message")
-          if (data.isNew) {
-            toast.success("Chat creata!")
-          } else {
-            toast.success("Chat aperta!")
-          }
-        }
-      } catch (error) {
-        console.error("Error sending initial message:", error)
-        if (data.isNew) {
-          toast.success("Chat creata!")
-        } else {
-          toast.success("Chat aperta!")
-        }
-      }
-
-      // Navigate to the chat room
-      console.log("Navigating to chat room:", data.roomId)
-      router.push(`/messaggi/${data.roomId}`)
     } catch (error) {
-      console.error("Error handling chat room:", error)
-      toast.error(error instanceof Error ? error.message : "Errore nell'apertura della chat")
+      console.error("Error creating chat:", error)
+      toast.error("Errore nella creazione della chat")
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Don't show button if user is the host
-  if (session?.user?.email === hostEmail) {
-    return null
-  }
-
   return (
     <Button
-      variant="outline"
-      size="sm"
-      onClick={handleClick}
+      onClick={handleMessageHost}
       disabled={isLoading}
-      className="flex items-center gap-2 hover:bg-primary hover:text-primary-foreground transition-colors"
+      className={`flex items-center gap-2 ${className}`}
+      variant="outline"
     >
-      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
-      {isLoading ? "Caricamento..." : `Contatta ${hostName}`}
+      {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+      {isLoading ? "Apertura..." : "Contatta Host"}
     </Button>
   )
 }

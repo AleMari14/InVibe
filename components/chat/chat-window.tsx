@@ -29,9 +29,10 @@ interface ChatWindowProps {
     image?: string
   }
   onClose?: () => void
+  initialMessage?: string
 }
 
-export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
+export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatWindowProps) {
   const { data: session } = useSession()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
@@ -55,13 +56,19 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
   }, [roomId])
 
   useEffect(() => {
+    // Pre-compila il messaggio iniziale se fornito
+    if (initialMessage && !newMessage) {
+      setNewMessage(initialMessage)
+    }
+  }, [initialMessage])
+
+  useEffect(() => {
     scrollToBottom()
   }, [messages])
 
   const startPolling = () => {
-    // Polling ogni 2 secondi per nuovi messaggi
     pollingIntervalRef.current = setInterval(() => {
-      fetchMessages(true) // silent fetch
+      fetchMessages(true)
     }, 2000)
   }
 
@@ -72,7 +79,6 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
   const fetchMessages = async (silent = false) => {
     try {
       if (!silent) setIsLoading(true)
-      console.log("Fetching messages for room:", roomId)
 
       const response = await fetch(`/api/messages/${roomId}`)
       if (!response.ok) {
@@ -81,8 +87,6 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
       }
 
       const data = await response.json()
-      console.log("Messages fetched:", data.messages?.length || 0)
-
       setMessages(data.messages || [])
     } catch (error) {
       console.error("Error fetching messages:", error)
@@ -103,8 +107,6 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
     setIsSending(true)
 
     try {
-      console.log("Sending message:", messageContent)
-
       const response = await fetch(`/api/messages/${roomId}`, {
         method: "POST",
         headers: {
@@ -119,12 +121,8 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
       }
 
       const sentMessage = await response.json()
-      console.log("Message sent:", sentMessage)
-
-      // Aggiungi il messaggio immediatamente per feedback istantaneo
       setMessages((prev) => [...prev, sentMessage])
 
-      // Forza un refresh dei messaggi dopo un breve delay
       setTimeout(() => {
         fetchMessages(true)
       }, 500)
@@ -133,7 +131,7 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
     } catch (error) {
       console.error("Error sending message:", error)
       toast.error("Errore nell'invio del messaggio")
-      setNewMessage(messageContent) // Restore message on error
+      setNewMessage(messageContent)
     } finally {
       setIsSending(false)
     }
@@ -178,20 +176,6 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header Chat */}
-      <div className="border-b p-4 bg-card">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={otherUser.image || ""} alt={otherUser.name} />
-            <AvatarFallback>{otherUser.name.charAt(0)}</AvatarFallback>
-          </Avatar>
-          <div>
-            <h3 className="font-semibold">{otherUser.name}</h3>
-            <p className="text-sm text-muted-foreground">{messages.length > 0 ? "Online" : "Offline"}</p>
-          </div>
-        </div>
-      </div>
-
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
@@ -244,15 +228,15 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
         </div>
       </ScrollArea>
 
-      {/* Message Input */}
-      <div className="border-t p-4 bg-card">
-        <form onSubmit={sendMessage} className="flex gap-2">
+      {/* Message Input - Posizionato sopra la navbar */}
+      <div className="fixed bottom-20 left-0 right-0 border-t bg-card/95 backdrop-blur-md p-4 z-20">
+        <form onSubmit={sendMessage} className="flex gap-2 max-w-4xl mx-auto">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder={`Scrivi a ${otherUser.name}...`}
             disabled={isSending}
-            className="flex-1"
+            className="flex-1 bg-background"
             maxLength={1000}
           />
           <Button type="submit" disabled={!newMessage.trim() || isSending} size="icon">

@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState, useEffect } from "react"
+import { useParams, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ChatWindow } from "@/components/chat/chat-window"
@@ -10,90 +11,126 @@ import { toast } from "sonner"
 
 interface ChatRoom {
   _id: string
-  eventId: string
-  eventTitle: string
-  participants: string[]
-  lastMessage: {
-    content: string
-    senderId: string
-    createdAt: string
-  } | null
-  otherUser: {
-    name: string
+  roomId: string
+  participants: Array<{
     email: string
-    image: string
+    name: string
+    image?: string
+  }>
+  initialEvent?: {
+    eventId: string
+    eventTitle: string
+  }
+  otherUser: {
+    email: string
+    name: string
+    image?: string
   }
 }
 
-export default function ChatRoomPage({ params }: { params: { roomId: string } }) {
+export default function ChatRoomPage() {
+  const params = useParams()
+  const searchParams = useSearchParams()
   const { data: session } = useSession()
-  const router = useRouter()
   const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const roomId = params.roomId as string
+  const initialMessage = searchParams.get("initialMessage")
 
   useEffect(() => {
-    if (!session?.user?.email) {
-      router.push("/auth/login")
-      return
+    if (roomId && session?.user?.email) {
+      fetchChatRoom()
     }
-
-    fetchChatRoom()
-  }, [session, params.roomId])
+  }, [roomId, session])
 
   const fetchChatRoom = async () => {
     try {
-      const response = await fetch(`/api/messages/room/${params.roomId}`)
+      setIsLoading(true)
+      console.log("Fetching chat room:", roomId)
+
+      const response = await fetch(`/api/messages/room/${roomId}`)
       if (!response.ok) {
-        throw new Error("Chat room not found")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Chat room not found")
       }
+
       const data = await response.json()
-      setChatRoom(data)
+      console.log("Chat room data:", data)
+
+      // Trova l'altro utente
+      const otherUser = data.participants.find((p: any) => p.email !== session?.user?.email)
+
+      setChatRoom({
+        ...data,
+        otherUser: otherUser || {
+          email: "unknown",
+          name: "Utente Sconosciuto",
+          image: null,
+        },
+      })
     } catch (error) {
       console.error("Error fetching chat room:", error)
+      setError("Errore nel caricamento della chat")
       toast.error("Errore nel caricamento della chat")
-      router.push("/messaggi")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Caricamento chat...</p>
+        </div>
       </div>
     )
   }
 
-  if (!chatRoom) {
+  if (error || !chatRoom) {
     return (
-      <div className="h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Chat non trovata</h2>
-          <p className="text-muted-foreground mb-4">La chat che stai cercando non esiste o è stata rimossa.</p>
-          <Button onClick={() => router.push("/messaggi")}>Torna ai Messaggi</Button>
+          <p className="text-lg font-medium mb-2">Chat non trovata</p>
+          <p className="text-muted-foreground mb-4">La chat che stai cercando non esiste o è stata eliminata.</p>
+          <Link href="/messaggi">
+            <Button>Torna ai Messaggi</Button>
+          </Link>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="h-screen flex flex-col">
-      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => router.push("/messaggi")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
-        <div>
-          <h1 className="font-medium">Chat con {chatRoom.otherUser.name}</h1>
-          <p className="text-sm text-muted-foreground">{chatRoom.eventTitle}</p>
+    <div className="min-h-screen bg-background flex flex-col">
+      {/* Header */}
+      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
+        <div className="flex items-center gap-3">
+          <Link href="/messaggi">
+            <Button variant="ghost" size="icon">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+          </Link>
+          <div className="flex items-center gap-3">
+            <div>
+              <h1 className="font-semibold">{chatRoom.otherUser.name}</h1>
+              {chatRoom.initialEvent && (
+                <p className="text-sm text-muted-foreground">Evento: {chatRoom.initialEvent.eventTitle}</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1">
+      {/* Chat Window - con padding bottom per navbar */}
+      <div className="flex-1 pb-20">
         <ChatWindow
-          roomId={params.roomId}
+          roomId={roomId}
           otherUser={chatRoom.otherUser}
-          onClose={() => router.push("/messaggi")}
+          initialMessage={initialMessage ? decodeURIComponent(initialMessage) : undefined}
         />
       </div>
     </div>

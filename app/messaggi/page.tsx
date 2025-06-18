@@ -82,8 +82,18 @@ export default function MessaggiPage() {
       const data = await response.json()
       console.log("Chat rooms received:", data.rooms?.length || 0)
 
-      setChatRooms(data.rooms || [])
-      setUnreadCount(data.rooms?.reduce((acc: number, room: ChatRoom) => acc + room.unreadCount, 0) || 0)
+      // Rimuovi duplicati basati su roomId
+      const uniqueRooms =
+        data.rooms?.reduce((acc: ChatRoom[], room: ChatRoom) => {
+          const exists = acc.find((r) => r.roomId === room.roomId)
+          if (!exists) {
+            acc.push(room)
+          }
+          return acc
+        }, []) || []
+
+      setChatRooms(uniqueRooms)
+      setUnreadCount(uniqueRooms.reduce((acc: number, room: ChatRoom) => acc + room.unreadCount, 0))
     } catch (error) {
       console.error("Error fetching chat rooms:", error)
       toast.error("Errore nel caricamento delle chat")
@@ -160,7 +170,6 @@ export default function MessaggiPage() {
   const filteredRooms = chatRooms.filter((room) => {
     const matchesSearch =
       room.initialEvent?.eventTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      false ||
       room.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase())
 
     if (activeTab === "unread") return matchesSearch && room.unreadCount > 0
@@ -170,7 +179,7 @@ export default function MessaggiPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
@@ -240,69 +249,67 @@ export default function MessaggiPage() {
             </div>
           ) : (
             filteredRooms.map((room) => (
-              <div key={room.roomId} className="flex items-center gap-4 p-3 rounded-lg border border-border group">
-                <Link href={`/messaggi/${room.roomId}`} className="flex items-center gap-4 flex-1">
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="flex items-center gap-4 flex-1"
-                  >
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage src={room.otherUser.image || "/placeholder.svg"} />
-                      <AvatarFallback>{room.otherUser.name.charAt(0)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
-                        <h3 className="font-medium truncate">{room.otherUser.name}</h3>
-                        {room.lastMessage && (
-                          <span className="text-xs text-muted-foreground">
-                            {format(new Date(room.lastMessage.createdAt), "HH:mm", { locale: it })}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm text-muted-foreground truncate">
-                          {room.lastMessage ? room.lastMessage.content : "Nessun messaggio ancora"}
-                        </p>
-                        {room.unreadCount > 0 && (
-                          <Badge className="bg-blue-500 text-white text-xs">{room.unreadCount}</Badge>
-                        )}
-                      </div>
-                      {room.initialEvent && (
-                        <p className="text-xs text-muted-foreground truncate mt-1">
-                          Evento: {room.initialEvent.eventTitle}
-                        </p>
+              <Link key={room.roomId} href={`/messaggi/${room.roomId}`}>
+                <motion.div
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex items-center gap-4 p-3 rounded-lg border border-border group hover:bg-muted/50 transition-colors"
+                >
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={room.otherUser.image || "/placeholder.svg"} />
+                    <AvatarFallback>{room.otherUser.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-medium truncate">{room.otherUser.name}</h3>
+                      {room.lastMessage && (
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(room.lastMessage.createdAt), "HH:mm", { locale: it })}
+                        </span>
                       )}
                     </div>
-                  </motion.div>
-                </Link>
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm text-muted-foreground truncate">
+                        {room.lastMessage ? room.lastMessage.content : "Nessun messaggio ancora"}
+                      </p>
+                      {room.unreadCount > 0 && (
+                        <Badge className="bg-blue-500 text-white text-xs">{room.unreadCount}</Badge>
+                      )}
+                    </div>
+                    {room.initialEvent && (
+                      <p className="text-xs text-muted-foreground truncate mt-1">
+                        Evento: {room.initialEvent.eventTitle}
+                      </p>
+                    )}
+                  </div>
 
-                {/* Chat Actions */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => archiveChat(room.roomId)}>
-                      <Archive className="h-4 w-4 mr-2" />
-                      {room.archived ? "Disarchivia" : "Archivia"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={() => handleDeleteClick(room.roomId)}
-                      className="text-red-600 focus:text-red-600"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Elimina
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                  {/* Chat Actions */}
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => archiveChat(room.roomId)}>
+                        <Archive className="h-4 w-4 mr-2" />
+                        {room.archived ? "Disarchivia" : "Archivia"}
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handleDeleteClick(room.roomId)}
+                        className="text-red-600 focus:text-red-600"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Elimina
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </motion.div>
+              </Link>
             ))
           )}
         </div>
