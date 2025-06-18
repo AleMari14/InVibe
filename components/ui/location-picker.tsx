@@ -3,11 +3,11 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { Label } from "./label"
 import { Alert, AlertDescription } from "./alert"
-import { MapPin, Loader2, X, Search, Navigation, Globe } from "lucide-react"
+import { MapPin, Loader2, X, Search, Navigation, Globe, Eye, EyeOff } from "lucide-react"
 import { Button } from "./button"
 import { Map } from "./map"
 import { debounce } from "lodash"
-import { Card } from "./card"
+import { Card, CardContent, CardHeader, CardTitle } from "./card"
 
 interface LocationPickerProps {
   value: string
@@ -35,15 +35,6 @@ interface NominatimResult {
     state?: string
     postcode?: string
     country?: string
-  }
-}
-
-interface GooglePlacesResult {
-  place_id: string
-  description: string
-  structured_formatting: {
-    main_text: string
-    secondary_text: string
   }
 }
 
@@ -332,53 +323,61 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
   }
 
   return (
-    <div className="space-y-3">
-      <Label htmlFor="location" className="text-sm font-medium">
+    <div className="space-y-4">
+      <Label htmlFor="location" className="text-base font-medium">
         Località *
       </Label>
 
-      {/* Campo di ricerca con pulsante geolocalizzazione */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-        <input
-          ref={inputRef}
-          id="location"
-          placeholder="Cerca una località (es. Roma, Milano, Firenze...)"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 pl-10 pr-20 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-          onFocus={() => {
-            if (suggestions.length > 0) {
-              setShowSuggestions(true)
-            }
-          }}
-        />
-        <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex gap-1">
-          {isLoading && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={getCurrentLocation}
-            disabled={isGettingLocation}
-            className="h-6 w-6 p-0"
-            title="Usa posizione corrente"
-          >
-            {isGettingLocation ? <Loader2 className="h-3 w-3 animate-spin" /> : <Navigation className="h-3 w-3" />}
-          </Button>
-        </div>
-      </div>
+      {/* Campo di ricerca migliorato */}
+      <Card className="border-2 border-gray-200 hover:border-blue-300 transition-colors">
+        <CardContent className="p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <input
+              ref={inputRef}
+              id="location"
+              placeholder="Cerca una località (es. Roma, Milano, Firenze...)"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex h-12 w-full rounded-lg border-0 bg-transparent px-12 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-gray-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              onFocus={() => {
+                if (suggestions.length > 0) {
+                  setShowSuggestions(true)
+                }
+              }}
+            />
+            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex gap-2">
+              {isLoading && <Loader2 className="h-5 w-5 animate-spin text-blue-500" />}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={getCurrentLocation}
+                disabled={isGettingLocation}
+                className="h-8 w-8 p-0 hover:bg-blue-100"
+                title="Usa posizione corrente"
+              >
+                {isGettingLocation ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Navigation className="h-4 w-4 text-blue-600" />
+                )}
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Suggerimenti migliorati */}
       {showSuggestions && (
         <div ref={suggestionsRef} className="relative z-50">
-          <Card className="absolute w-full max-h-80 overflow-y-auto shadow-lg border-border">
-            <div className="p-1">
+          <Card className="absolute w-full max-h-80 overflow-y-auto shadow-xl border-2 border-blue-200 bg-white">
+            <CardContent className="p-2">
               {suggestions.length === 0 && searchQuery.length >= 2 && !isLoading ? (
-                <div className="py-6 text-center text-sm text-muted-foreground">
-                  <Globe className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                  Nessun risultato trovato
-                  <p className="text-xs mt-1">Prova con un termine di ricerca diverso</p>
+                <div className="py-8 text-center text-gray-500">
+                  <Globe className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p className="font-medium">Nessun risultato trovato</p>
+                  <p className="text-sm mt-1">Prova con un termine di ricerca diverso</p>
                 </div>
               ) : (
                 suggestions.map((place) => {
@@ -389,74 +388,96 @@ export function LocationPicker({ value, onChange, error }: LocationPickerProps) 
                     <Button
                       key={place.place_id}
                       variant="ghost"
-                      className="w-full justify-start text-left px-3 py-3 h-auto hover:bg-accent"
+                      className="w-full justify-start text-left p-4 h-auto hover:bg-blue-50 rounded-lg"
                       onClick={() => handleSelect(place)}
                     >
                       <div className="flex items-start gap-3 w-full">
-                        <span className="text-lg flex-shrink-0 mt-0.5">{icon}</span>
+                        <span className="text-2xl flex-shrink-0 mt-1">{icon}</span>
                         <div className="min-w-0 flex-1">
-                          <div className="font-medium text-sm truncate">{formatted.main}</div>
-                          <div className="text-xs text-muted-foreground line-clamp-2">{formatted.secondary}</div>
+                          <div className="font-semibold text-base text-gray-800 truncate">{formatted.main}</div>
+                          <div className="text-sm text-gray-600 line-clamp-2 mt-1">{formatted.secondary}</div>
                           {place.address?.country && (
-                            <div className="text-xs text-blue-600 mt-1">{place.address.country}</div>
+                            <div className="text-xs text-blue-600 mt-2 font-medium">{place.address.country}</div>
                           )}
                         </div>
-                        <div className="text-xs text-muted-foreground flex-shrink-0">{place.type}</div>
+                        <div className="text-xs text-gray-400 flex-shrink-0 bg-gray-100 px-2 py-1 rounded">
+                          {place.type}
+                        </div>
                       </div>
                     </Button>
                   )
                 })
               )}
-            </div>
+            </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Luogo selezionato */}
+      {/* Luogo selezionato migliorato */}
       {selectedPlace && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-md border border-blue-200 dark:border-blue-800">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex items-start gap-2 min-w-0 flex-1">
-              <MapPin className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium line-clamp-1">{selectedPlace.name.split(",")[0]}</p>
-                <p className="text-xs text-muted-foreground line-clamp-2">{selectedPlace.name}</p>
-                <p className="text-xs text-blue-600 mt-1">
-                  {selectedPlace.location.lat.toFixed(4)}, {selectedPlace.location.lng.toFixed(4)}
-                </p>
+        <Card className="border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-purple-50">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <MapPin className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-gray-800 line-clamp-1">{selectedPlace.name.split(",")[0]}</p>
+                  <p className="text-sm text-gray-600 line-clamp-2 mt-1">{selectedPlace.name}</p>
+                  <p className="text-xs text-blue-600 mt-2 font-mono bg-white/50 px-2 py-1 rounded">
+                    {selectedPlace.location.lat.toFixed(4)}, {selectedPlace.location.lng.toFixed(4)}
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleMap}
+                  className="h-9 px-3 bg-white/80 hover:bg-white border-blue-300"
+                >
+                  {showMap ? <EyeOff className="h-4 w-4 mr-1" /> : <Eye className="h-4 w-4 mr-1" />}
+                  {showMap ? "Nascondi" : "Mostra"}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleClearSelection}
+                  className="h-9 w-9 p-0 bg-white/80 hover:bg-red-50 border-red-300 text-red-600"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-            <div className="flex gap-1 flex-shrink-0">
-              <Button variant="ghost" size="sm" onClick={toggleMap} className="h-8 w-8 p-0">
-                <MapPin className="h-3 w-3" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleClearSelection} className="h-8 w-8 p-0">
-                <X className="h-3 w-3" />
-              </Button>
-            </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Mappa */}
+      {/* Mappa migliorata */}
       {showMap && coordinates && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-sm font-medium">Posizione sulla mappa</Label>
-            <Button variant="outline" size="sm" onClick={toggleMap} className="text-xs">
-              {showMap ? "Nascondi" : "Mostra"} Mappa
-            </Button>
-          </div>
-          <div className="rounded-md overflow-hidden border border-border">
-            <Map center={coordinates} marker={coordinates} onMarkerChange={handleMarkerChange} height="200px" />
-          </div>
-          <p className="text-xs text-muted-foreground">Trascina il marker per regolare la posizione esatta</p>
-        </div>
+        <Card className="border-2 border-blue-200 overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 border-b border-blue-200 py-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-blue-600" />
+              Posizione sulla mappa
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Map
+              center={coordinates}
+              marker={coordinates}
+              onMarkerChange={handleMarkerChange}
+              height="300px"
+              interactive={true}
+            />
+          </CardContent>
+        </Card>
       )}
 
       {error && (
-        <Alert variant="destructive">
-          <AlertDescription className="text-sm">{error}</AlertDescription>
+        <Alert variant="destructive" className="border-red-300 bg-red-50">
+          <AlertDescription className="text-red-700 font-medium">{error}</AlertDescription>
         </Alert>
       )}
     </div>
