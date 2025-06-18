@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { Send, Loader2 } from "lucide-react"
@@ -40,10 +39,18 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
   const [isSending, setIsSending] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (roomId) {
       fetchMessages()
+      startPolling()
+    }
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
     }
   }, [roomId])
 
@@ -51,13 +58,20 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
     scrollToBottom()
   }, [messages])
 
+  const startPolling = () => {
+    // Polling ogni 2 secondi per nuovi messaggi
+    pollingIntervalRef.current = setInterval(() => {
+      fetchMessages(true) // silent fetch
+    }, 2000)
+  }
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (silent = false) => {
     try {
-      setIsLoading(true)
+      if (!silent) setIsLoading(true)
       console.log("Fetching messages for room:", roomId)
 
       const response = await fetch(`/api/messages/${roomId}`)
@@ -68,12 +82,15 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
 
       const data = await response.json()
       console.log("Messages fetched:", data.messages?.length || 0)
+
       setMessages(data.messages || [])
     } catch (error) {
       console.error("Error fetching messages:", error)
-      toast.error("Errore nel caricamento dei messaggi")
+      if (!silent) {
+        toast.error("Errore nel caricamento dei messaggi")
+      }
     } finally {
-      setIsLoading(false)
+      if (!silent) setIsLoading(false)
     }
   }
 
@@ -104,7 +121,14 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
       const sentMessage = await response.json()
       console.log("Message sent:", sentMessage)
 
+      // Aggiungi il messaggio immediatamente per feedback istantaneo
       setMessages((prev) => [...prev, sentMessage])
+
+      // Forza un refresh dei messaggi dopo un breve delay
+      setTimeout(() => {
+        fetchMessages(true)
+      }, 500)
+
       toast.success("Messaggio inviato")
     } catch (error) {
       console.error("Error sending message:", error)
@@ -123,47 +147,94 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
     })
   }
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+
+    if (date.toDateString() === today.toDateString()) {
+      return "Oggi"
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return "Ieri"
+    } else {
+      return date.toLocaleDateString("it-IT", {
+        day: "numeric",
+        month: "short",
+      })
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+          <p className="text-sm text-muted-foreground">Caricamento chat...</p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="flex flex-col h-full">
+      {/* Header Chat */}
+      <div className="border-b p-4 bg-card">
+        <div className="flex items-center gap-3">
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={otherUser.image || ""} alt={otherUser.name} />
+            <AvatarFallback>{otherUser.name.charAt(0)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <h3 className="font-semibold">{otherUser.name}</h3>
+            <p className="text-sm text-muted-foreground">{messages.length > 0 ? "Online" : "Offline"}</p>
+          </div>
+        </div>
+      </div>
+
       {/* Messages */}
       <ScrollArea className="flex-1 p-4" ref={scrollAreaRef}>
         <div className="space-y-4">
           {messages.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               <p>Nessun messaggio ancora.</p>
-              <p className="text-sm">Inizia la conversazione!</p>
+              <p className="text-sm">Inizia la conversazione con {otherUser.name}!</p>
             </div>
           ) : (
-            messages.map((message) => {
+            messages.map((message, index) => {
               const isOwnMessage = message.senderId === session?.user?.email
+              const showDate =
+                index === 0 || formatDate(message.createdAt) !== formatDate(messages[index - 1].createdAt)
+
               return (
-                <div key={message._id} className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
-                  <Avatar className="h-8 w-8">
-                    <AvatarImage
-                      src={isOwnMessage ? session?.user?.image || "" : otherUser.image || ""}
-                      alt={isOwnMessage ? session?.user?.name || "" : otherUser.name}
-                    />
-                    <AvatarFallback>
-                      {isOwnMessage ? session?.user?.name?.charAt(0) || "U" : otherUser.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-                    <div
-                      className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
-                        isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      <p className="text-sm">{message.content}</p>
+                <div key={message._id}>
+                  {showDate && (
+                    <div className="text-center text-xs text-muted-foreground my-4">
+                      <span className="bg-background px-2 py-1 rounded-full border">
+                        {formatDate(message.createdAt)}
+                      </span>
                     </div>
-                    <span className="text-xs text-muted-foreground mt-1">{formatTime(message.createdAt)}</span>
+                  )}
+                  <div className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage
+                        src={isOwnMessage ? session?.user?.image || "" : otherUser.image || ""}
+                        alt={isOwnMessage ? session?.user?.name || "" : otherUser.name}
+                      />
+                      <AvatarFallback>
+                        {isOwnMessage ? session?.user?.name?.charAt(0) || "U" : otherUser.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+                      <div
+                        className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
+                          isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                      <span className="text-xs text-muted-foreground mt-1">{formatTime(message.createdAt)}</span>
+                    </div>
                   </div>
                 </div>
               )
@@ -174,19 +245,23 @@ export function ChatWindow({ roomId, otherUser, onClose }: ChatWindowProps) {
       </ScrollArea>
 
       {/* Message Input */}
-      <div className="border-t p-4">
+      <div className="border-t p-4 bg-card">
         <form onSubmit={sendMessage} className="flex gap-2">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Scrivi un messaggio..."
+            placeholder={`Scrivi a ${otherUser.name}...`}
             disabled={isSending}
             className="flex-1"
+            maxLength={1000}
           />
           <Button type="submit" disabled={!newMessage.trim() || isSending} size="icon">
             {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </Button>
         </form>
+        <p className="text-xs text-muted-foreground mt-1 text-center">
+          Premi Invio per inviare • {newMessage.length}/1000
+        </p>
       </div>
     </div>
   )

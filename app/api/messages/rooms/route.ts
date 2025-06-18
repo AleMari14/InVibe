@@ -1,69 +1,89 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
+import clientPromise from "@/lib/mongodb"
 
-// Indica a Next.js che questa è una route dinamica
 export const dynamic = "force-dynamic"
 
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
 
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const userId = session.user.id
+    const userEmail = session.user.email
+    console.log("Fetching chat rooms for user:", userEmail)
 
-    const { db } = await connectToDatabase()
+    const client = await clientPromise
+    const db = client.db("invibe")
 
-    // Ottieni tutte le stanze di chat in cui l'utente è coinvolto
-    const rooms = await db
+    // Ottieni tutte le chat room dove l'utente è partecipante
+    const chatRooms = await db
       .collection("chatRooms")
       .find({
-        $or: [{ userId1: userId }, { userId2: userId }],
-        archived: { $ne: true }, // Escludi le stanze archiviate
+        "participants.email": userEmail,
       })
       .sort({ updatedAt: -1 })
       .toArray()
 
-    // Ottieni i dettagli degli utenti per ogni stanza
-    const roomsWithDetails = await Promise.all(
-      rooms.map(async (room) => {
-        const otherUserId = room.userId1 === userId ? room.userId2 : room.userId1
+    console.log("Found chat rooms:", chatRooms.length)
 
-        const otherUser = await db
-          .collection("users")
-          .findOne({ _id: otherUserId }, { projection: { name: 1, email: 1, image: 1 } })
+    // Arricchisci ogni chat room con dettagli aggiuntivi
+    const roomsWithDetails = await Promise.all(
+      chatRooms.map(async (room) => {
+        // Trova l'altro utente
+        const otherUser = room.participants.find((p: any) => p.email !== userEmail)
 
         // Conta i messaggi non letti per l'utente corrente
         const unreadCount = await db.collection("messages").countDocuments({
-          roomId: room._id.toString(),
-          senderId: { $ne: userId },
-          read: { $ne: true },
+          roomId: room.roomId,
+          senderId: { $ne: userEmail },
+          readBy: { $ne: userEmail },
         })
 
         // Ottieni l'ultimo messaggio
-        const lastMessage = await db
+        const lastMessageDoc = await db
           .collection("messages")
-          .find({ roomId: room._id.toString() })
-          .sort({ createdAt: -1 })
-          .limit(1)
-          .toArray()
+          .findOne({ roomId: room.roomId }, { sort: { createdAt: -1 } })
+
+        const lastMessage = lastMessageDoc
+          ? {
+              content: lastMessageDoc.content,
+              senderId: lastMessageDoc.senderId,
+              createdAt: lastMessageDoc.createdAt,
+            }
+          : null
 
         return {
-          ...room,
-          otherUser,
+          _id: room._id,
+          roomId: room.roomId,
+          participants: room.participants,
+          initialEvent: room.eventId
+            ? {
+                eventId: room.eventId,
+                eventTitle: room.eventTitle,
+              }
+            : undefined,
+          lastMessage,
           unreadCount,
-          lastMessage: lastMessage[0] || null,
+          archived: room.archived || false,
+          otherUser: otherUser || {
+            email: "unknown",
+            name: "Utente Sconosciuto",
+            image: null,
+          },
+          createdAt: room.createdAt,
+          updatedAt: room.updatedAt,
         }
       }),
     )
 
-    return NextResponse.json(roomsWithDetails)
+    console.log("Returning rooms with details:", roomsWithDetails.length)
+    return NextResponse.json({ rooms: roomsWithDetails })
   } catch (error) {
-    console.error("Errore nel recupero delle stanze di chat:", error)
-    return NextResponse.json({ error: "Errore nel recupero delle stanze di chat" }, { status: 500 })
+    console.error("Errore nel recupero delle chat rooms:", error)
+    return NextResponse.json({ error: "Errore nel recupero delle chat rooms" }, { status: 500 })
   }
 }
