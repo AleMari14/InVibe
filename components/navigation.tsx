@@ -5,9 +5,10 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { motion } from "framer-motion"
-import { Home, Heart, User, Plus, LogIn, MessageSquare } from "lucide-react"
+import { Home, Heart, Plus, LogIn, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useNotifications } from "@/hooks/use-notifications"
 
 export function Navigation() {
@@ -57,8 +58,9 @@ export function Navigation() {
     {
       name: session ? "Profilo" : "Accedi",
       href: session ? "/profile" : "/auth/login",
-      icon: session ? User : LogIn,
+      icon: session ? null : LogIn, // null per usare avatar
       active: isActive("/profile") || isActive("/auth") || isActive("/prenotazioni") || isActive("/impostazioni"),
+      isProfile: true,
     },
   ]
 
@@ -77,6 +79,18 @@ export function Navigation() {
               {item.special ? (
                 <div className="flex items-center justify-center w-12 h-12 rounded-full bg-gradient-to-r from-blue-600 to-purple-600 -mt-6 shadow-lg">
                   <item.icon className="h-6 w-6 text-white" />
+                </div>
+              ) : item.isProfile && session ? (
+                <div className="relative">
+                  <Avatar className="h-6 w-6">
+                    <AvatarImage src={session.user?.image || ""} alt={session.user?.name || ""} />
+                    <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                      {session.user?.name?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  {item.active && (
+                    <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-background" />
+                  )}
                 </div>
               ) : (
                 <div className="relative">
