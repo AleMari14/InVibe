@@ -80,6 +80,7 @@ export default function CreaEventoPage() {
   const [isLoadingImage, setIsLoadingImage] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [uploadingImage, setUploadingImage] = useState(false)
+  const [autoAdvancing, setAutoAdvancing] = useState(false)
 
   // Stati di errore e successo
   const [success, setSuccess] = useState(false)
@@ -101,21 +102,18 @@ export default function CreaEventoPage() {
     }
   }, [session, status, router])
 
-  // Debug per controllare lo stato
+  // Auto-avanzamento quando si seleziona una categoria
   useEffect(() => {
-    console.log("Current step:", currentStep)
-    console.log("Can proceed:", canProceedToNextStep())
-    console.log("Form data:", {
-      categoria,
-      titolo,
-      descrizione,
-      location,
-      coordinates,
-      dataInizio,
-      postiTotali,
-      prezzo,
-    })
-  }, [currentStep, categoria, titolo, descrizione, location, coordinates, dataInizio, postiTotali, prezzo])
+    if (categoria && currentStep === 1) {
+      setAutoAdvancing(true)
+      const timer = setTimeout(() => {
+        setCurrentStep(2)
+        setAutoAdvancing(false)
+      }, 1500) // 1.5 secondi per dare feedback visivo
+
+      return () => clearTimeout(timer)
+    }
+  }, [categoria, currentStep])
 
   // Funzioni di utilità
   const extractInfoFromMapLink = (link: string) => {
@@ -446,6 +444,11 @@ export default function CreaEventoPage() {
     }
   }
 
+  const handleCategoriaSelect = (categoriaId: string) => {
+    setCategoria(categoriaId)
+    // L'auto-avanzamento è gestito dall'useEffect
+  }
+
   useEffect(() => {
     if (placeLink && isMounted) {
       const { placeName } = extractInfoFromMapLink(placeLink)
@@ -700,7 +703,7 @@ export default function CreaEventoPage() {
                               ? `border-transparent bg-gradient-to-r ${cat.gradient} text-white shadow-lg`
                               : "border-border hover:border-primary/30 bg-card"
                           }`}
-                          onClick={() => setCategoria(cat.id)}
+                          onClick={() => handleCategoriaSelect(cat.id)}
                         >
                           <CardContent className="p-4">
                             <div className="flex items-center gap-4">
@@ -731,6 +734,40 @@ export default function CreaEventoPage() {
                         </Card>
                       </motion.div>
                     ))}
+
+                    {/* Messaggio di auto-avanzamento */}
+                    {categoria && autoAdvancing && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center p-4 bg-primary/10 rounded-lg border border-primary/20"
+                      >
+                        <div className="flex items-center justify-center gap-2 text-primary">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <span className="text-sm font-medium">Passaggio al prossimo step...</span>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {/* Bottone manuale per andare avanti */}
+                    {categoria && !autoAdvancing && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center pt-4"
+                      >
+                        <Button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 text-base font-semibold"
+                          size="lg"
+                        >
+                          Continua con {categorieDisponibili.find((c) => c.id === categoria)?.name}
+                          <ChevronRight className="h-5 w-5 ml-2" />
+                        </Button>
+                        <p className="text-xs text-muted-foreground mt-2">Oppure attendi l'avanzamento automatico</p>
+                      </motion.div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
@@ -787,6 +824,25 @@ export default function CreaEventoPage() {
                     <div className="space-y-2">
                       <LocationPicker value={location} onChange={handleLocationChange} error={locationError} />
                     </div>
+
+                    {/* Bottone per continuare inline */}
+                    {canProceedToNextStep() && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center pt-4"
+                      >
+                        <Button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="bg-secondary hover:bg-secondary/90 text-secondary-foreground px-8 py-3 text-base font-semibold"
+                          size="lg"
+                        >
+                          Continua
+                          <ChevronRight className="h-5 w-5 ml-2" />
+                        </Button>
+                      </motion.div>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -795,7 +851,7 @@ export default function CreaEventoPage() {
                   <CardHeader className="bg-gradient-to-r from-accent/5 to-accent/10 border-b border-border">
                     <CardTitle className="text-lg flex items-center gap-2 text-foreground">
                       <Camera className="h-5 w-5" />
-                      Immagini dell'evento
+                      Immagini dell'evento (opzionale)
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-4">
@@ -1003,6 +1059,25 @@ export default function CreaEventoPage() {
                         Se hai già un sistema di prenotazione, inserisci il link qui
                       </p>
                     </div>
+
+                    {/* Bottone per continuare inline */}
+                    {canProceedToNextStep() && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="text-center pt-4"
+                      >
+                        <Button
+                          type="button"
+                          onClick={handleNextStep}
+                          className="bg-accent hover:bg-accent/90 text-accent-foreground px-8 py-3 text-base font-semibold"
+                          size="lg"
+                        >
+                          Continua ai Servizi
+                          <ChevronRight className="h-5 w-5 ml-2" />
+                        </Button>
+                      </motion.div>
+                    )}
                   </CardContent>
                 </Card>
               </motion.div>
@@ -1089,6 +1164,36 @@ export default function CreaEventoPage() {
                         </div>
                       </div>
                     )}
+
+                    {/* Bottone per creare evento inline */}
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center pt-6"
+                    >
+                      <Button
+                        type="submit"
+                        onClick={handleSubmit}
+                        disabled={isSubmitting}
+                        className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-bold px-12 py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        size="lg"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                            Creazione in corso...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-5 w-5 mr-2" />
+                            Crea il Mio Evento
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Il tuo evento sarà subito visibile a tutti gli utenti
+                      </p>
+                    </motion.div>
                   </CardContent>
                 </Card>
               </motion.div>
