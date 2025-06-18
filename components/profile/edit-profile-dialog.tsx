@@ -66,9 +66,9 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
       return
     }
 
-    // Verifica la dimensione del file (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("L'immagine deve essere inferiore a 5MB")
+    // Verifica la dimensione del file (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("L'immagine deve essere inferiore a 10MB")
       return
     }
 
@@ -80,7 +80,7 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
       uploadFormData.append("file", file)
       uploadFormData.append("type", "profile")
 
-      // Carica l'immagine
+      // Carica l'immagine su Cloudinary
       const response = await fetch("/api/upload", {
         method: "POST",
         body: uploadFormData,
@@ -153,8 +153,10 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
         toast.success("Profilo aggiornato con successo!")
         setOpen(false)
 
-        // Forza il refresh della pagina per aggiornare l'immagine
-        window.location.reload()
+        // Ricarica la pagina per aggiornare tutte le immagini
+        setTimeout(() => {
+          window.location.reload()
+        }, 1000)
       } else {
         throw new Error(data.error || "Errore nell'aggiornamento del profilo")
       }
@@ -224,7 +226,9 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
                 />
 
                 <p className="text-sm text-muted-foreground text-center">
-                  Clicca sull'icona della fotocamera per cambiare l'immagine del profilo
+                  {isUploadingImage
+                    ? "Caricamento in corso..."
+                    : "Clicca sull'icona della fotocamera per cambiare l'immagine del profilo"}
                 </p>
               </div>
             </CardContent>
@@ -250,21 +254,8 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
                 <Mail className="h-4 w-4" />
                 Email
               </Label>
-              <Input id="email" type="email" value={user.email || ""} disabled className="bg-muted" />
+              <Input id="email" value={user?.email || ""} disabled className="bg-muted" />
               <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="bio">Bio</Label>
-              <Textarea
-                id="bio"
-                value={formData.bio}
-                onChange={(e) => handleInputChange("bio", e.target.value)}
-                placeholder="Raccontaci qualcosa di te..."
-                className="min-h-[80px] resize-none"
-                maxLength={500}
-              />
-              <p className="text-xs text-muted-foreground text-right">{formData.bio.length}/500 caratteri</p>
             </div>
 
             <div className="space-y-2">
@@ -274,7 +265,6 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
               </Label>
               <Input
                 id="phone"
-                type="tel"
                 value={formData.phone}
                 onChange={(e) => handleInputChange("phone", e.target.value)}
                 placeholder="+39 123 456 7890"
@@ -306,6 +296,17 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
                 onChange={(e) => handleInputChange("dateOfBirth", e.target.value)}
               />
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="bio">Bio</Label>
+              <Textarea
+                id="bio"
+                value={formData.bio}
+                onChange={(e) => handleInputChange("bio", e.target.value)}
+                placeholder="Raccontaci qualcosa di te..."
+                className="min-h-[80px] resize-none"
+              />
+            </div>
           </div>
 
           {/* Pulsanti */}
@@ -323,7 +324,7 @@ export function EditProfileDialog({ user, onProfileUpdate }: EditProfileDialogPr
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-2" />
-                  Salva Modifiche
+                  Salva
                 </>
               )}
             </Button>

@@ -28,9 +28,6 @@ import {
   MapPin,
   Camera,
   X,
-  Sparkles,
-  PartyPopper,
-  Gift,
   Globe,
 } from "lucide-react"
 
@@ -59,8 +56,11 @@ const LocationPicker = dynamic(
 )
 
 export default function CreaEventoPage() {
-  // Utilizziamo useNextTheme invece di useTheme dal context personalizzato
-  const { theme, setTheme } = useNextTheme()
+  const { theme } = useNextTheme()
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  // Stati del form
   const [currentStep, setCurrentStep] = useState(1)
   const [categoria, setCategoria] = useState("")
   const [titolo, setTitolo] = useState("")
@@ -74,41 +74,34 @@ export default function CreaEventoPage() {
   const [bookingLink, setBookingLink] = useState("")
   const [placeLink, setPlaceLink] = useState("")
   const [images, setImages] = useState<string[]>([])
-  const [isLoadingImage, setIsLoadingImage] = useState(false)
   const [servizi, setServizi] = useState<string[]>([])
+
+  // Stati di caricamento
+  const [isLoadingImage, setIsLoadingImage] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
+
+  // Stati di errore e successo
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
   const [locationError, setLocationError] = useState("")
-  const [uploadingImage, setUploadingImage] = useState(false)
   const [placePreview, setPlacePreview] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
-
-  const { data: session, status } = useSession()
-  const router = useRouter()
-
-  // Debug per controllare lo stato
-  useEffect(() => {
-    console.log("Current step:", currentStep)
-    console.log("Can proceed:", canProceedToNextStep())
-    console.log("Form data:", {
-      categoria,
-      titolo,
-      descrizione,
-      location,
-      coordinates,
-      dataInizio,
-      postiTotali,
-      prezzo,
-    })
-  }, [currentStep, categoria, titolo, descrizione, location, coordinates, dataInizio, postiTotali, prezzo])
 
   // Imposta isMounted a true solo dopo il montaggio del componente
   useEffect(() => {
     setIsMounted(true)
   }, [])
 
-  // Funzione per estrarre informazioni da un link di OpenStreetMap - solo client-side
+  // Verifica autenticazione
+  useEffect(() => {
+    if (status === "loading") return
+    if (!session) {
+      router.push("/auth/login")
+    }
+  }, [session, status, router])
+
+  // Funzioni di utilità
   const extractInfoFromMapLink = (link: string) => {
     if (!isMounted || typeof window === "undefined") {
       return { placeName: "", coordinates: null }
@@ -120,7 +113,6 @@ export default function CreaEventoPage() {
         lng = 0,
         placeName = ""
 
-      // Estrai le coordinate da OpenStreetMap
       if (url.hostname.includes("openstreetmap.org")) {
         const params = new URLSearchParams(url.search)
         const mlat = params.get("mlat")
@@ -130,7 +122,6 @@ export default function CreaEventoPage() {
           lat = Number.parseFloat(mlat)
           lng = Number.parseFloat(mlon)
         } else {
-          // Prova a estrarre dalle parti del percorso
           const match = url.pathname.match(/map\/(\d+)\/(-?\d+\.\d+)\/(-?\d+\.\d+)/)
           if (match) {
             lat = Number.parseFloat(match[2])
@@ -138,18 +129,14 @@ export default function CreaEventoPage() {
           }
         }
 
-        // Estrai il nome del luogo se presente
         placeName = params.get("query") || "Luogo su OpenStreetMap"
-      }
-      // Supporto per Google Maps (per retrocompatibilità)
-      else if (url.hostname.includes("google") && url.pathname.includes("/maps")) {
+      } else if (url.hostname.includes("google") && url.pathname.includes("/maps")) {
         const coordsMatch = url.pathname.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/)
         if (coordsMatch) {
           lat = Number.parseFloat(coordsMatch[1])
           lng = Number.parseFloat(coordsMatch[2])
         }
 
-        // Estrai il nome del luogo se presente
         if (url.pathname.includes("/place/")) {
           const pathParts = url.pathname.split("/")
           const placeIndex = pathParts.indexOf("place")
@@ -172,7 +159,6 @@ export default function CreaEventoPage() {
     }
   }
 
-  // Funzione per generare un'immagine dal link del posto
   const generateImageFromPlaceLink = async () => {
     if (!placeLink) {
       toast.error("Inserisci un link di una mappa valido")
@@ -183,7 +169,6 @@ export default function CreaEventoPage() {
     setError("")
 
     try {
-      // Estrai informazioni dal link solo se siamo nel browser
       const { placeName, coordinates } = isMounted
         ? extractInfoFromMapLink(placeLink)
         : { placeName: "Luogo", coordinates: null }
@@ -194,12 +179,9 @@ export default function CreaEventoPage() {
         return
       }
 
-      // Genera un'anteprima del luogo
       setPlacePreview(placeName || "Luogo sconosciuto")
 
-      // Se abbiamo le coordinate, aggiorniamo anche la posizione sulla mappa
       if (coordinates) {
-        // Esegui reverse geocoding per ottenere l'indirizzo completo
         try {
           const response = await fetch(
             `https://nominatim.openstreetmap.org/reverse?format=json&lat=${coordinates.lat}&lon=${coordinates.lng}&zoom=18&addressdetails=1&accept-language=it`,
@@ -222,14 +204,27 @@ export default function CreaEventoPage() {
         }
       }
 
-      // Genera un'immagine basata sul nome del luogo
-      const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(placeName || "location")}`
+      // Genera immagine tramite API
+      const response = await fetch("/api/place-image", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          placeName: placeName || "location",
+          coordinates,
+        }),
+      })
 
-      // Simula un ritardo per mostrare il caricamento
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      setImages((prev) => [...prev, imageUrl])
-      toast.success("Immagine generata con successo!")
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.url) {
+          setImages((prev) => [...prev, data.url])
+          toast.success("Immagine generata con successo!")
+        }
+      } else {
+        throw new Error("Errore nella generazione dell'immagine")
+      }
     } catch (error) {
       console.error("Errore nella generazione dell'immagine:", error)
       toast.error("Errore nella generazione dell'immagine. Riprova.")
@@ -244,18 +239,44 @@ export default function CreaEventoPage() {
 
     setUploadingImage(true)
     try {
-      // Per questa demo, utilizziamo un placeholder invece di caricare realmente l'immagine
       const file = files[0]
-      const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(file.name)}`
 
-      // Simula un ritardo per mostrare il caricamento
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      // Verifica il tipo di file
+      if (!file.type.startsWith("image/")) {
+        toast.error("Seleziona un file immagine valido")
+        return
+      }
 
-      setImages((prev) => [...prev, imageUrl])
-      toast.success("Immagine caricata con successo!")
-    } catch (error) {
+      // Verifica la dimensione del file (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error("L'immagine deve essere inferiore a 10MB")
+        return
+      }
+
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("type", "event")
+
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nel caricamento dell'immagine")
+      }
+
+      const data = await response.json()
+      if (data.success && data.url) {
+        setImages((prev) => [...prev, data.url])
+        toast.success("Immagine caricata con successo!")
+      } else {
+        throw new Error(data.error || "Errore nel caricamento dell'immagine")
+      }
+    } catch (error: any) {
       console.error("Errore nel caricamento dell'immagine:", error)
-      toast.error("Errore nel caricamento dell'immagine")
+      toast.error(error.message || "Errore nel caricamento dell'immagine")
     } finally {
       setUploadingImage(false)
     }
@@ -270,91 +291,6 @@ export default function CreaEventoPage() {
     setCoordinates(newCoordinates)
     setLocationError("")
   }
-
-  useEffect(() => {
-    // Pulisci l'anteprima quando il link cambia - solo client-side
-    if (placeLink && isMounted) {
-      const { placeName } = extractInfoFromMapLink(placeLink)
-      setPlacePreview(placeName || null)
-      setError("")
-    } else {
-      setPlacePreview(null)
-    }
-  }, [placeLink, isMounted])
-
-  // Loading state durante l'hydration
-  if (!isMounted) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  if (!session) {
-    router.push("/auth/login")
-    return null
-  }
-
-  const categorieDisponibili = [
-    {
-      id: "casa",
-      name: "Casa/Appartamento",
-      description: "Condividi una casa, villa o appartamento",
-      icon: "🏠",
-      gradient: "from-green-500 to-emerald-600",
-    },
-    {
-      id: "viaggio",
-      name: "Viaggio di Gruppo",
-      description: "Organizza un viaggio con altre persone",
-      icon: "✈️",
-      gradient: "from-blue-500 to-cyan-600",
-    },
-    {
-      id: "evento",
-      name: "Evento Privato",
-      description: "Crea un evento speciale",
-      icon: "🎉",
-      gradient: "from-purple-500 to-pink-600",
-    },
-    {
-      id: "esperienza",
-      name: "Esperienza",
-      description: "Condividi un'esperienza unica",
-      icon: "🌟",
-      gradient: "from-orange-500 to-red-600",
-    },
-  ]
-
-  const serviziDisponibili = [
-    { id: "WiFi", name: "WiFi", icon: <Wifi className="h-4 w-4" /> },
-    { id: "Piscina", name: "Piscina", icon: "🏊" },
-    { id: "Parcheggio", name: "Parcheggio", icon: <Car className="h-4 w-4" /> },
-    { id: "Cucina", name: "Cucina", icon: <Utensils className="h-4 w-4" /> },
-    { id: "Aria Condizionata", name: "A/C", icon: "❄️" },
-    { id: "Riscaldamento", name: "Riscaldamento", icon: "🔥" },
-    { id: "TV", name: "TV", icon: "📺" },
-    { id: "Lavatrice", name: "Lavatrice", icon: "🧺" },
-    { id: "Asciugacapelli", name: "Asciugacapelli", icon: "💨" },
-    { id: "Ferro da Stiro", name: "Ferro da Stiro", icon: "👔" },
-    { id: "Terrazza", name: "Terrazza", icon: "🌅" },
-    { id: "Giardino", name: "Giardino", icon: "🌳" },
-    { id: "Trasporti Inclusi", name: "Trasporti", icon: "🚌" },
-    { id: "Colazione Inclusa", name: "Colazione", icon: "🥐" },
-    { id: "Pranzi Inclusi", name: "Pranzi", icon: "🍽️" },
-    { id: "Guida Turistica", name: "Guida", icon: "🗺️" },
-    { id: "Attrezzature Sportive", name: "Sport", icon: "⚽" },
-    { id: "Animali Ammessi", name: "Pet-friendly", icon: "🐕" },
-  ]
 
   const toggleServizio = (servizio: string) => {
     setServizi((prev) => (prev.includes(servizio) ? prev.filter((s) => s !== servizio) : [...prev, servizio]))
@@ -374,7 +310,7 @@ export default function CreaEventoPage() {
       case 3:
         return dataInizio && postiTotali && prezzo
       case 4:
-        return true // Servizi opzionali, sempre possibile procedere
+        return true
       default:
         return false
     }
@@ -448,7 +384,6 @@ export default function CreaEventoPage() {
 
       console.log("Submitting event data:", eventData)
 
-      // Effettua la chiamata API reale
       const response = await fetch("/api/events", {
         method: "POST",
         headers: {
@@ -483,14 +418,94 @@ export default function CreaEventoPage() {
     }
   }
 
-  // Determina le classi di colore in base al tema
-  const isDark = theme === "dark"
+  useEffect(() => {
+    if (placeLink && isMounted) {
+      const { placeName } = extractInfoFromMapLink(placeLink)
+      setPlacePreview(placeName || null)
+      setError("")
+    } else {
+      setPlacePreview(null)
+    }
+  }, [placeLink, isMounted])
 
-  // Pagina di successo con supporto tema
+  // Loading states
+  if (!isMounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (status === "loading") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
+
+  if (!session) {
+    return null
+  }
+
+  // Configurazioni
+  const categorieDisponibili = [
+    {
+      id: "casa",
+      name: "Casa/Appartamento",
+      description: "Condividi una casa, villa o appartamento",
+      icon: "🏠",
+      gradient: "from-green-500 to-emerald-600",
+    },
+    {
+      id: "viaggio",
+      name: "Viaggio di Gruppo",
+      description: "Organizza un viaggio con altre persone",
+      icon: "✈️",
+      gradient: "from-blue-500 to-cyan-600",
+    },
+    {
+      id: "evento",
+      name: "Evento Privato",
+      description: "Crea un evento speciale",
+      icon: "🎉",
+      gradient: "from-purple-500 to-pink-600",
+    },
+    {
+      id: "esperienza",
+      name: "Esperienza",
+      description: "Condividi un'esperienza unica",
+      icon: "🌟",
+      gradient: "from-orange-500 to-red-600",
+    },
+  ]
+
+  const serviziDisponibili = [
+    { id: "WiFi", name: "WiFi", icon: <Wifi className="h-4 w-4" /> },
+    { id: "Piscina", name: "Piscina", icon: "🏊" },
+    { id: "Parcheggio", name: "Parcheggio", icon: <Car className="h-4 w-4" /> },
+    { id: "Cucina", name: "Cucina", icon: <Utensils className="h-4 w-4" /> },
+    { id: "Aria Condizionata", name: "A/C", icon: "❄️" },
+    { id: "Riscaldamento", name: "Riscaldamento", icon: "🔥" },
+    { id: "TV", name: "TV", icon: "📺" },
+    { id: "Lavatrice", name: "Lavatrice", icon: "🧺" },
+    { id: "Asciugacapelli", name: "Asciugacapelli", icon: "💨" },
+    { id: "Ferro da Stiro", name: "Ferro da Stiro", icon: "👔" },
+    { id: "Terrazza", name: "Terrazza", icon: "🌅" },
+    { id: "Giardino", name: "Giardino", icon: "🌳" },
+    { id: "Trasporti Inclusi", name: "Trasporti", icon: "🚌" },
+    { id: "Colazione Inclusa", name: "Colazione", icon: "🥐" },
+    { id: "Pranzi Inclusi", name: "Pranzi", icon: "🍽️" },
+    { id: "Guida Turistica", name: "Guida", icon: "🗺️" },
+    { id: "Attrezzature Sportive", name: "Sport", icon: "⚽" },
+    { id: "Animali Ammessi", name: "Pet-friendly", icon: "🐕" },
+  ]
+
+  // Pagina di successo
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center p-4 relative overflow-hidden">
-        {/* Background Pattern con tema */}
         <div className="absolute inset-0 opacity-5">
           <div className="absolute top-10 left-10 w-32 h-32 bg-primary rounded-full animate-pulse" />
           <div className="absolute top-40 right-20 w-24 h-24 bg-secondary rounded-full animate-bounce" />
@@ -510,7 +525,6 @@ export default function CreaEventoPage() {
           className="relative z-10"
         >
           <Card className="border-0 shadow-2xl bg-card/95 backdrop-blur-xl w-full max-w-md overflow-hidden">
-            {/* Header con gradiente tema */}
             <div className="relative p-6 bg-gradient-to-r from-primary via-primary/90 to-primary/80 text-primary-foreground">
               <motion.div
                 initial={{ rotate: 0 }}
@@ -543,36 +557,6 @@ export default function CreaEventoPage() {
             </div>
 
             <CardContent className="p-6 text-center">
-              {/* Confetti Animation */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: [0, 1, 0] }}
-                transition={{ duration: 2, delay: 0.5 }}
-                className="absolute inset-0 pointer-events-none"
-              >
-                {[...Array(20)].map((_, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{
-                      y: -20,
-                      x: Math.random() * 400 - 200,
-                      opacity: 1,
-                    }}
-                    animate={{
-                      y: 400,
-                      x: Math.random() * 400 - 200,
-                      opacity: 0,
-                      rotate: Math.random() * 360,
-                    }}
-                    transition={{
-                      duration: 2,
-                      delay: Math.random() * 0.5,
-                    }}
-                    className={`absolute w-2 h-2 bg-primary rounded-full`}
-                  />
-                ))}
-              </motion.div>
-
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -605,17 +589,6 @@ export default function CreaEventoPage() {
                 transition={{ delay: 1.8 }}
                 className="space-y-3"
               >
-                <div className="flex items-center justify-center gap-6 text-xs text-muted-foreground mb-4">
-                  <div className="flex items-center gap-1">
-                    <PartyPopper className="h-4 w-4 text-primary" />
-                    <span>Pronto per essere scoperto</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Gift className="h-4 w-4 text-secondary" />
-                    <span>Condivisioni attive</span>
-                  </div>
-                </div>
-
                 <p className="text-sm text-muted-foreground mb-4">
                   Il tuo evento è ora visibile a tutti gli utenti InVibe. Riceverai notifiche per ogni nuova
                   prenotazione.
@@ -634,14 +607,6 @@ export default function CreaEventoPage() {
                   </Link>
                 </div>
               </motion.div>
-
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2 }} className="mt-4">
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                  <Sparkles className="h-3 w-3" />
-                  <span>Grazie per aver scelto InVibe</span>
-                  <Sparkles className="h-3 w-3" />
-                </div>
-              </motion.div>
             </CardContent>
           </Card>
         </motion.div>
@@ -651,7 +616,7 @@ export default function CreaEventoPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header con tema */}
+      {/* Header */}
       <div className="bg-card/95 backdrop-blur-md border-b border-border px-4 py-4 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center gap-3 max-w-3xl mx-auto">
           <Link href="/">
@@ -680,7 +645,7 @@ export default function CreaEventoPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <AnimatePresence mode="wait">
-            {/* Step 1: Categoria con tema */}
+            {/* Step 1: Categoria */}
             {currentStep === 1 && (
               <motion.div
                 key="step1"
@@ -743,7 +708,7 @@ export default function CreaEventoPage() {
               </motion.div>
             )}
 
-            {/* Step 2: Dettagli con tema */}
+            {/* Step 2: Dettagli */}
             {currentStep === 2 && (
               <motion.div
                 key="step2"
@@ -797,7 +762,7 @@ export default function CreaEventoPage() {
                   </CardContent>
                 </Card>
 
-                {/* Sezione Immagini con tema */}
+                {/* Sezione Immagini */}
                 <Card className="border-0 shadow-xl bg-card/80 backdrop-blur-sm">
                   <CardHeader className="bg-gradient-to-r from-accent/5 to-accent/10 border-b border-border">
                     <CardTitle className="text-lg flex items-center gap-2 text-foreground">
@@ -900,7 +865,7 @@ export default function CreaEventoPage() {
               </motion.div>
             )}
 
-            {/* Step 3: Date e Prezzi con tema */}
+            {/* Step 3: Date e Prezzi */}
             {currentStep === 3 && (
               <motion.div
                 key="step3"
@@ -1015,7 +980,7 @@ export default function CreaEventoPage() {
               </motion.div>
             )}
 
-            {/* Step 4: Servizi con tema */}
+            {/* Step 4: Servizi */}
             {currentStep === 4 && (
               <motion.div
                 key="step4"
@@ -1102,7 +1067,7 @@ export default function CreaEventoPage() {
             )}
           </AnimatePresence>
 
-          {/* Navigation Buttons con tema */}
+          {/* Navigation Buttons */}
           <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4 z-30">
             <div className="max-w-3xl mx-auto flex justify-between items-center gap-4">
               {currentStep > 1 ? (

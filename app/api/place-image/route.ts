@@ -1,54 +1,39 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
-    // Verifica autenticazione
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Non autorizzato", success: false }, { status: 401 })
+
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const { placeLink } = await request.json()
+    const body = await request.json()
+    const { placeName, coordinates } = body
 
-    if (!placeLink) {
-      return NextResponse.json({ error: "Link mancante", success: false }, { status: 400 })
+    if (!placeName && !coordinates) {
+      return NextResponse.json({ error: "Nome del luogo o coordinate richiesti" }, { status: 400 })
     }
 
-    // Genera un ID casuale per l'immagine
-    const randomId = Math.random().toString(36).substring(2, 10)
+    // Per ora generiamo un placeholder, ma in futuro si potrebbe integrare con un servizio di generazione immagini
+    const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(placeName || "location")}`
 
-    // Crea un'immagine placeholder con il nome del luogo estratto dal link
-    let placeName = "location"
-
-    try {
-      const url = new URL(placeLink)
-      if (url.pathname.includes("/place/")) {
-        const pathParts = url.pathname.split("/")
-        const placeIndex = pathParts.indexOf("place")
-        if (placeIndex !== -1 && placeIndex < pathParts.length - 1) {
-          placeName = pathParts[placeIndex + 1].split("/")[0]
-        }
-      }
-    } catch (e) {
-      console.error("Errore nell'analisi del link:", e)
-    }
-
-    // Crea un'immagine placeholder
-    const imageUrl = `/placeholder.svg?height=400&width=600&query=${encodeURIComponent(placeName)}%20${randomId}`
+    // Simula un ritardo per l'elaborazione
+    await new Promise((resolve) => setTimeout(resolve, 1000))
 
     return NextResponse.json({
       success: true,
-      imageUrl,
+      url: imageUrl,
       message: "Immagine generata con successo",
     })
   } catch (error) {
-    console.error("Error generating place image:", error)
+    console.error("Errore nella generazione dell'immagine:", error)
     return NextResponse.json(
       {
-        error: "Errore durante la generazione dell'immagine",
         success: false,
+        error: "Errore interno del server",
       },
       { status: 500 },
     )

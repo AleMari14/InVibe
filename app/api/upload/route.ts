@@ -1,6 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
+import { v2 as cloudinary } from "cloudinary"
+
+// Configura Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+})
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,22 +31,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Il file deve essere un'immagine" }, { status: 400 })
     }
 
-    // Verifica la dimensione del file (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: "Il file deve essere inferiore a 5MB" }, { status: 400 })
+    // Verifica la dimensione del file (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      return NextResponse.json({ error: "Il file deve essere inferiore a 10MB" }, { status: 400 })
     }
 
-    // Per ora, generiamo un URL placeholder
-    // In produzione, qui caricheresti il file su un servizio di storage come Cloudinary, AWS S3, etc.
-    const fileName = `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.-]/g, "")}`
-    const imageUrl = `/placeholder.svg?height=400&width=400&query=${encodeURIComponent(fileName)}`
+    // Converti il file in buffer
+    const bytes = await file.arrayBuffer()
+    const buffer = Buffer.from(bytes)
 
-    // Simula un ritardo per l'upload
-    await new Promise((resolve) => setTimeout(resolve, 1000))
+    // Carica su Cloudinary
+    const uploadResponse = await new Promise((resolve, reject) => {
+      cloudinary.uploader
+        .upload_stream(
+          {
+            resource_type: "image",
+            folder: type === "profile" ? "invibe/profiles" : "invibe/events",
+            transformation: [{ width: 800, height: 600, crop: "limit" }, { quality: "auto" }, { format: "auto" }],
+          },
+          (error, result) => {
+            if (error) {
+              console.error("Cloudinary upload error:", error)
+              reject(error)
+            } else {
+              resolve(result)
+            }
+          },
+        )
+        .end(buffer)
+    })
+
+    const result = uploadResponse as any
+
+    if (!result || !result.secure_url) {
+      throw new Error("Errore nel caricamento su Cloudinary")
+    }
 
     return NextResponse.json({
       success: true,
-      url: imageUrl,
+      url: result.secure_url,
+      publicId: result.public_id,
       message: "Immagine caricata con successo",
     })
   } catch (error) {
@@ -46,7 +78,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         success: false,
-        error: "Errore interno del server",
+        error: "Errore interno del server durante il caricamento dell'immagine",
       },
       { status: 500 },
     )
