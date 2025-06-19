@@ -88,12 +88,19 @@ export default function HomePage() {
   const { data: session } = useSession()
   const router = useRouter()
 
-  // Aggiorna imageKey quando cambia l'immagine della sessione
-  useEffect(() => {
-    if (session?.user?.image) {
-      setImageKey(Date.now())
-    }
-  }, [session?.user?.image])
+  // Funzione per ottenere l'URL dell'immagine con cache busting
+  const getImageUrl = (imageUrl: string | null | undefined) => {
+    if (!imageUrl) return "/placeholder.svg?height=32&width=32"
+    // Rimuovi il cache busting che può causare problemi
+    return imageUrl
+  }
+
+  // Rimuovi questo useEffect che causa problemi
+  // useEffect(() => {
+  //   if (session?.user?.image) {
+  //     setImageKey(Date.now())
+  //   }
+  // }, [session?.user?.image])
 
   useEffect(() => {
     fetchEvents()
@@ -211,12 +218,6 @@ export default function HomePage() {
     })
   }
 
-  // Funzione per ottenere l'URL dell'immagine con cache busting
-  const getImageUrl = (imageUrl: string | null | undefined) => {
-    if (!imageUrl) return ""
-    return `${imageUrl}?v=${imageKey}`
-  }
-
   const MobileMenu = () => (
     <Sheet>
       <SheetTrigger asChild>
@@ -303,8 +304,7 @@ export default function HomePage() {
                   <Link href="/profile">
                     <Avatar className="h-8 w-8 ring-2 ring-blue-200 hover:ring-blue-300 transition-all">
                       <AvatarImage
-                        key={imageKey}
-                        src={getImageUrl(session.user?.image) || "/placeholder.svg?height=32&width=32&query=user"}
+                        src={session.user?.image || "/placeholder.svg?height=32&width=32&query=user"}
                         alt={session.user?.name || ""}
                       />
                       <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
@@ -757,10 +757,10 @@ export default function HomePage() {
                             <div className="flex items-center gap-1">
                               <Avatar className="h-5 w-5">
                                 <AvatarImage
-                                  key={imageKey}
                                   src={
                                     getImageUrl(event.host.image) ||
                                     "/placeholder.svg?height=20&width=20&query=host" ||
+                                    "/placeholder.svg" ||
                                     "/placeholder.svg"
                                   }
                                 />
@@ -817,8 +817,7 @@ export default function HomePage() {
             {session ? (
               <Avatar className="h-5 w-5">
                 <AvatarImage
-                  key={imageKey}
-                  src={getImageUrl(session.user?.image) || "/placeholder.svg?height=20&width=20&query=user"}
+                  src={session.user?.image || "/placeholder.svg?height=20&width=20&query=user"}
                   alt={session.user?.name || ""}
                 />
                 <AvatarFallback className="text-[8px] bg-gradient-to-r from-blue-500 to-purple-500 text-white">

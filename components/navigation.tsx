@@ -16,30 +16,16 @@ export function Navigation() {
   const { data: session } = useSession()
   const { unreadCount } = useNotifications()
   const [mounted, setMounted] = useState(false)
-  const [imageKey, setImageKey] = useState(Date.now())
 
   useEffect(() => {
     setMounted(true)
   }, [])
-
-  // Aggiorna l'immagine quando la sessione cambia
-  useEffect(() => {
-    if (session?.user?.image) {
-      setImageKey(Date.now())
-    }
-  }, [session?.user?.image])
 
   if (!mounted) return null
 
   const isActive = (path: string) => {
     if (path === "/") return pathname === "/"
     return pathname?.startsWith(path)
-  }
-
-  // Funzione per ottenere l'URL dell'immagine con cache busting
-  const getImageUrl = (imageUrl: string | null | undefined) => {
-    if (!imageUrl) return ""
-    return `${imageUrl}?v=${imageKey}`
   }
 
   const navItems = [
@@ -98,8 +84,7 @@ export function Navigation() {
                 <div className="relative">
                   <Avatar className="h-6 w-6">
                     <AvatarImage
-                      key={imageKey}
-                      src={getImageUrl(session.user?.image) || "/placeholder.svg"}
+                      src={session.user?.image || "/placeholder.svg?height=24&width=24&query=user"}
                       alt={session.user?.name || ""}
                     />
                     <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">

@@ -366,8 +366,7 @@ export default function ProfilePage() {
 
   // Funzione per ottenere l'URL dell'immagine con cache busting
   const getImageUrl = (imageUrl: string | null | undefined) => {
-    if (!imageUrl) return ""
-    return `${imageUrl}?v=${imageKey}`
+    return imageUrl || "/placeholder.svg?height=96&width=96"
   }
 
   const currentImage = profileData.image || profile?.image || session?.user?.image || ""
@@ -399,8 +398,7 @@ export default function ProfilePage() {
             >
               <Avatar className="h-24 w-24 border-4 border-white/30 shadow-xl">
                 <AvatarImage
-                  key={imageKey}
-                  src={getImageUrl(currentImage) || "/placeholder.svg"}
+                  src={profile?.image || session?.user?.image || "/placeholder.svg?height=96&width=96&query=user"}
                   alt={profile?.name || session?.user?.name || ""}
                 />
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
@@ -774,8 +772,7 @@ export default function ProfilePage() {
               <div className="relative">
                 <Avatar className="h-24 w-24 border-4 border-gray-200 dark:border-gray-700">
                   <AvatarImage
-                    key={imageKey}
-                    src={getImageUrl(profileData.image) || "/placeholder.svg"}
+                    src={profileData.image || "/placeholder.svg?height=96&width=96&query=user"}
                     alt="Profile"
                   />
                   <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
