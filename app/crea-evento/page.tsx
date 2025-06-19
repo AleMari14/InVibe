@@ -29,6 +29,10 @@ import {
   Camera,
   X,
   Globe,
+  Sparkles,
+  Target,
+  Clock,
+  AlertCircle,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -88,6 +92,7 @@ export default function CreaEventoPage() {
   const [locationError, setLocationError] = useState("")
   const [placePreview, setPlacePreview] = useState<string | null>(null)
   const [isMounted, setIsMounted] = useState(false)
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   // Imposta isMounted a true solo dopo il montaggio del componente
   useEffect(() => {
@@ -114,6 +119,39 @@ export default function CreaEventoPage() {
       return () => clearTimeout(timer)
     }
   }, [categoria, currentStep])
+
+  // Validazione real-time
+  useEffect(() => {
+    const errors: Record<string, string> = {}
+
+    if (currentStep >= 2) {
+      if (!titolo.trim()) errors.titolo = "Il titolo è obbligatorio"
+      else if (titolo.length < 10) errors.titolo = "Il titolo deve essere di almeno 10 caratteri"
+
+      if (!descrizione.trim()) errors.descrizione = "La descrizione è obbligatoria"
+      else if (descrizione.length < 50) errors.descrizione = "La descrizione deve essere di almeno 50 caratteri"
+
+      if (!location) errors.location = "La località è obbligatoria"
+    }
+
+    if (currentStep >= 3) {
+      if (!dataInizio) errors.dataInizio = "La data di inizio è obbligatoria"
+      else if (new Date(dataInizio) < new Date()) errors.dataInizio = "La data deve essere futura"
+
+      if (dataFine && new Date(dataFine) <= new Date(dataInizio))
+        errors.dataFine = "La data di fine deve essere successiva all'inizio"
+
+      if (!postiTotali) errors.postiTotali = "Il numero di posti è obbligatorio"
+      else if (Number.parseInt(postiTotali) < 2) errors.postiTotali = "Minimo 2 posti"
+      else if (Number.parseInt(postiTotali) > 50) errors.postiTotali = "Massimo 50 posti"
+
+      if (!prezzo) errors.prezzo = "Il prezzo è obbligatorio"
+      else if (Number.parseFloat(prezzo) <= 0) errors.prezzo = "Il prezzo deve essere maggiore di 0"
+      else if (Number.parseFloat(prezzo) > 10000) errors.prezzo = "Prezzo massimo €10.000"
+    }
+
+    setFieldErrors(errors)
+  }, [titolo, descrizione, location, dataInizio, dataFine, postiTotali, prezzo, currentStep])
 
   // Funzioni di utilità
   const extractInfoFromMapLink = (link: string) => {
@@ -320,9 +358,25 @@ export default function CreaEventoPage() {
       case 1:
         return categoria !== ""
       case 2:
-        return titolo.trim() !== "" && descrizione.trim() !== "" && location !== "" && coordinates !== null
+        return (
+          titolo.trim() !== "" &&
+          descrizione.trim() !== "" &&
+          location !== "" &&
+          coordinates !== null &&
+          !fieldErrors.titolo &&
+          !fieldErrors.descrizione &&
+          !fieldErrors.location
+        )
       case 3:
-        return dataInizio !== "" && postiTotali !== "" && prezzo !== ""
+        return (
+          dataInizio !== "" &&
+          postiTotali !== "" &&
+          prezzo !== "" &&
+          !fieldErrors.dataInizio &&
+          !fieldErrors.dataFine &&
+          !fieldErrors.postiTotali &&
+          !fieldErrors.prezzo
+        )
       case 4:
         return true // Servizi opzionali, sempre possibile procedere
       default:
@@ -336,34 +390,8 @@ export default function CreaEventoPage() {
       toast.error("Seleziona una località valida sulla mappa")
       return false
     }
-    if (!titolo.trim()) {
-      setError("Il titolo è obbligatorio")
-      toast.error("Il titolo è obbligatorio")
-      return false
-    }
-    if (!descrizione.trim()) {
-      setError("La descrizione è obbligatoria")
-      toast.error("La descrizione è obbligatoria")
-      return false
-    }
-    if (!dataInizio) {
-      setError("La data di inizio è obbligatoria")
-      toast.error("La data di inizio è obbligatoria")
-      return false
-    }
-    if (dataFine && new Date(dataFine) < new Date(dataInizio)) {
-      setError("La data di fine deve essere successiva alla data di inizio")
-      toast.error("La data di fine deve essere successiva alla data di inizio")
-      return false
-    }
-    if (!postiTotali || Number.parseInt(postiTotali) < 2) {
-      setError("Il numero di posti deve essere almeno 2")
-      toast.error("Il numero di posti deve essere almeno 2")
-      return false
-    }
-    if (!prezzo || Number.parseFloat(prezzo) <= 0) {
-      setError("Il prezzo deve essere maggiore di 0")
-      toast.error("Il prezzo deve essere maggiore di 0")
+    if (Object.keys(fieldErrors).length > 0) {
+      toast.error("Correggi gli errori nel form prima di continuare")
       return false
     }
     return true
@@ -538,10 +566,26 @@ export default function CreaEventoPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-primary/10 via-secondary/10 to-accent/10 flex items-center justify-center p-4 relative overflow-hidden">
         <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-10 left-10 w-32 h-32 bg-primary rounded-full animate-pulse" />
-          <div className="absolute top-40 right-20 w-24 h-24 bg-secondary rounded-full animate-bounce" />
-          <div className="absolute bottom-20 left-20 w-28 h-28 bg-accent rounded-full animate-pulse" />
-          <div className="absolute bottom-40 right-10 w-20 h-20 bg-primary/80 rounded-full animate-bounce" />
+          <motion.div
+            className="absolute top-10 left-10 w-32 h-32 bg-primary rounded-full"
+            animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }}
+            transition={{ duration: 3, repeat: Number.POSITIVE_INFINITY }}
+          />
+          <motion.div
+            className="absolute top-40 right-20 w-24 h-24 bg-secondary rounded-full"
+            animate={{ y: [0, -20, 0], rotate: [0, 180, 360] }}
+            transition={{ duration: 4, repeat: Number.POSITIVE_INFINITY }}
+          />
+          <motion.div
+            className="absolute bottom-20 left-20 w-28 h-28 bg-accent rounded-full"
+            animate={{ scale: [1, 1.3, 1], opacity: [0.2, 0.5, 0.2] }}
+            transition={{ duration: 2.5, repeat: Number.POSITIVE_INFINITY }}
+          />
+          <motion.div
+            className="absolute bottom-40 right-10 w-20 h-20 bg-primary/80 rounded-full"
+            animate={{ x: [0, 20, 0], y: [0, -10, 0] }}
+            transition={{ duration: 3.5, repeat: Number.POSITIVE_INFINITY }}
+          />
         </div>
 
         <motion.div
@@ -646,7 +690,7 @@ export default function CreaEventoPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
       {/* Header */}
       <div className="bg-card/95 backdrop-blur-md border-b border-border px-4 py-4 sticky top-0 z-40 shadow-sm">
         <div className="flex items-center gap-3 max-w-3xl mx-auto">
@@ -656,7 +700,8 @@ export default function CreaEventoPage() {
             </Button>
           </Link>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
               Crea Nuovo Evento
             </h1>
             <div className="flex items-center gap-3 mt-2">
@@ -669,9 +714,12 @@ export default function CreaEventoPage() {
 
       <div className="max-w-3xl mx-auto p-4 pb-32">
         {error && (
-          <Alert className="border-destructive/50 bg-destructive/10 mb-6">
-            <AlertDescription className="text-destructive">{error}</AlertDescription>
-          </Alert>
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+            <Alert className="border-destructive/50 bg-destructive/10 mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-destructive">{error}</AlertDescription>
+            </Alert>
+          </motion.div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -692,6 +740,7 @@ export default function CreaEventoPage() {
                         <span className="text-primary-foreground font-bold">1</span>
                       </div>
                       Che tipo di evento vuoi creare?
+                      <Target className="h-5 w-5 text-primary ml-auto" />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-4">
@@ -790,6 +839,7 @@ export default function CreaEventoPage() {
                         <span className="text-secondary-foreground font-bold">2</span>
                       </div>
                       Descrivi il tuo evento
+                      <Clock className="h-5 w-5 text-secondary ml-auto" />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
@@ -802,9 +852,18 @@ export default function CreaEventoPage() {
                         value={titolo}
                         onChange={(e) => setTitolo(e.target.value)}
                         placeholder="Es: Weekend in villa con piscina a Toscana"
-                        className="h-12 text-base border-2 focus:border-primary bg-background text-foreground"
+                        className={`h-12 text-base border-2 focus:border-primary bg-background text-foreground ${
+                          fieldErrors.titolo ? "border-destructive" : ""
+                        }`}
                         required
                       />
+                      {fieldErrors.titolo && (
+                        <p className="text-sm text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {fieldErrors.titolo}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{titolo.length}/100 caratteri</p>
                     </div>
 
                     <div className="space-y-2">
@@ -816,13 +875,28 @@ export default function CreaEventoPage() {
                         value={descrizione}
                         onChange={(e) => setDescrizione(e.target.value)}
                         placeholder="Descrivi nel dettaglio cosa include l'evento, cosa farete, cosa è incluso nel prezzo..."
-                        className="min-h-[120px] text-base border-2 focus:border-primary resize-none bg-background text-foreground"
+                        className={`min-h-[120px] text-base border-2 focus:border-primary resize-none bg-background text-foreground ${
+                          fieldErrors.descrizione ? "border-destructive" : ""
+                        }`}
                         required
                       />
+                      {fieldErrors.descrizione && (
+                        <p className="text-sm text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {fieldErrors.descrizione}
+                        </p>
+                      )}
+                      <p className="text-xs text-muted-foreground">{descrizione.length}/500 caratteri</p>
                     </div>
 
                     <div className="space-y-2">
                       <LocationPicker value={location} onChange={handleLocationChange} error={locationError} />
+                      {fieldErrors.location && (
+                        <p className="text-sm text-destructive flex items-center gap-1">
+                          <AlertCircle className="h-3 w-3" />
+                          {fieldErrors.location}
+                        </p>
+                      )}
                     </div>
 
                     {/* Bottone per continuare inline */}
@@ -965,6 +1039,7 @@ export default function CreaEventoPage() {
                         <span className="text-accent-foreground font-bold">3</span>
                       </div>
                       Date e dettagli pratici
+                      <DollarSign className="h-5 w-5 text-accent ml-auto" />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6 space-y-6">
@@ -982,9 +1057,17 @@ export default function CreaEventoPage() {
                           type="datetime-local"
                           value={dataInizio}
                           onChange={(e) => setDataInizio(e.target.value)}
-                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
+                          className={`h-12 text-base border-2 focus:border-accent bg-background text-foreground ${
+                            fieldErrors.dataInizio ? "border-destructive" : ""
+                          }`}
                           required
                         />
+                        {fieldErrors.dataInizio && (
+                          <p className="text-sm text-destructive flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {fieldErrors.dataInizio}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -996,8 +1079,16 @@ export default function CreaEventoPage() {
                           type="datetime-local"
                           value={dataFine}
                           onChange={(e) => setDataFine(e.target.value)}
-                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
+                          className={`h-12 text-base border-2 focus:border-accent bg-background text-foreground ${
+                            fieldErrors.dataFine ? "border-destructive" : ""
+                          }`}
                         />
+                        {fieldErrors.dataFine && (
+                          <p className="text-sm text-destructive flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {fieldErrors.dataFine}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1014,12 +1105,21 @@ export default function CreaEventoPage() {
                           id="postiTotali"
                           type="number"
                           min="2"
+                          max="50"
                           value={postiTotali}
                           onChange={(e) => setPostiTotali(e.target.value)}
                           placeholder="Es: 6"
-                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
+                          className={`h-12 text-base border-2 focus:border-accent bg-background text-foreground ${
+                            fieldErrors.postiTotali ? "border-destructive" : ""
+                          }`}
                           required
                         />
+                        {fieldErrors.postiTotali && (
+                          <p className="text-sm text-destructive flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {fieldErrors.postiTotali}
+                          </p>
+                        )}
                       </div>
 
                       <div className="space-y-2">
@@ -1034,13 +1134,22 @@ export default function CreaEventoPage() {
                           id="prezzo"
                           type="number"
                           min="0"
+                          max="10000"
                           step="0.01"
                           value={prezzo}
                           onChange={(e) => setPrezzo(e.target.value)}
                           placeholder="Es: 150.00"
-                          className="h-12 text-base border-2 focus:border-accent bg-background text-foreground"
+                          className={`h-12 text-base border-2 focus:border-accent bg-background text-foreground ${
+                            fieldErrors.prezzo ? "border-destructive" : ""
+                          }`}
                           required
                         />
+                        {fieldErrors.prezzo && (
+                          <p className="text-sm text-destructive flex items-center gap-1">
+                            <AlertCircle className="h-3 w-3" />
+                            {fieldErrors.prezzo}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1099,6 +1208,7 @@ export default function CreaEventoPage() {
                         <span className="text-primary-foreground font-bold">4</span>
                       </div>
                       Servizi e comfort inclusi
+                      <Sparkles className="h-5 w-5 text-primary ml-auto" />
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="p-6">

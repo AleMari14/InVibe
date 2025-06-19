@@ -56,6 +56,7 @@ export default function ProfilePage() {
   const [mounted, setMounted] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [imageKey, setImageKey] = useState(Date.now()) // Per forzare il refresh dell'immagine
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { profile, isLoading, updateProfile, refreshProfile } = useUserProfile()
 
@@ -170,16 +171,48 @@ export default function ProfilePage() {
       const data = await response.json()
 
       if (data.success && data.url) {
-        setProfileData((prev) => ({ ...prev, image: data.url }))
-        toast.success("Immagine caricata con successo!")
+        const newImageUrl = data.url
+
+        // Aggiorna lo stato locale immediatamente
+        setProfileData((prev) => ({ ...prev, image: newImageUrl }))
+
+        // Aggiorna il profilo nel database
+        const updateResult = await updateProfile({ image: newImageUrl })
+
+        if (updateResult.success) {
+          // Aggiorna la sessione NextAuth
+          await update({
+            ...session,
+            user: {
+              ...session?.user,
+              image: newImageUrl,
+            },
+          })
+
+          // Forza il refresh dell'immagine
+          setImageKey(Date.now())
+
+          // Refresh del profilo
+          refreshProfile()
+
+          toast.success("Immagine profilo aggiornata con successo!")
+        } else {
+          throw new Error(updateResult.error || "Errore durante l'aggiornamento del profilo")
+        }
       } else {
         throw new Error(data.error || "Errore durante l'upload")
       }
     } catch (error: any) {
       console.error("Upload error:", error)
       toast.error(error.message || "Errore durante l'upload dell'immagine")
+      // Ripristina l'immagine precedente in caso di errore
+      setProfileData((prev) => ({ ...prev, image: profile?.image || "" }))
     } finally {
       setIsUploading(false)
+      // Reset del file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ""
+      }
     }
   }
 
@@ -199,6 +232,11 @@ export default function ProfilePage() {
               image: profileData.image,
             },
           })
+        }
+
+        // Forza il refresh dell'immagine se è cambiata
+        if (profileData.image !== session?.user?.image) {
+          setImageKey(Date.now())
         }
 
         setIsEditingProfile(false)
@@ -326,6 +364,14 @@ export default function ProfilePage() {
     { label: "Notifiche", href: "/notifiche", icon: Bell, color: "text-yellow-500" },
   ]
 
+  // Funzione per ottenere l'URL dell'immagine con cache busting
+  const getImageUrl = (imageUrl: string | null | undefined) => {
+    if (!imageUrl) return ""
+    return `${imageUrl}?v=${imageKey}`
+  }
+
+  const currentImage = profileData.image || profile?.image || session?.user?.image || ""
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-20">
       {/* Header */}
@@ -353,7 +399,8 @@ export default function ProfilePage() {
             >
               <Avatar className="h-24 w-24 border-4 border-white/30 shadow-xl">
                 <AvatarImage
-                  src={profile?.image || session?.user?.image || ""}
+                  key={imageKey}
+                  src={getImageUrl(currentImage) || "/placeholder.svg"}
                   alt={profile?.name || session?.user?.name || ""}
                 />
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
@@ -726,7 +773,11 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <Avatar className="h-24 w-24 border-4 border-gray-200 dark:border-gray-700">
-                  <AvatarImage src={profileData.image || "/placeholder.svg"} alt="Profile" />
+                  <AvatarImage
+                    key={imageKey}
+                    src={getImageUrl(profileData.image) || "/placeholder.svg"}
+                    alt="Profile"
+                  />
                   <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
                     {profileData.name?.charAt(0) || "U"}
                   </AvatarFallback>
