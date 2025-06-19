@@ -3,26 +3,41 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 
+interface Notification {
+  _id: string
+  type: string
+  title: string
+  message: string
+  read: boolean
+  createdAt: string
+  fromUserName?: string
+  eventId?: string
+  roomId?: string
+}
+
 export function useNotifications() {
   const { data: session } = useSession()
   const [unreadCount, setUnreadCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+  const [notifications, setNotifications] = useState<Notification[]>([])
 
-  const fetchUnreadCount = async () => {
+  const fetchData = async () => {
     if (!session?.user?.email) {
       setUnreadCount(0)
+      setNotifications([])
       setIsLoading(false)
       return
     }
 
     try {
-      const response = await fetch("/api/messages/unread-count")
-      if (response.ok) {
-        const data = await response.json()
-        setUnreadCount(data.count || 0)
+      const res = await fetch("/api/notifications")
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data.notifications || [])
+        setUnreadCount(data.notifications.filter((n: Notification) => !n.read).length)
       }
     } catch (error) {
-      console.error("Error fetching unread count:", error)
+      console.error("Error fetching notifications:", error)
     } finally {
       setIsLoading(false)
     }
@@ -30,21 +45,18 @@ export function useNotifications() {
 
   // Fetch iniziale
   useEffect(() => {
-    fetchUnreadCount()
+    fetchData()
   }, [session])
 
   // Polling ogni 30 secondi per aggiornamenti real-time
   useEffect(() => {
     if (!session?.user?.email) return
-
-    const interval = setInterval(fetchUnreadCount, 30000)
+    const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
   }, [session])
 
   // Funzione per aggiornare manualmente il counter
-  const refreshUnreadCount = () => {
-    fetchUnreadCount()
-  }
+  const refresh = () => fetchData()
 
   // Funzione per decrementare il counter quando si legge un messaggio
   const markAsRead = (count = 1) => {
@@ -57,9 +69,10 @@ export function useNotifications() {
   }
 
   return {
+    notifications,
     unreadCount,
     isLoading,
-    refreshUnreadCount,
+    refresh,
     markAsRead,
     markAllAsRead,
   }
