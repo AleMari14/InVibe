@@ -3,68 +3,64 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 
-interface Notification {
-  _id: string
-  type: string
-  title: string
-  message: string
-  read: boolean
-  createdAt: string
-  fromUserName?: string
-}
-
 export function useNotifications() {
   const { data: session } = useSession()
-  const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
-  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
 
-  useEffect(() => {
-    if (session?.user?.email) {
-      fetchNotifications()
-
-      // Poll for new notifications every 30 seconds
-      const interval = setInterval(fetchNotifications, 30000)
-      return () => clearInterval(interval)
+  const fetchUnreadCount = async () => {
+    if (!session?.user?.email) {
+      setUnreadCount(0)
+      setIsLoading(false)
+      return
     }
-  }, [session])
 
-  const fetchNotifications = async () => {
     try {
-      const response = await fetch("/api/notifications")
+      const response = await fetch("/api/messages/unread-count")
       if (response.ok) {
         const data = await response.json()
-        setNotifications(data.notifications)
-        setUnreadCount(data.notifications.filter((n: Notification) => !n.read).length)
-        setUnreadMessages(data.unreadMessages)
+        setUnreadCount(data.count || 0)
       }
     } catch (error) {
-      console.error("Error fetching notifications:", error)
+      console.error("Error fetching unread count:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const markAsRead = async (notificationId: string) => {
-    try {
-      const response = await fetch(`/api/notifications/${notificationId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ read: true }),
-      })
+  // Fetch iniziale
+  useEffect(() => {
+    fetchUnreadCount()
+  }, [session])
 
-      if (response.ok) {
-        setNotifications((prev) => prev.map((n) => (n._id === notificationId ? { ...n, read: true } : n)))
-        setUnreadCount((prev) => Math.max(0, prev - 1))
-      }
-    } catch (error) {
-      console.error("Error marking notification as read:", error)
-    }
+  // Polling ogni 30 secondi per aggiornamenti real-time
+  useEffect(() => {
+    if (!session?.user?.email) return
+
+    const interval = setInterval(fetchUnreadCount, 30000)
+    return () => clearInterval(interval)
+  }, [session])
+
+  // Funzione per aggiornare manualmente il counter
+  const refreshUnreadCount = () => {
+    fetchUnreadCount()
+  }
+
+  // Funzione per decrementare il counter quando si legge un messaggio
+  const markAsRead = (count = 1) => {
+    setUnreadCount((prev) => Math.max(0, prev - count))
+  }
+
+  // Funzione per azzerare il counter
+  const markAllAsRead = () => {
+    setUnreadCount(0)
   }
 
   return {
-    notifications,
     unreadCount,
-    unreadMessages,
+    isLoading,
+    refreshUnreadCount,
     markAsRead,
-    refetch: fetchNotifications,
+    markAllAsRead,
   }
 }

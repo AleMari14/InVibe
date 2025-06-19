@@ -56,7 +56,6 @@ export default function ProfilePage() {
   const [mounted, setMounted] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [imageKey, setImageKey] = useState(Date.now()) // Per forzare il refresh dell'immagine
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { profile, isLoading, updateProfile, refreshProfile } = useUserProfile()
 
@@ -83,6 +82,22 @@ export default function ProfilePage() {
     totalMessages: 0,
     rating: 0,
   })
+
+  // Funzione per ottenere l'URL dell'immagine da Cloudinary
+  const getCloudinaryImageUrl = (imageUrl: string | null | undefined, size = 96) => {
+    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
+
+    // Se è già un URL Cloudinary, ottimizzalo
+    if (imageUrl.includes("cloudinary.com")) {
+      // Aggiungi trasformazioni per ottimizzare l'immagine
+      const parts = imageUrl.split("/upload/")
+      if (parts.length === 2) {
+        return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto/${parts[1]}`
+      }
+    }
+
+    return imageUrl
+  }
 
   useEffect(() => {
     setMounted(true)
@@ -189,9 +204,6 @@ export default function ProfilePage() {
             },
           })
 
-          // Forza il refresh dell'immagine
-          setImageKey(Date.now())
-
           // Refresh del profilo
           refreshProfile()
 
@@ -232,11 +244,6 @@ export default function ProfilePage() {
               image: profileData.image,
             },
           })
-        }
-
-        // Forza il refresh dell'immagine se è cambiata
-        if (profileData.image !== session?.user?.image) {
-          setImageKey(Date.now())
         }
 
         setIsEditingProfile(false)
@@ -364,11 +371,6 @@ export default function ProfilePage() {
     { label: "Notifiche", href: "/notifiche", icon: Bell, color: "text-yellow-500" },
   ]
 
-  // Funzione per ottenere l'URL dell'immagine con cache busting
-  const getImageUrl = (imageUrl: string | null | undefined) => {
-    return imageUrl || "/placeholder.svg?height=96&width=96"
-  }
-
   const currentImage = profileData.image || profile?.image || session?.user?.image || ""
 
   return (
@@ -398,7 +400,7 @@ export default function ProfilePage() {
             >
               <Avatar className="h-24 w-24 border-4 border-white/30 shadow-xl">
                 <AvatarImage
-                  src={profile?.image || session?.user?.image || "/placeholder.svg?height=96&width=96&query=user"}
+                  src={getCloudinaryImageUrl(currentImage, 96) || "/placeholder.svg"}
                   alt={profile?.name || session?.user?.name || ""}
                 />
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
@@ -771,10 +773,7 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <Avatar className="h-24 w-24 border-4 border-gray-200 dark:border-gray-700">
-                  <AvatarImage
-                    src={profileData.image || "/placeholder.svg?height=96&width=96&query=user"}
-                    alt="Profile"
-                  />
+                  <AvatarImage src={getCloudinaryImageUrl(profileData.image, 96) || "/placeholder.svg"} alt="Profile" />
                   <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
                     {profileData.name?.charAt(0) || "U"}
                   </AvatarFallback>

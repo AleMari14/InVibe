@@ -84,23 +84,24 @@ export default function HomePage() {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [error, setError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
-  const [imageKey, setImageKey] = useState(Date.now())
   const { data: session } = useSession()
   const router = useRouter()
 
-  // Funzione per ottenere l'URL dell'immagine con cache busting
-  const getImageUrl = (imageUrl: string | null | undefined) => {
-    if (!imageUrl) return "/placeholder.svg?height=32&width=32"
-    // Rimuovi il cache busting che può causare problemi
+  // Funzione per ottenere l'URL dell'immagine da Cloudinary
+  const getCloudinaryImageUrl = (imageUrl: string | null | undefined, size = 32) => {
+    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
+
+    // Se è già un URL Cloudinary, ottimizzalo
+    if (imageUrl.includes("cloudinary.com")) {
+      // Aggiungi trasformazioni per ottimizzare l'immagine
+      const parts = imageUrl.split("/upload/")
+      if (parts.length === 2) {
+        return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto/${parts[1]}`
+      }
+    }
+
     return imageUrl
   }
-
-  // Rimuovi questo useEffect che causa problemi
-  // useEffect(() => {
-  //   if (session?.user?.image) {
-  //     setImageKey(Date.now())
-  //   }
-  // }, [session?.user?.image])
 
   useEffect(() => {
     fetchEvents()
@@ -304,7 +305,7 @@ export default function HomePage() {
                   <Link href="/profile">
                     <Avatar className="h-8 w-8 ring-2 ring-blue-200 hover:ring-blue-300 transition-all">
                       <AvatarImage
-                        src={session.user?.image || "/placeholder.svg?height=32&width=32&query=user"}
+                        src={getCloudinaryImageUrl(session.user?.image, 32) || "/placeholder.svg"}
                         alt={session.user?.name || ""}
                       />
                       <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
@@ -756,14 +757,7 @@ export default function HomePage() {
                           {event.host && (
                             <div className="flex items-center gap-1">
                               <Avatar className="h-5 w-5">
-                                <AvatarImage
-                                  src={
-                                    getImageUrl(event.host.image) ||
-                                    "/placeholder.svg?height=20&width=20&query=host" ||
-                                    "/placeholder.svg" ||
-                                    "/placeholder.svg"
-                                  }
-                                />
+                                <AvatarImage src={getCloudinaryImageUrl(event.host.image, 20) || "/placeholder.svg"} />
                                 <AvatarFallback className="text-[8px] bg-gradient-to-r from-blue-500 to-purple-500 text-white">
                                   {event.host.name?.charAt(0) || "H"}
                                 </AvatarFallback>
@@ -817,7 +811,7 @@ export default function HomePage() {
             {session ? (
               <Avatar className="h-5 w-5">
                 <AvatarImage
-                  src={session.user?.image || "/placeholder.svg?height=20&width=20&query=user"}
+                  src={getCloudinaryImageUrl(session.user?.image, 20) || "/placeholder.svg"}
                   alt={session.user?.name || ""}
                 />
                 <AvatarFallback className="text-[8px] bg-gradient-to-r from-blue-500 to-purple-500 text-white">

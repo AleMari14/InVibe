@@ -28,6 +28,22 @@ export function Navigation() {
     return pathname?.startsWith(path)
   }
 
+  // Funzione per ottenere l'URL dell'immagine da Cloudinary
+  const getCloudinaryImageUrl = (imageUrl: string | null | undefined) => {
+    if (!imageUrl) return "/placeholder.svg?height=24&width=24"
+
+    // Se è già un URL Cloudinary, ottimizzalo
+    if (imageUrl.includes("cloudinary.com")) {
+      // Aggiungi trasformazioni per ottimizzare l'immagine
+      const parts = imageUrl.split("/upload/")
+      if (parts.length === 2) {
+        return `${parts[0]}/upload/w_48,h_48,c_fill,f_auto,q_auto/${parts[1]}`
+      }
+    }
+
+    return imageUrl
+  }
+
   const navItems = [
     {
       name: "Home",
@@ -84,7 +100,7 @@ export function Navigation() {
                 <div className="relative">
                   <Avatar className="h-6 w-6">
                     <AvatarImage
-                      src={session.user?.image || "/placeholder.svg?height=24&width=24&query=user"}
+                      src={getCloudinaryImageUrl(session.user?.image) || "/placeholder.svg"}
                       alt={session.user?.name || ""}
                     />
                     <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
