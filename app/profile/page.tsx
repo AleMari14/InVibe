@@ -33,7 +33,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -82,33 +82,6 @@ export default function ProfilePage() {
     totalMessages: 0,
     rating: 0,
   })
-
-  // Funzione per ottenere l'URL dell'immagine ottimizzato
-  const getOptimizedImageUrl = (imageUrl: string | null | undefined, size = 96) => {
-    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
-
-    // Se è un URL Cloudinary, ottimizzalo
-    if (imageUrl.includes("cloudinary.com")) {
-      try {
-        const parts = imageUrl.split("/upload/")
-        if (parts.length === 2) {
-          // Aggiungi trasformazioni Cloudinary per ottimizzare l'immagine
-          return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto,dpr_2.0/${parts[1]}`
-        }
-      } catch (error) {
-        console.error("Error optimizing Cloudinary URL:", error)
-        return imageUrl // Fallback all'URL originale
-      }
-    }
-
-    // Se è un URL Google (da OAuth), restituiscilo così com'è
-    if (imageUrl.includes("googleusercontent.com")) {
-      return imageUrl
-    }
-
-    // Per altri URL, restituiscili così come sono
-    return imageUrl
-  }
 
   useEffect(() => {
     setMounted(true)
@@ -409,18 +382,12 @@ export default function ProfilePage() {
               transition={{ delay: 0.2, type: "spring" }}
               className="relative"
             >
-              <Avatar className="h-24 w-24 border-4 border-white/30 shadow-xl">
-                <AvatarImage
-                  src={getOptimizedImageUrl(currentImage, 96) || "/placeholder.svg"}
-                  alt={profile?.name || session?.user?.name || ""}
-                  onError={(e) => {
-                    console.log("Profile header avatar failed to load:", e.currentTarget.src)
-                  }}
-                />
-                <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
-                  {(profile?.name || session?.user?.name)?.charAt(0) || "U"}
-                </AvatarFallback>
-              </Avatar>
+              <OptimizedAvatar
+                src={currentImage}
+                alt={profile?.name || session?.user?.name || ""}
+                size={96}
+                className="h-24 w-24 border-4 border-white/30 shadow-xl"
+              />
               <div className="absolute -bottom-2 -right-2 bg-green-500 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
               </div>
@@ -786,18 +753,12 @@ export default function ProfilePage() {
             {/* Profile Image Upload */}
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
-                <Avatar className="h-24 w-24 border-4 border-gray-200 dark:border-gray-700">
-                  <AvatarImage
-                    src={getOptimizedImageUrl(profileData.image, 96) || "/placeholder.svg"}
-                    alt="Profile"
-                    onError={(e) => {
-                      console.log("Edit dialog avatar failed to load:", e.currentTarget.src)
-                    }}
-                  />
-                  <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
-                    {profileData.name?.charAt(0) || "U"}
-                  </AvatarFallback>
-                </Avatar>
+                <OptimizedAvatar
+                  src={profileData.image}
+                  alt="Profile"
+                  size={96}
+                  className="h-24 w-24 border-4 border-gray-200 dark:border-gray-700"
+                />
                 <Button
                   size="icon"
                   variant="outline"

@@ -7,7 +7,7 @@ import { Send, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import { useNotifications } from "@/hooks/use-notifications"
 
 interface Message {
@@ -42,32 +42,6 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  // Funzione per ottenere l'URL dell'immagine ottimizzato
-  const getOptimizedImageUrl = (imageUrl: string | null | undefined, size = 32) => {
-    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
-
-    // Se è un URL Cloudinary, ottimizzalo
-    if (imageUrl.includes("cloudinary.com")) {
-      try {
-        const parts = imageUrl.split("/upload/")
-        if (parts.length === 2) {
-          // Aggiungi trasformazioni Cloudinary per ottimizzare l'immagine
-          return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto,dpr_2.0/${parts[1]}`
-        }
-      } catch (error) {
-        console.error("Error optimizing Cloudinary URL:", error)
-      }
-    }
-
-    // Se è un URL Google (da OAuth), restituiscilo così com'è
-    if (imageUrl.includes("googleusercontent.com")) {
-      return imageUrl
-    }
-
-    // Per altri URL, restituiscili così come sono
-    return imageUrl
-  }
 
   useEffect(() => {
     if (roomId) {
@@ -236,24 +210,12 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
                     </div>
                   )}
                   <div className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={
-                          isOwnMessage
-                            ? getOptimizedImageUrl(session?.user?.image, 32)
-                            : getOptimizedImageUrl(message.senderImage || otherUser.image, 32)
-                        }
-                        alt={isOwnMessage ? session?.user?.name || "" : message.senderName || otherUser.name}
-                        onError={(e) => {
-                          console.log("Image failed to load:", e.currentTarget.src)
-                        }}
-                      />
-                      <AvatarFallback>
-                        {isOwnMessage
-                          ? session?.user?.name?.charAt(0) || "U"
-                          : (message.senderName || otherUser.name).charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <OptimizedAvatar
+                      src={isOwnMessage ? session?.user?.image : message.senderImage || otherUser.image}
+                      alt={isOwnMessage ? session?.user?.name || "" : message.senderName || otherUser.name}
+                      size={32}
+                      className="h-8 w-8"
+                    />
                     <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
                       <div
                         className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${

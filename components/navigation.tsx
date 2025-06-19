@@ -8,7 +8,7 @@ import { motion } from "framer-motion"
 import { Home, Heart, Plus, LogIn, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import { useNotifications } from "@/hooks/use-notifications"
 
 export function Navigation() {
@@ -26,33 +26,6 @@ export function Navigation() {
   const isActive = (path: string) => {
     if (path === "/") return pathname === "/"
     return pathname?.startsWith(path)
-  }
-
-  // Funzione per ottenere l'URL dell'immagine ottimizzato
-  const getOptimizedImageUrl = (imageUrl: string | null | undefined, size = 24) => {
-    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
-
-    // Se è un URL Cloudinary, ottimizzalo
-    if (imageUrl.includes("cloudinary.com")) {
-      try {
-        const parts = imageUrl.split("/upload/")
-        if (parts.length === 2) {
-          // Aggiungi trasformazioni Cloudinary per ottimizzare l'immagine
-          return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto,dpr_2.0/${parts[1]}`
-        }
-      } catch (error) {
-        console.error("Error optimizing Cloudinary URL:", error)
-        return imageUrl // Fallback all'URL originale
-      }
-    }
-
-    // Se è un URL Google (da OAuth), restituiscilo così com'è
-    if (imageUrl.includes("googleusercontent.com")) {
-      return imageUrl
-    }
-
-    // Per altri URL, restituiscili così come sono
-    return imageUrl
   }
 
   const navItems = [
@@ -85,7 +58,7 @@ export function Navigation() {
     {
       name: session ? "Profilo" : "Accedi",
       href: session ? "/profile" : "/auth/login",
-      icon: session ? null : LogIn, // null per usare avatar
+      icon: session ? null : LogIn,
       active: isActive("/profile") || isActive("/auth") || isActive("/prenotazioni") || isActive("/impostazioni"),
       isProfile: true,
     },
@@ -109,18 +82,12 @@ export function Navigation() {
                 </div>
               ) : item.isProfile && session ? (
                 <div className="relative">
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage
-                      src={getOptimizedImageUrl(session.user?.image, 24) || "/placeholder.svg"}
-                      alt={session.user?.name || ""}
-                      onError={(e) => {
-                        console.log("Navigation avatar failed to load:", e.currentTarget.src)
-                      }}
-                    />
-                    <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                      {session.user?.name?.charAt(0) || "U"}
-                    </AvatarFallback>
-                  </Avatar>
+                  <OptimizedAvatar
+                    src={session.user?.image}
+                    alt={session.user?.name || ""}
+                    size={24}
+                    className="h-6 w-6"
+                  />
                   {item.active && (
                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-background" />
                   )}
