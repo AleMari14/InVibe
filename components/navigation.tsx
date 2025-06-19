@@ -28,16 +28,21 @@ export function Navigation() {
     return pathname?.startsWith(path)
   }
 
-  // Funzione per ottenere l'URL dell'immagine da Cloudinary
-  const getCloudinaryImageUrl = (imageUrl: string | null | undefined) => {
-    if (!imageUrl) return "/placeholder.svg?height=24&width=24"
+  // Funzione per ottenere l'URL dell'immagine ottimizzato
+  const getOptimizedImageUrl = (imageUrl: string | null | undefined, size = 24) => {
+    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
 
-    // Se è già un URL Cloudinary, ottimizzalo
+    // Se è un URL Cloudinary, ottimizzalo
     if (imageUrl.includes("cloudinary.com")) {
-      // Aggiungi trasformazioni per ottimizzare l'immagine
-      const parts = imageUrl.split("/upload/")
-      if (parts.length === 2) {
-        return `${parts[0]}/upload/w_48,h_48,c_fill,f_auto,q_auto,dpr_2.0/${parts[1]}`
+      try {
+        const parts = imageUrl.split("/upload/")
+        if (parts.length === 2) {
+          // Aggiungi trasformazioni Cloudinary per ottimizzare l'immagine
+          return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto,dpr_2.0/${parts[1]}`
+        }
+      } catch (error) {
+        console.error("Error optimizing Cloudinary URL:", error)
+        return imageUrl // Fallback all'URL originale
       }
     }
 
@@ -46,6 +51,7 @@ export function Navigation() {
       return imageUrl
     }
 
+    // Per altri URL, restituiscili così come sono
     return imageUrl
   }
 
@@ -105,8 +111,11 @@ export function Navigation() {
                 <div className="relative">
                   <Avatar className="h-6 w-6">
                     <AvatarImage
-                      src={getCloudinaryImageUrl(session.user?.image) || "/placeholder.svg"}
+                      src={getOptimizedImageUrl(session.user?.image, 24) || "/placeholder.svg"}
                       alt={session.user?.name || ""}
+                      onError={(e) => {
+                        console.log("Navigation avatar failed to load:", e.currentTarget.src)
+                      }}
                     />
                     <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
                       {session.user?.name?.charAt(0) || "U"}

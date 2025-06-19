@@ -83,19 +83,30 @@ export default function ProfilePage() {
     rating: 0,
   })
 
-  // Funzione per ottenere l'URL dell'immagine da Cloudinary
-  const getCloudinaryImageUrl = (imageUrl: string | null | undefined, size = 96) => {
+  // Funzione per ottenere l'URL dell'immagine ottimizzato
+  const getOptimizedImageUrl = (imageUrl: string | null | undefined, size = 96) => {
     if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
 
-    // Se è già un URL Cloudinary, ottimizzalo
+    // Se è un URL Cloudinary, ottimizzalo
     if (imageUrl.includes("cloudinary.com")) {
-      // Aggiungi trasformazioni per ottimizzare l'immagine
-      const parts = imageUrl.split("/upload/")
-      if (parts.length === 2) {
-        return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto/${parts[1]}`
+      try {
+        const parts = imageUrl.split("/upload/")
+        if (parts.length === 2) {
+          // Aggiungi trasformazioni Cloudinary per ottimizzare l'immagine
+          return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto,dpr_2.0/${parts[1]}`
+        }
+      } catch (error) {
+        console.error("Error optimizing Cloudinary URL:", error)
+        return imageUrl // Fallback all'URL originale
       }
     }
 
+    // Se è un URL Google (da OAuth), restituiscilo così com'è
+    if (imageUrl.includes("googleusercontent.com")) {
+      return imageUrl
+    }
+
+    // Per altri URL, restituiscili così come sono
     return imageUrl
   }
 
@@ -400,8 +411,11 @@ export default function ProfilePage() {
             >
               <Avatar className="h-24 w-24 border-4 border-white/30 shadow-xl">
                 <AvatarImage
-                  src={getCloudinaryImageUrl(currentImage, 96) || "/placeholder.svg"}
+                  src={getOptimizedImageUrl(currentImage, 96) || "/placeholder.svg"}
                   alt={profile?.name || session?.user?.name || ""}
+                  onError={(e) => {
+                    console.log("Profile header avatar failed to load:", e.currentTarget.src)
+                  }}
                 />
                 <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
                   {(profile?.name || session?.user?.name)?.charAt(0) || "U"}
@@ -773,7 +787,13 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <Avatar className="h-24 w-24 border-4 border-gray-200 dark:border-gray-700">
-                  <AvatarImage src={getCloudinaryImageUrl(profileData.image, 96) || "/placeholder.svg"} alt="Profile" />
+                  <AvatarImage
+                    src={getOptimizedImageUrl(profileData.image, 96) || "/placeholder.svg"}
+                    alt="Profile"
+                    onError={(e) => {
+                      console.log("Edit dialog avatar failed to load:", e.currentTarget.src)
+                    }}
+                  />
                   <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white text-2xl font-bold">
                     {profileData.name?.charAt(0) || "U"}
                   </AvatarFallback>
