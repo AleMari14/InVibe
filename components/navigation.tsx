@@ -37,8 +37,13 @@ export function Navigation() {
       // Aggiungi trasformazioni per ottimizzare l'immagine
       const parts = imageUrl.split("/upload/")
       if (parts.length === 2) {
-        return `${parts[0]}/upload/w_48,h_48,c_fill,f_auto,q_auto/${parts[1]}`
+        return `${parts[0]}/upload/w_48,h_48,c_fill,f_auto,q_auto,dpr_2.0/${parts[1]}`
       }
+    }
+
+    // Se è un URL Google (da OAuth), restituiscilo così com'è
+    if (imageUrl.includes("googleusercontent.com")) {
+      return imageUrl
     }
 
     return imageUrl

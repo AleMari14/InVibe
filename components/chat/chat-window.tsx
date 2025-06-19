@@ -1,96 +1,83 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { Send, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Send, ArrowLeft, MoreVertical } from "lucide-react"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+import { useNotifications } from "@/hooks/use-notifications"
 
 interface Message {
   _id: string
-  roomId: string
   content: string
   senderId: string
-  senderName: string
-  senderImage?: string
   createdAt: string
-  readBy: string[]
-}
-
-interface ChatWindowProps {
-  roomId: string
-  otherUser: {
+  sender: {
+    _id: string
     name: string
     email: string
     image?: string
   }
-  onClose?: () => void
-  initialMessage?: string
 }
 
-export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatWindowProps) {
+interface ChatWindowProps {
+  roomId: string
+  eventTitle?: string
+}
+
+export function ChatWindow({ roomId, eventTitle }: ChatWindowProps) {
   const { data: session } = useSession()
+  const router = useRouter()
+  const { refresh: refreshNotifications } = useNotifications()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
-  useEffect(() => {
-    if (roomId) {
-      fetchMessages()
-      startPolling()
-    }
+  // Funzione per ottenere l'URL dell'immagine da Cloudinary
+  const getCloudinaryImageUrl = (imageUrl: string | null | undefined, size = 32) => {
+    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
 
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
+    // Se è già un URL Cloudinary, ottimizzalo
+    if (imageUrl.includes("cloudinary.com")) {
+      const parts = imageUrl.split("/upload/")
+      if (parts.length === 2) {
+        return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto/${parts[1]}`
       }
     }
-  }, [roomId])
 
-  useEffect(() => {
-    // Pre-compila il messaggio iniziale se fornito
-    if (initialMessage && !newMessage) {
-      setNewMessage(initialMessage)
-    }
-  }, [initialMessage])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const startPolling = () => {
-    pollingIntervalRef.current = setInterval(() => {
-      fetchMessages(true)
-    }, 2000)
+    return imageUrl
   }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const fetchMessages = async (silent = false) => {
+  const fetchMessages = async () => {
     try {
-      if (!silent) setIsLoading(true)
-
       const response = await fetch(`/api/messages/${roomId}`)
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch messages")
+      if (response.ok) {
+        const data = await response.json()
+        setMessages(data.messages || [])
+        // Aggiorna il counter delle notifiche dopo aver letto i messaggi
+        setTimeout(() => {
+          refreshNotifications()
+        }, 500)
+      } else {
+        toast.error("Errore nel caricamento dei messaggi")
       }
-
-      const data = await response.json()
-      setMessages(data.messages || [])
     } catch (error) {
       console.error("Error fetching messages:", error)
+      toast.error("Errore nel caricamento dei messaggi")
     } finally {
-      if (!silent) setIsLoading(false)
+      setIsLoading(false)
     }
   }
 
@@ -98,120 +85,107 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
     e.preventDefault()
     if (!newMessage.trim() || isSending) return
 
-    const messageContent = newMessage.trim()
-    setNewMessage("")
     setIsSending(true)
-
     try {
       const response = await fetch(`/api/messages/${roomId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: messageContent }),
+        body: JSON.stringify({ content: newMessage.trim() }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to send message")
+      if (response.ok) {
+        const data = await response.json()
+        setMessages((prev) => [...prev, data.message])
+        setNewMessage("")
+        scrollToBottom()
+        // Aggiorna il counter delle notifiche
+        refreshNotifications()
+      } else {
+        toast.error("Errore nell'invio del messaggio")
       }
-
-      const sentMessage = await response.json()
-      setMessages((prev) => [...prev, sentMessage])
-
-      setTimeout(() => {
-        fetchMessages(true)
-      }, 500)
     } catch (error) {
       console.error("Error sending message:", error)
-      setNewMessage(messageContent)
+      toast.error("Errore nell'invio del messaggio")
     } finally {
       setIsSending(false)
     }
   }
 
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleTimeString("it-IT", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  }
+  useEffect(() => {
+    fetchMessages()
+  }, [roomId])
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
 
-    if (date.toDateString() === today.toDateString()) {
-      return "Oggi"
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Ieri"
-    } else {
-      return date.toLocaleDateString("it-IT", {
-        day: "numeric",
-        month: "short",
-      })
-    }
-  }
+  // Polling per nuovi messaggi ogni 3 secondi
+  useEffect(() => {
+    const interval = setInterval(fetchMessages, 3000)
+    return () => clearInterval(interval)
+  }, [roomId])
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">Caricamento chat...</p>
-        </div>
+      <div className="flex items-center justify-center h-96">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4 pb-24" ref={scrollAreaRef}>
-        <div className="space-y-4">
+    <Card className="h-[600px] flex flex-col">
+      <CardHeader className="flex-row items-center space-y-0 pb-4 border-b">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-2">
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <div className="flex-1">
+          <CardTitle className="text-lg">{eventTitle || "Chat"}</CardTitle>
+          <p className="text-sm text-muted-foreground">{messages.length} messaggi</p>
+        </div>
+        <Button variant="ghost" size="icon">
+          <MoreVertical className="h-4 w-4" />
+        </Button>
+      </CardHeader>
+
+      <CardContent className="flex-1 flex flex-col p-0">
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {messages.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
               <p>Nessun messaggio ancora.</p>
-              <p className="text-sm">Inizia la conversazione con {otherUser.name}!</p>
+              <p className="text-sm">Inizia la conversazione!</p>
             </div>
           ) : (
-            messages.map((message, index) => {
-              const isOwnMessage = message.senderId === session?.user?.email
-              const showDate =
-                index === 0 || formatDate(message.createdAt) !== formatDate(messages[index - 1].createdAt)
-
+            messages.map((message) => {
+              const isOwn = message.senderId === session?.user?.id
               return (
-                <div key={message._id}>
-                  {showDate && (
-                    <div className="text-center text-xs text-muted-foreground my-4">
-                      <span className="bg-background px-2 py-1 rounded-full border">
-                        {formatDate(message.createdAt)}
-                      </span>
+                <div key={message._id} className={`flex gap-3 ${isOwn ? "flex-row-reverse" : ""}`}>
+                  <Avatar className="h-8 w-8 flex-shrink-0">
+                    <AvatarImage
+                      src={getCloudinaryImageUrl(message.sender?.image, 32) || "/placeholder.svg"}
+                      alt={message.sender?.name || ""}
+                    />
+                    <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                      {message.sender?.name?.charAt(0) || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className={`flex-1 max-w-[70%] ${isOwn ? "text-right" : ""}`}>
+                    <div
+                      className={`inline-block p-3 rounded-2xl ${
+                        isOwn ? "bg-blue-500 text-white rounded-br-md" : "bg-gray-100 dark:bg-gray-800 rounded-bl-md"
+                      }`}
+                    >
+                      <p className="text-sm">{message.content}</p>
                     </div>
-                  )}
-                  <div className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage
-                        src={isOwnMessage ? session?.user?.image || "" : otherUser.image || ""}
-                        alt={isOwnMessage ? session?.user?.name || "" : otherUser.name}
-                      />
-                      <AvatarFallback>
-                        {isOwnMessage ? session?.user?.name?.charAt(0) || "U" : otherUser.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
-                      <div
-                        className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
-                          isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
-                        }`}
-                      >
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                      </div>
-                      <span className="text-xs text-muted-foreground mt-1">{formatTime(message.createdAt)}</span>
-                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 px-1">
+                      {new Date(message.createdAt).toLocaleTimeString("it-IT", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
                   </div>
                 </div>
               )
@@ -219,27 +193,28 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
           )}
           <div ref={messagesEndRef} />
         </div>
-      </ScrollArea>
 
-      {/* Message Input - Posizionato sopra la navbar */}
-      <div className="fixed bottom-20 left-0 right-0 border-t bg-card/95 backdrop-blur-md p-4 z-20">
-        <form onSubmit={sendMessage} className="flex gap-2 max-w-4xl mx-auto">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={`Scrivi a ${otherUser.name}...`}
-            disabled={isSending}
-            className="flex-1 bg-background"
-            maxLength={1000}
-          />
-          <Button type="submit" disabled={!newMessage.trim() || isSending} size="icon">
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </form>
-        <p className="text-xs text-muted-foreground mt-1 text-center">
-          Premi Invio per inviare • {newMessage.length}/1000
-        </p>
-      </div>
-    </div>
+        {/* Message Input */}
+        <div className="border-t p-4">
+          <form onSubmit={sendMessage} className="flex gap-2">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Scrivi un messaggio..."
+              disabled={isSending}
+              className="flex-1"
+            />
+            <Button
+              type="submit"
+              size="icon"
+              disabled={!newMessage.trim() || isSending}
+              className="bg-blue-500 hover:bg-blue-600"
+            >
+              <Send className="h-4 w-4" />
+            </Button>
+          </form>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

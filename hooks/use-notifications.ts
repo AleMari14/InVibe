@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useSession } from "next-auth/react"
 
 interface Notification {
@@ -21,52 +21,83 @@ export function useNotifications() {
   const [isLoading, setIsLoading] = useState(true)
   const [notifications, setNotifications] = useState<Notification[]>([])
 
-  const fetchData = async () => {
+  const fetchUnreadCount = useCallback(async () => {
     if (!session?.user?.email) {
       setUnreadCount(0)
-      setNotifications([])
       setIsLoading(false)
       return
     }
 
     try {
-      const res = await fetch("/api/notifications")
-      if (res.ok) {
-        const data = await res.json()
-        setNotifications(data.notifications || [])
-        setUnreadCount(data.notifications.filter((n: Notification) => !n.read).length)
+      const response = await fetch("/api/messages/unread-count", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setUnreadCount(data.count || 0)
       }
     } catch (error) {
-      console.error("Error fetching notifications:", error)
+      console.error("Error fetching unread count:", error)
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [session?.user?.email])
+
+  const fetchNotifications = useCallback(async () => {
+    if (!session?.user?.email) {
+      setNotifications([])
+      return
+    }
+
+    try {
+      const res = await fetch("/api/notifications", {
+        cache: "no-store",
+        headers: {
+          "Cache-Control": "no-cache",
+        },
+      })
+      if (res.ok) {
+        const data = await res.json()
+        setNotifications(data.notifications || [])
+      }
+    } catch (error) {
+      console.error("Error fetching notifications:", error)
+    }
+  }, [session?.user?.email])
+
+  const fetchData = useCallback(async () => {
+    await Promise.all([fetchUnreadCount(), fetchNotifications()])
+  }, [fetchUnreadCount, fetchNotifications])
 
   // Fetch iniziale
   useEffect(() => {
     fetchData()
-  }, [session])
+  }, [fetchData])
 
-  // Polling ogni 30 secondi per aggiornamenti real-time
+  // Polling ogni 10 secondi per aggiornamenti real-time più frequenti
   useEffect(() => {
     if (!session?.user?.email) return
-    const interval = setInterval(fetchData, 30000)
+    const interval = setInterval(fetchUnreadCount, 10000)
     return () => clearInterval(interval)
-  }, [session])
+  }, [session?.user?.email, fetchUnreadCount])
 
-  // Funzione per aggiornare manualmente il counter
-  const refresh = () => fetchData()
+  // Funzione per aggiornare manualmente
+  const refresh = useCallback(() => {
+    fetchData()
+  }, [fetchData])
 
   // Funzione per decrementare il counter quando si legge un messaggio
-  const markAsRead = (count = 1) => {
+  const markAsRead = useCallback((count = 1) => {
     setUnreadCount((prev) => Math.max(0, prev - count))
-  }
+  }, [])
 
   // Funzione per azzerare il counter
-  const markAllAsRead = () => {
+  const markAllAsRead = useCallback(() => {
     setUnreadCount(0)
-  }
+  }, [])
 
   return {
     notifications,
