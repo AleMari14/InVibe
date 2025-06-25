@@ -17,6 +17,9 @@ import {
   Edit3,
   Trash2,
   MoreVertical,
+  ChevronLeft,
+  ChevronRight,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -27,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
@@ -74,6 +78,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [showImageModal, setShowImageModal] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
 
@@ -198,6 +203,19 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     } else {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href)
+      toast.success("Link copiato negli appunti!")
+    }
+  }
+
+  const nextImage = () => {
+    if (event?.images && event.images.length > 1) {
+      setCurrentImageIndex((prev) => (prev + 1) % event.images.length)
+    }
+  }
+
+  const prevImage = () => {
+    if (event?.images && event.images.length > 1) {
+      setCurrentImageIndex((prev) => (prev - 1 + event.images.length) % event.images.length)
     }
   }
 
@@ -205,7 +223,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     return (
       <div className="min-h-screen bg-background">
         <div className="relative">
-          <Skeleton className="aspect-[16/10] w-full" />
+          <Skeleton className="aspect-[16/9] w-full" />
           <div className="absolute top-4 left-4">
             <Skeleton className="w-10 h-10 rounded-full" />
           </div>
@@ -239,12 +257,16 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header with Image Gallery */}
+      {/* Header with Enhanced Image Gallery */}
       <div className="relative">
         {/* Navigation */}
-        <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
+        <div className="absolute top-4 left-4 right-4 z-30 flex items-center justify-between">
           <Link href={isOwner ? "/user/events" : "/"}>
-            <Button variant="ghost" size="icon" className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
+            >
               <ArrowLeft className="h-4 w-4" />
             </Button>
           </Link>
@@ -252,17 +274,17 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             <Button
               variant="ghost"
               size="icon"
-              className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
+              className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
               onClick={shareEvent}
             >
               <Share className="h-4 w-4" />
             </Button>
             {!isOwner && (
-              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
+                  className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
                   onClick={toggleFavorite}
                   disabled={favoriteLoading || !session}
                 >
@@ -280,7 +302,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
+                    className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
@@ -305,37 +327,76 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           </div>
         </div>
 
-        {/* Image Gallery */}
-        <div className="aspect-[16/10] relative overflow-hidden">
+        {/* Enhanced Image Gallery */}
+        <div className="aspect-[16/9] relative overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
           {event.images && event.images.length > 0 ? (
             <>
-              <Image
-                src={getEventImageUrl(event.images[currentImageIndex]) || "/placeholder.svg"}
-                alt={event.title}
-                fill
-                className="object-cover"
-                priority
-                sizes="100vw"
-              />
+              <motion.div
+                key={currentImageIndex}
+                initial={{ opacity: 0, scale: 1.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5 }}
+                className="relative w-full h-full cursor-pointer"
+                onClick={() => setShowImageModal(true)}
+              >
+                <Image
+                  src={getEventImageUrl(event.images[currentImageIndex], 1200, 675) || "/placeholder.svg"}
+                  alt={event.title}
+                  fill
+                  className="object-cover hover:scale-105 transition-transform duration-700"
+                  priority
+                  sizes="100vw"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
+              </motion.div>
+
+              {/* Image Navigation */}
               {event.images.length > 1 && (
-                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 z-20"
+                    onClick={prevImage}
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 z-20"
+                    onClick={nextImage}
+                  >
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </>
+              )}
+
+              {/* Image Indicators */}
+              {event.images.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 z-20">
                   {event.images.map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setCurrentImageIndex(index)}
-                      className={`w-2 h-2 rounded-full transition-all ${
-                        index === currentImageIndex ? "bg-white" : "bg-white/50"
+                      className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                        index === currentImageIndex ? "bg-white scale-110 shadow-lg" : "bg-white/50 hover:bg-white/75"
                       }`}
                     />
                   ))}
                 </div>
               )}
+
+              {/* Image Counter */}
+              <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-sm border border-white/20 z-20">
+                {currentImageIndex + 1} / {event.images.length}
+              </div>
             </>
           ) : (
-            <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+            <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
               <div className="text-center text-gray-500">
-                <Calendar className="h-16 w-16 mx-auto mb-2 opacity-50" />
-                <p>Nessuna immagine disponibile</p>
+                <Calendar className="h-20 w-20 mx-auto mb-4 opacity-50" />
+                <p className="text-lg">Nessuna immagine disponibile</p>
               </div>
             </div>
           )}
@@ -483,6 +544,55 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           )}
         </div>
       </div>
+
+      {/* Image Modal */}
+      <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
+        <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
+          <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 z-30 bg-black/50 hover:bg-black/70 text-white"
+              onClick={() => setShowImageModal(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+
+            {event.images && event.images.length > 0 && (
+              <>
+                <Image
+                  src={getEventImageUrl(event.images[currentImageIndex]) || "/placeholder.svg"}
+                  alt={event.title}
+                  fill
+                  className="object-contain"
+                  sizes="100vw"
+                />
+
+                {event.images.length > 1 && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white"
+                      onClick={prevImage}
+                    >
+                      <ChevronLeft className="h-6 w-6" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white"
+                      onClick={nextImage}
+                    >
+                      <ChevronRight className="h-6 w-6" />
+                    </Button>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Confirmation Dialog */}
       <ConfirmDialog

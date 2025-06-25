@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
@@ -144,6 +146,14 @@ export default function UserEventsPage() {
     } finally {
       setDeleting(false)
     }
+  }
+
+  const handleEventClick = (eventId: string, e: React.MouseEvent) => {
+    // Prevent navigation if clicking on dropdown or buttons
+    if ((e.target as HTMLElement).closest("[data-dropdown-trigger]") || (e.target as HTMLElement).closest("button")) {
+      return
+    }
+    router.push(`/evento/${eventId}`)
   }
 
   const formatDate = (dateString: string) => {
@@ -331,7 +341,10 @@ export default function UserEventsPage() {
                   exit={{ opacity: 0, y: -20 }}
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                 >
-                  <Card className="overflow-hidden border-0 shadow-md hover:shadow-lg transition-all duration-300">
+                  <Card
+                    className="overflow-hidden border-0 shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
+                    onClick={(e) => handleEventClick(event._id, e)}
+                  >
                     <div className="flex">
                       {/* Event Image */}
                       <div className="relative w-32 h-24 flex-shrink-0">
@@ -367,18 +380,12 @@ export default function UserEventsPage() {
                           </div>
 
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                            <DropdownMenuTrigger asChild data-dropdown-trigger>
                               <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/evento/${event._id}`} className="flex items-center gap-2">
-                                  <Eye className="h-4 w-4" />
-                                  Visualizza
-                                </Link>
-                              </DropdownMenuItem>
                               <DropdownMenuItem asChild>
                                 <Link href={`/evento/${event._id}/edit`} className="flex items-center gap-2">
                                   <Edit3 className="h-4 w-4" />

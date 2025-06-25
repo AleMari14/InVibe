@@ -284,32 +284,21 @@ export function AchievementSystem({ stats = {}, onAchievementUnlock }: Achieveme
     }
   }
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "events":
-        return Calendar
-      case "social":
-        return Users
-      case "engagement":
-        return MessageCircle
-      case "special":
-        return Award
+  const getRarityGlow = (rarity: string, unlocked: boolean) => {
+    if (!unlocked) return ""
+    switch (rarity) {
+      case "common":
+        return "shadow-gray-200/50"
+      case "rare":
+        return "shadow-blue-200/50"
+      case "epic":
+        return "shadow-purple-200/50"
+      case "legendary":
+        return "shadow-yellow-200/50"
       default:
-        return Trophy
+        return ""
     }
   }
-
-  const groupedAchievements = achievements.reduce(
-    (groups, achievement) => {
-      const category = achievement.category
-      if (!groups[category]) {
-        groups[category] = []
-      }
-      groups[category].push(achievement)
-      return groups
-    },
-    {} as Record<string, Achievement[]>,
-  )
 
   return (
     <>
@@ -334,80 +323,83 @@ export function AchievementSystem({ stats = {}, onAchievementUnlock }: Achieveme
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-6">
-          {Object.entries(groupedAchievements).map(([category, categoryAchievements]) => {
-            const CategoryIcon = getCategoryIcon(category)
-            const categoryName =
-              {
-                events: "Eventi",
-                social: "Sociale",
-                engagement: "Coinvolgimento",
-                special: "Speciali",
-              }[category] || category
-
-            return (
-              <div key={category} className="space-y-3">
-                <div className="flex items-center gap-2 text-lg font-semibold">
-                  <CategoryIcon className="h-5 w-5" />
-                  {categoryName}
-                </div>
-                <div className="grid gap-3">
-                  {categoryAchievements.map((achievement) => {
-                    const IconComponent = achievement.icon
-                    return (
-                      <motion.div
-                        key={achievement.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                          achievement.unlocked
-                            ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
-                            : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`p-2 rounded-lg ${
-                              achievement.unlocked ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
-                            }`}
-                          >
-                            <IconComponent className="h-5 w-5" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4
-                                className={`font-semibold ${achievement.unlocked ? "text-green-800" : "text-gray-700"}`}
-                              >
-                                {achievement.title}
-                              </h4>
-                              <Badge className={`text-xs ${getRarityColor(achievement.rarity)}`}>
-                                {achievement.rarity}
-                              </Badge>
-                              {achievement.unlocked && (
-                                <Badge className="bg-green-100 text-green-800 text-xs">
-                                  +{achievement.points} punti
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-muted-foreground mb-2">{achievement.description}</p>
-                            <div className="flex items-center gap-2">
-                              <Progress
-                                value={(achievement.currentProgress / achievement.requirement) * 100}
-                                className="flex-1 h-2"
-                              />
-                              <span className="text-xs text-muted-foreground whitespace-nowrap">
-                                {achievement.currentProgress}/{achievement.requirement}
-                              </span>
-                            </div>
-                          </div>
+        <CardContent>
+          {/* Horizontal Scrolling Achievement Cards */}
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-4 min-w-max">
+              {achievements.map((achievement, index) => {
+                const IconComponent = achievement.icon
+                return (
+                  <motion.div
+                    key={achievement.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                    className={`
+                      flex-shrink-0 w-48 h-40 p-4 rounded-xl border-2 transition-all duration-300 
+                      hover:scale-105 hover:shadow-lg cursor-pointer
+                      ${
+                        achievement.unlocked
+                          ? `bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 dark:from-green-950/20 dark:to-emerald-950/20 dark:border-green-800 ${getRarityGlow(achievement.rarity, true)}`
+                          : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 hover:border-gray-300"
+                      }
+                    `}
+                  >
+                    <div className="flex flex-col h-full">
+                      {/* Icon and Status */}
+                      <div className="flex items-center justify-between mb-2">
+                        <div
+                          className={`p-2 rounded-lg ${
+                            achievement.unlocked
+                              ? "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400"
+                              : "bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500"
+                          }`}
+                        >
+                          <IconComponent className="h-5 w-5" />
                         </div>
-                      </motion.div>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
+                        {achievement.unlocked && (
+                          <Badge className="bg-green-100 text-green-800 text-xs px-2 py-1">+{achievement.points}</Badge>
+                        )}
+                      </div>
+
+                      {/* Title and Rarity */}
+                      <div className="mb-2">
+                        <h4
+                          className={`font-semibold text-sm mb-1 line-clamp-1 ${
+                            achievement.unlocked
+                              ? "text-green-800 dark:text-green-200"
+                              : "text-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {achievement.title}
+                        </h4>
+                        <Badge className={`text-xs ${getRarityColor(achievement.rarity)}`}>{achievement.rarity}</Badge>
+                      </div>
+
+                      {/* Description */}
+                      <p className="text-xs text-muted-foreground mb-3 line-clamp-2 flex-1">
+                        {achievement.description}
+                      </p>
+
+                      {/* Progress */}
+                      <div className="mt-auto">
+                        <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                          <span>Progresso</span>
+                          <span>
+                            {achievement.currentProgress}/{achievement.requirement}
+                          </span>
+                        </div>
+                        <Progress
+                          value={(achievement.currentProgress / achievement.requirement) * 100}
+                          className="h-1.5"
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
