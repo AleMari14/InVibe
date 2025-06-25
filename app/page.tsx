@@ -21,17 +21,18 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { getEventImageUrl } from "@/lib/image-utils"
 
 const categories = [
   { id: "casa", name: "Case", icon: "🏠", gradient: "from-green-500 to-emerald-600" },
@@ -86,22 +87,6 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
-
-  // Funzione per ottenere l'URL dell'immagine da Cloudinary
-  const getCloudinaryImageUrl = (imageUrl: string | null | undefined, size = 32) => {
-    if (!imageUrl) return `/placeholder.svg?height=${size}&width=${size}&query=user`
-
-    // Se è già un URL Cloudinary, ottimizzalo
-    if (imageUrl.includes("cloudinary.com")) {
-      // Aggiungi trasformazioni per ottimizzare l'immagine
-      const parts = imageUrl.split("/upload/")
-      if (parts.length === 2) {
-        return `${parts[0]}/upload/w_${size * 2},h_${size * 2},c_fill,f_auto,q_auto/${parts[1]}`
-      }
-    }
-
-    return imageUrl
-  }
 
   useEffect(() => {
     fetchEvents()
@@ -303,18 +288,12 @@ export default function HomePage() {
                     </Button>
                   </Link>
                   <Link href="/profile">
-                    <Avatar className="h-8 w-8 ring-2 ring-blue-200 hover:ring-blue-300 transition-all">
-                      <AvatarImage
-                        src={getCloudinaryImageUrl(session.user?.image, 32) || "/placeholder.svg"}
-                        alt={session.user?.name || ""}
-                      />
-                      <AvatarFallback className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                        {session.user?.name
-                          ?.split(" ")
-                          .map((n) => n[0])
-                          .join("") || "U"}
-                      </AvatarFallback>
-                    </Avatar>
+                    <OptimizedAvatar
+                      src={session.user?.image}
+                      alt={session.user?.name || ""}
+                      size={32}
+                      className="h-8 w-8 ring-2 ring-blue-200 hover:ring-blue-300 transition-all cursor-pointer"
+                    />
                   </Link>
                 </>
               ) : (
@@ -556,7 +535,7 @@ export default function HomePage() {
                   <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                     <div className="relative aspect-[16/10]">
                       <Image
-                        src={event.images[0] || "/placeholder.svg?height=200&width=300&query=featured-event"}
+                        src={getEventImageUrl(event.images?.[0], 300, 200) || "/placeholder.svg"}
                         alt={event.title}
                         fill
                         className="object-cover transition-transform duration-300 hover:scale-105"
@@ -686,7 +665,7 @@ export default function HomePage() {
                     >
                       <div className="relative aspect-[4/3]">
                         <Image
-                          src={event.images[0] || "/placeholder.svg?height=300&width=400&query=event"}
+                          src={getEventImageUrl(event.images?.[0], 400, 300) || "/placeholder.svg"}
                           alt={event.title}
                           fill
                           className="object-cover transition-transform duration-300 group-hover:scale-105"
@@ -756,12 +735,12 @@ export default function HomePage() {
                           </div>
                           {event.host && (
                             <div className="flex items-center gap-1">
-                              <Avatar className="h-5 w-5">
-                                <AvatarImage src={getCloudinaryImageUrl(event.host.image, 20) || "/placeholder.svg"} />
-                                <AvatarFallback className="text-[8px] bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                                  {event.host.name?.charAt(0) || "H"}
-                                </AvatarFallback>
-                              </Avatar>
+                              <OptimizedAvatar
+                                src={event.host.image}
+                                alt={event.host.name}
+                                size={20}
+                                className="h-5 w-5"
+                              />
                               <span className="text-xs text-muted-foreground truncate max-w-[80px]">
                                 {event.host.name}
                               </span>
@@ -807,15 +786,7 @@ export default function HomePage() {
 
           <Link href={session ? "/profile" : "/auth/login"} className="flex flex-col items-center p-2 min-w-0">
             {session ? (
-              <Avatar className="h-5 w-5">
-                <AvatarImage
-                  src={getCloudinaryImageUrl(session.user?.image, 20) || "/placeholder.svg"}
-                  alt={session.user?.name || ""}
-                />
-                <AvatarFallback className="text-[8px] bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                  {session.user?.name?.charAt(0) || "U"}
-                </AvatarFallback>
-              </Avatar>
+              <OptimizedAvatar src={session.user?.image} alt={session.user?.name || ""} size={20} className="h-5 w-5" />
             ) : (
               <Users className="h-5 w-5 text-muted-foreground" />
             )}

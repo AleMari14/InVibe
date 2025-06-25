@@ -4,38 +4,41 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
   Trophy,
-  Star,
+  Users,
+  MapPin,
   Crown,
+  Camera,
   Medal,
-  Award,
+  Star,
+  Heart,
   Zap,
   Target,
-  Flame,
-  Users,
-  Calendar,
-  MapPin,
-  Heart,
-  MessageCircle,
   Sparkles,
+  Gift,
   Shield,
-  Gem,
+  Flame,
+  CheckCircle,
+  X,
 } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { toast } from "sonner"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import confetti from "canvas-confetti"
 
-interface UserStats {
-  eventsCreated: number
-  eventsParticipated: number
-  totalReviews: number
-  totalMessages: number
-  rating: number
-  consecutiveDays: number
-  totalPoints: number
-  level: number
+interface AchievementSystemProps {
+  stats: {
+    eventsCreated: number
+    eventsParticipated: number
+    totalReviews: number
+    totalMessages: number
+    rating: number
+    consecutiveDays: number
+    totalPoints: number
+    level: number
+  }
+  onAchievementUnlock?: (achievement: Achievement) => void
 }
 
 interface Achievement {
@@ -43,639 +46,547 @@ interface Achievement {
   title: string
   description: string
   icon: any
-  category: "beginner" | "social" | "creator" | "expert" | "legendary" | "special"
-  rarity: "common" | "rare" | "epic" | "legendary"
   unlocked: boolean
   progress: number
-  maxProgress: number
   points: number
-  unlockedAt?: Date
-  color: string
-  requirements: string[]
+  rarity: "common" | "rare" | "epic" | "legendary"
+  category: "beginner" | "social" | "creator" | "expert" | "legendary" | "special"
+  requirement: number
+  statKey: keyof AchievementSystemProps["stats"]
 }
 
-interface AchievementSystemProps {
-  stats: UserStats
-  onAchievementUnlock?: (achievement: Achievement) => void
-}
+const ACHIEVEMENT_STORAGE_KEY = "invibe_unlocked_achievements"
+const SHOWN_ACHIEVEMENTS_KEY = "invibe_shown_achievements"
 
 export function AchievementSystem({ stats, onAchievementUnlock }: AchievementSystemProps) {
-  const [achievements, setAchievements] = useState<Achievement[]>([])
-  const [selectedAchievement, setSelectedAchievement] = useState<Achievement | null>(null)
-  const [newUnlocks, setNewUnlocks] = useState<Achievement[]>([])
-  const [showUnlockDialog, setShowUnlockDialog] = useState(false)
+  const [unlockedAchievements, setUnlockedAchievements] = useState<string[]>([])
+  const [shownAchievements, setShownAchievements] = useState<string[]>([])
+  const [newAchievement, setNewAchievement] = useState<Achievement | null>(null)
+  const [showDialog, setShowDialog] = useState(false)
 
-  // Calcola il livello basato sui punti
-  const calculateLevel = (points: number) => {
-    return Math.floor(points / 100) + 1
-  }
-
-  // Calcola i punti per il prossimo livello
-  const getPointsForNextLevel = (currentLevel: number) => {
-    return currentLevel * 100
-  }
-
-  // Definisce tutti gli achievements
-  const defineAchievements = (): Achievement[] => {
-    return [
-      // BEGINNER ACHIEVEMENTS
-      {
-        id: "first_event",
-        title: "Primo Passo",
-        description: "Crea il tuo primo evento",
-        icon: Trophy,
-        category: "beginner",
-        rarity: "common",
-        unlocked: stats.eventsCreated >= 1,
-        progress: Math.min(stats.eventsCreated, 1),
-        maxProgress: 1,
-        points: 50,
-        color: "from-green-400 to-green-600",
-        requirements: ["Crea 1 evento"],
-      },
-      {
-        id: "first_participation",
-        title: "Socializzatore",
-        description: "Partecipa al tuo primo evento",
-        icon: Users,
-        category: "beginner",
-        rarity: "common",
-        unlocked: stats.eventsParticipated >= 1,
-        progress: Math.min(stats.eventsParticipated, 1),
-        maxProgress: 1,
-        points: 30,
-        color: "from-blue-400 to-blue-600",
-        requirements: ["Partecipa a 1 evento"],
-      },
-      {
-        id: "profile_complete",
-        title: "Profilo Completo",
-        description: "Completa il tuo profilo",
-        icon: Star,
-        category: "beginner",
-        rarity: "common",
-        unlocked: true, // Assumiamo sia completato
-        progress: 1,
-        maxProgress: 1,
-        points: 25,
-        color: "from-yellow-400 to-yellow-600",
-        requirements: ["Aggiungi foto e bio"],
-      },
-
-      // SOCIAL ACHIEVEMENTS
-      {
-        id: "party_animal",
-        title: "Party Animal",
-        description: "Partecipa a 10 eventi",
-        icon: Flame,
-        category: "social",
-        rarity: "rare",
-        unlocked: stats.eventsParticipated >= 10,
-        progress: Math.min(stats.eventsParticipated, 10),
-        maxProgress: 10,
-        points: 150,
-        color: "from-orange-400 to-red-500",
-        requirements: ["Partecipa a 10 eventi"],
-      },
-      {
-        id: "social_butterfly",
-        title: "Farfalla Sociale",
-        description: "Partecipa a 25 eventi",
-        icon: Sparkles,
-        category: "social",
-        rarity: "epic",
-        unlocked: stats.eventsParticipated >= 25,
-        progress: Math.min(stats.eventsParticipated, 25),
-        maxProgress: 25,
-        points: 300,
-        color: "from-pink-400 to-purple-500",
-        requirements: ["Partecipa a 25 eventi"],
-      },
-      {
-        id: "reviewer",
-        title: "Critico",
-        description: "Ricevi 10 recensioni",
-        icon: MessageCircle,
-        category: "social",
-        rarity: "rare",
-        unlocked: stats.totalReviews >= 10,
-        progress: Math.min(stats.totalReviews, 10),
-        maxProgress: 10,
-        points: 100,
-        color: "from-purple-400 to-purple-600",
-        requirements: ["Ricevi 10 recensioni"],
-      },
-
-      // CREATOR ACHIEVEMENTS
-      {
-        id: "event_organizer",
-        title: "Organizzatore",
-        description: "Crea 5 eventi",
-        icon: Calendar,
-        category: "creator",
-        rarity: "rare",
-        unlocked: stats.eventsCreated >= 5,
-        progress: Math.min(stats.eventsCreated, 5),
-        maxProgress: 5,
-        points: 200,
-        color: "from-blue-400 to-cyan-500",
-        requirements: ["Crea 5 eventi"],
-      },
-      {
-        id: "event_master",
-        title: "Maestro Eventi",
-        description: "Crea 15 eventi",
-        icon: Crown,
-        category: "creator",
-        rarity: "epic",
-        unlocked: stats.eventsCreated >= 15,
-        progress: Math.min(stats.eventsCreated, 15),
-        maxProgress: 15,
-        points: 400,
-        color: "from-yellow-400 to-orange-500",
-        requirements: ["Crea 15 eventi"],
-      },
-      {
-        id: "location_explorer",
-        title: "Esploratore",
-        description: "Crea eventi in 5 città diverse",
-        icon: MapPin,
-        category: "creator",
-        rarity: "epic",
-        unlocked: stats.eventsCreated >= 8, // Approssimazione
-        progress: Math.min(Math.floor(stats.eventsCreated / 2), 5),
-        maxProgress: 5,
-        points: 250,
-        color: "from-green-400 to-teal-500",
-        requirements: ["Crea eventi in 5 città"],
-      },
-
-      // EXPERT ACHIEVEMENTS
-      {
-        id: "five_star_host",
-        title: "Host 5 Stelle",
-        description: "Mantieni un rating di 4.8+",
-        icon: Award,
-        category: "expert",
-        rarity: "epic",
-        unlocked: stats.rating >= 4.8,
-        progress: Math.min(stats.rating * 20, 100),
-        maxProgress: 100,
-        points: 350,
-        color: "from-yellow-300 to-yellow-500",
-        requirements: ["Rating 4.8+ stelle"],
-      },
-      {
-        id: "community_favorite",
-        title: "Preferito della Community",
-        description: "Ricevi 50 recensioni positive",
-        icon: Heart,
-        category: "expert",
-        rarity: "legendary",
-        unlocked: stats.totalReviews >= 50,
-        progress: Math.min(stats.totalReviews, 50),
-        maxProgress: 50,
-        points: 500,
-        color: "from-red-400 to-pink-500",
-        requirements: ["50 recensioni positive"],
-      },
-      {
-        id: "super_host",
-        title: "Super Host",
-        description: "Crea 30 eventi con rating 4.5+",
-        icon: Shield,
-        category: "expert",
-        rarity: "legendary",
-        unlocked: stats.eventsCreated >= 30 && stats.rating >= 4.5,
-        progress: Math.min(stats.eventsCreated, 30),
-        maxProgress: 30,
-        points: 600,
-        color: "from-indigo-400 to-purple-500",
-        requirements: ["30 eventi", "Rating 4.5+"],
-      },
-
-      // LEGENDARY ACHIEVEMENTS
-      {
-        id: "event_legend",
-        title: "Leggenda",
-        description: "Crea 100 eventi",
-        icon: Medal,
-        category: "legendary",
-        rarity: "legendary",
-        unlocked: stats.eventsCreated >= 100,
-        progress: Math.min(stats.eventsCreated, 100),
-        maxProgress: 100,
-        points: 1000,
-        color: "from-purple-500 to-pink-500",
-        requirements: ["Crea 100 eventi"],
-      },
-      {
-        id: "community_pillar",
-        title: "Pilastro della Community",
-        description: "Partecipa a 100 eventi",
-        icon: Gem,
-        category: "legendary",
-        rarity: "legendary",
-        unlocked: stats.eventsParticipated >= 100,
-        progress: Math.min(stats.eventsParticipated, 100),
-        maxProgress: 100,
-        points: 800,
-        color: "from-cyan-400 to-blue-500",
-        requirements: ["Partecipa a 100 eventi"],
-      },
-
-      // SPECIAL ACHIEVEMENTS
-      {
-        id: "early_adopter",
-        title: "Early Adopter",
-        description: "Uno dei primi 1000 utenti",
-        icon: Zap,
-        category: "special",
-        rarity: "legendary",
-        unlocked: true, // Tutti gli utenti attuali sono early adopters
-        progress: 1,
-        maxProgress: 1,
-        points: 500,
-        color: "from-yellow-400 to-orange-400",
-        requirements: ["Registrato nei primi 1000"],
-      },
-      {
-        id: "streak_master",
-        title: "Streak Master",
-        description: "Accedi per 30 giorni consecutivi",
-        icon: Target,
-        category: "special",
-        rarity: "epic",
-        unlocked: stats.consecutiveDays >= 30,
-        progress: Math.min(stats.consecutiveDays, 30),
-        maxProgress: 30,
-        points: 300,
-        color: "from-green-400 to-emerald-500",
-        requirements: ["30 giorni consecutivi"],
-      },
-    ]
-  }
-
+  // Load unlocked and shown achievements from localStorage
   useEffect(() => {
-    const newAchievements = defineAchievements()
-    const previousAchievements = achievements
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem(ACHIEVEMENT_STORAGE_KEY)
+      const shown = localStorage.getItem(SHOWN_ACHIEVEMENTS_KEY)
 
-    // Controlla per nuovi unlock
-    if (previousAchievements.length > 0) {
-      const newlyUnlocked = newAchievements.filter((achievement) => {
-        const previous = previousAchievements.find((prev) => prev.id === achievement.id)
-        return achievement.unlocked && (!previous || !previous.unlocked)
-      })
+      if (stored) {
+        setUnlockedAchievements(JSON.parse(stored))
+      }
 
-      if (newlyUnlocked.length > 0) {
-        setNewUnlocks(newlyUnlocked)
-        setShowUnlockDialog(true)
-        newlyUnlocked.forEach((achievement) => {
-          toast.success(`🏆 Achievement Sbloccato: ${achievement.title}!`)
-          onAchievementUnlock?.(achievement)
-        })
+      if (shown) {
+        setShownAchievements(JSON.parse(shown))
       }
     }
+  }, [])
 
-    setAchievements(newAchievements)
-  }, [stats])
-
-  const getRarityColor = (rarity: string) => {
-    switch (rarity) {
-      case "common":
-        return "text-gray-600 bg-gray-100"
-      case "rare":
-        return "text-blue-600 bg-blue-100"
-      case "epic":
-        return "text-purple-600 bg-purple-100"
-      case "legendary":
-        return "text-yellow-600 bg-yellow-100"
-      default:
-        return "text-gray-600 bg-gray-100"
+  // Save to localStorage when achievements change
+  useEffect(() => {
+    if (typeof window !== "undefined" && unlockedAchievements.length > 0) {
+      localStorage.setItem(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(unlockedAchievements))
     }
-  }
+  }, [unlockedAchievements])
 
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "beginner":
-        return Star
-      case "social":
-        return Users
-      case "creator":
-        return Calendar
-      case "expert":
-        return Award
-      case "legendary":
-        return Crown
-      case "special":
-        return Sparkles
-      default:
-        return Trophy
+  useEffect(() => {
+    if (typeof window !== "undefined" && shownAchievements.length > 0) {
+      localStorage.setItem(SHOWN_ACHIEVEMENTS_KEY, JSON.stringify(shownAchievements))
     }
-  }
+  }, [shownAchievements])
 
-  const unlockedCount = achievements.filter((a) => a.unlocked).length
-  const totalPoints = achievements.filter((a) => a.unlocked).reduce((sum, a) => sum + a.points, 0)
-  const currentLevel = calculateLevel(totalPoints)
-  const pointsForNextLevel = getPointsForNextLevel(currentLevel)
-  const progressToNextLevel = ((totalPoints % 100) / 100) * 100
+  const achievements: Achievement[] = [
+    // Beginner
+    {
+      id: "first_event",
+      title: "Primo Evento",
+      description: "Hai creato il tuo primo evento!",
+      icon: Trophy,
+      unlocked: stats.eventsCreated >= 1,
+      progress: Math.min(100, (stats.eventsCreated / 1) * 100),
+      points: 100,
+      rarity: "common",
+      category: "beginner",
+      requirement: 1,
+      statKey: "eventsCreated",
+    },
+    {
+      id: "first_join",
+      title: "Prima Partecipazione",
+      description: "Hai partecipato al tuo primo evento!",
+      icon: Users,
+      unlocked: stats.eventsParticipated >= 1,
+      progress: Math.min(100, (stats.eventsParticipated / 1) * 100),
+      points: 50,
+      rarity: "common",
+      category: "beginner",
+      requirement: 1,
+      statKey: "eventsParticipated",
+    },
 
-  const categories = [
-    { id: "all", name: "Tutti", icon: Trophy },
-    { id: "beginner", name: "Principiante", icon: Star },
-    { id: "social", name: "Sociale", icon: Users },
-    { id: "creator", name: "Creatore", icon: Calendar },
-    { id: "expert", name: "Esperto", icon: Award },
-    { id: "legendary", name: "Leggendario", icon: Crown },
-    { id: "special", name: "Speciale", icon: Sparkles },
+    // Social
+    {
+      id: "socializer",
+      title: "Socializzatore",
+      description: "Partecipa a 5 eventi",
+      icon: Users,
+      unlocked: stats.eventsParticipated >= 5,
+      progress: Math.min(100, (stats.eventsParticipated / 5) * 100),
+      points: 250,
+      rarity: "common",
+      category: "social",
+      requirement: 5,
+      statKey: "eventsParticipated",
+    },
+    {
+      id: "party_animal",
+      title: "Party Animal",
+      description: "Partecipa a 15 eventi",
+      icon: Zap,
+      unlocked: stats.eventsParticipated >= 15,
+      progress: Math.min(100, (stats.eventsParticipated / 15) * 100),
+      points: 500,
+      rarity: "rare",
+      category: "social",
+      requirement: 15,
+      statKey: "eventsParticipated",
+    },
+    {
+      id: "social_butterfly",
+      title: "Farfalla Sociale",
+      description: "Partecipa a 30 eventi",
+      icon: Heart,
+      unlocked: stats.eventsParticipated >= 30,
+      progress: Math.min(100, (stats.eventsParticipated / 30) * 100),
+      points: 1000,
+      rarity: "epic",
+      category: "social",
+      requirement: 30,
+      statKey: "eventsParticipated",
+    },
+
+    // Creator
+    {
+      id: "organizer",
+      title: "Organizzatore",
+      description: "Crea 3 eventi",
+      icon: MapPin,
+      unlocked: stats.eventsCreated >= 3,
+      progress: Math.min(100, (stats.eventsCreated / 3) * 100),
+      points: 300,
+      rarity: "common",
+      category: "creator",
+      requirement: 3,
+      statKey: "eventsCreated",
+    },
+    {
+      id: "event_master",
+      title: "Event Master",
+      description: "Crea 10 eventi",
+      icon: Crown,
+      unlocked: stats.eventsCreated >= 10,
+      progress: Math.min(100, (stats.eventsCreated / 10) * 100),
+      points: 750,
+      rarity: "rare",
+      category: "creator",
+      requirement: 10,
+      statKey: "eventsCreated",
+    },
+    {
+      id: "super_host",
+      title: "Super Host",
+      description: "Crea 25 eventi",
+      icon: Star,
+      unlocked: stats.eventsCreated >= 25,
+      progress: Math.min(100, (stats.eventsCreated / 25) * 100),
+      points: 1500,
+      rarity: "epic",
+      category: "creator",
+      requirement: 25,
+      statKey: "eventsCreated",
+    },
+
+    // Expert
+    {
+      id: "reviewer",
+      title: "Recensore",
+      description: "Ricevi 10 recensioni",
+      icon: Camera,
+      unlocked: stats.totalReviews >= 10,
+      progress: Math.min(100, (stats.totalReviews / 10) * 100),
+      points: 400,
+      rarity: "rare",
+      category: "expert",
+      requirement: 10,
+      statKey: "totalReviews",
+    },
+    {
+      id: "five_star",
+      title: "Cinque Stelle",
+      description: "Raggiungi rating 4.8+",
+      icon: Star,
+      unlocked: stats.rating >= 4.8,
+      progress: Math.min(100, (stats.rating / 4.8) * 100),
+      points: 800,
+      rarity: "epic",
+      category: "expert",
+      requirement: 4.8,
+      statKey: "rating",
+    },
+
+    // Legendary
+    {
+      id: "influencer",
+      title: "Influencer",
+      description: "Partecipa a 50 eventi",
+      icon: Crown,
+      unlocked: stats.eventsParticipated >= 50,
+      progress: Math.min(100, (stats.eventsParticipated / 50) * 100),
+      points: 2000,
+      rarity: "legendary",
+      category: "legendary",
+      requirement: 50,
+      statKey: "eventsParticipated",
+    },
+    {
+      id: "legend",
+      title: "Leggenda",
+      description: "Crea 50 eventi",
+      icon: Medal,
+      unlocked: stats.eventsCreated >= 50,
+      progress: Math.min(100, (stats.eventsCreated / 50) * 100),
+      points: 3000,
+      rarity: "legendary",
+      category: "legendary",
+      requirement: 50,
+      statKey: "eventsCreated",
+    },
+
+    // Special
+    {
+      id: "streak_master",
+      title: "Streak Master",
+      description: "7 giorni consecutivi di attività",
+      icon: Flame,
+      unlocked: stats.consecutiveDays >= 7,
+      progress: Math.min(100, (stats.consecutiveDays / 7) * 100),
+      points: 500,
+      rarity: "rare",
+      category: "special",
+      requirement: 7,
+      statKey: "consecutiveDays",
+    },
+    {
+      id: "community_pillar",
+      title: "Pilastro della Community",
+      description: "Raggiungi 5000 punti totali",
+      icon: Shield,
+      unlocked: stats.totalPoints >= 5000,
+      progress: Math.min(100, (stats.totalPoints / 5000) * 100),
+      points: 1000,
+      rarity: "legendary",
+      category: "special",
+      requirement: 5000,
+      statKey: "totalPoints",
+    },
   ]
 
-  const [selectedCategory, setSelectedCategory] = useState("all")
-  const filteredAchievements =
-    selectedCategory === "all" ? achievements : achievements.filter((a) => a.category === selectedCategory)
+  // Check for new achievements
+  useEffect(() => {
+    const newlyUnlocked = achievements.filter(
+      (achievement) =>
+        achievement.unlocked &&
+        !unlockedAchievements.includes(achievement.id) &&
+        !shownAchievements.includes(achievement.id),
+    )
+
+    if (newlyUnlocked.length > 0) {
+      const achievement = newlyUnlocked[0] // Show one at a time
+
+      // Update unlocked achievements
+      setUnlockedAchievements((prev) => {
+        const updated = [...prev, achievement.id]
+        return updated
+      })
+
+      // Show the achievement popup
+      setNewAchievement(achievement)
+      setShowDialog(true)
+
+      // Trigger confetti
+      confetti({
+        particleCount: 100,
+        spread: 70,
+        origin: { y: 0.6 },
+      })
+
+      // Call the callback
+      onAchievementUnlock?.(achievement)
+    }
+  }, [stats, unlockedAchievements, shownAchievements, onAchievementUnlock])
+
+  const handleCloseDialog = () => {
+    if (newAchievement) {
+      // Mark this achievement as shown
+      setShownAchievements((prev) => {
+        const updated = [...prev, newAchievement.id]
+        return updated
+      })
+    }
+    setShowDialog(false)
+    setNewAchievement(null)
+  }
+
+  const getRarityColor = (rarity: Achievement["rarity"]) => {
+    switch (rarity) {
+      case "common":
+        return "from-gray-400 to-gray-600"
+      case "rare":
+        return "from-blue-400 to-blue-600"
+      case "epic":
+        return "from-purple-400 to-purple-600"
+      case "legendary":
+        return "from-yellow-400 to-orange-600"
+      default:
+        return "from-gray-400 to-gray-600"
+    }
+  }
+
+  const getCategoryColor = (category: Achievement["category"]) => {
+    switch (category) {
+      case "beginner":
+        return "from-green-400 to-green-600"
+      case "social":
+        return "from-pink-400 to-pink-600"
+      case "creator":
+        return "from-blue-400 to-blue-600"
+      case "expert":
+        return "from-purple-400 to-purple-600"
+      case "legendary":
+        return "from-yellow-400 to-orange-600"
+      case "special":
+        return "from-red-400 to-red-600"
+      default:
+        return "from-gray-400 to-gray-600"
+    }
+  }
+
+  const totalPoints = achievements
+    .filter((a) => unlockedAchievements.includes(a.id))
+    .reduce((sum, a) => sum + a.points, 0)
+
+  const level = Math.floor(totalPoints / 1000) + 1
+  const nextLevelPoints = level * 1000
+  const levelProgress = ((totalPoints % 1000) / 1000) * 100
+
+  const unlockedCount = unlockedAchievements.length
+
+  const categories = [
+    { id: "beginner", name: "Principiante", icon: Target, color: "from-green-400 to-green-600" },
+    { id: "social", name: "Sociale", icon: Users, color: "from-pink-400 to-pink-600" },
+    { id: "creator", name: "Creatore", icon: MapPin, color: "from-blue-400 to-blue-600" },
+    { id: "expert", name: "Esperto", icon: Star, color: "from-purple-400 to-purple-600" },
+    { id: "legendary", name: "Leggendario", icon: Crown, color: "from-yellow-400 to-orange-600" },
+    { id: "special", name: "Speciale", icon: Gift, color: "from-red-400 to-red-600" },
+  ]
 
   return (
-    <div className="space-y-6">
-      {/* Level and Progress */}
-      <Card className="border-0 shadow-lg bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950 dark:to-purple-950">
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <Crown className="h-6 w-6 text-white" />
+    <>
+      <Card className="border-0 shadow-lg">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-xl">
+            <Trophy className="h-6 w-6 text-yellow-500" />
+            Sistema Achievement
+            <Badge variant="secondary" className="ml-auto">
+              {unlockedCount}/{achievements.length} Completati
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Level and Points */}
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-4 rounded-xl">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                  <Crown className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold">Livello {level}</h3>
+                  <p className="text-sm text-muted-foreground">{totalPoints} punti totali</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-2xl font-bold">Livello {currentLevel}</h3>
-                <p className="text-muted-foreground">
-                  {totalPoints} / {pointsForNextLevel} punti
-                </p>
+              <div className="text-right">
+                <p className="text-sm text-muted-foreground">Prossimo livello</p>
+                <p className="font-semibold">{nextLevelPoints - totalPoints} punti</p>
               </div>
             </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-blue-600">{totalPoints}</div>
-              <div className="text-sm text-muted-foreground">Punti Totali</div>
-            </div>
+            <Progress value={levelProgress} className="h-3" />
           </div>
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>Progresso al Livello {currentLevel + 1}</span>
-              <span>{Math.round(progressToNextLevel)}%</span>
-            </div>
-            <Progress value={progressToNextLevel} className="h-3" />
-          </div>
+
+          {/* Categories */}
+          {categories.map((category) => {
+            const categoryAchievements = achievements.filter((a) => a.category === category.id)
+            const unlockedInCategory = categoryAchievements.filter((a) => unlockedAchievements.includes(a.id)).length
+
+            return (
+              <div key={category.id} className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg bg-gradient-to-r ${category.color}`}>
+                    <category.icon className="h-5 w-5 text-white" />
+                  </div>
+                  <h4 className="font-semibold">{category.name}</h4>
+                  <Badge variant="outline" className="ml-auto">
+                    {unlockedInCategory}/{categoryAchievements.length}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {categoryAchievements.map((achievement) => (
+                    <motion.div
+                      key={achievement.id}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.3 }}
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
+                        unlockedAchievements.includes(achievement.id)
+                          ? "border-transparent bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-lg"
+                          : "border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50"
+                      }`}
+                    >
+                      <div className="flex items-start gap-3">
+                        <div
+                          className={`p-2 rounded-lg bg-gradient-to-r ${getRarityColor(achievement.rarity)} ${
+                            unlockedAchievements.includes(achievement.id) ? "shadow-lg" : "opacity-50"
+                          }`}
+                        >
+                          <achievement.icon className="h-5 w-5 text-white" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h3
+                              className={`font-semibold text-sm ${
+                                unlockedAchievements.includes(achievement.id)
+                                  ? "text-gray-900 dark:text-white"
+                                  : "text-gray-500"
+                              }`}
+                            >
+                              {achievement.title}
+                            </h3>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs px-1 py-0 bg-gradient-to-r ${getRarityColor(achievement.rarity)} text-white border-0`}
+                            >
+                              {achievement.rarity}
+                            </Badge>
+                          </div>
+                          <p
+                            className={`text-xs mt-1 ${
+                              unlockedAchievements.includes(achievement.id)
+                                ? "text-gray-600 dark:text-gray-300"
+                                : "text-gray-400"
+                            }`}
+                          >
+                            {achievement.description}
+                          </p>
+                          {!unlockedAchievements.includes(achievement.id) && (
+                            <div className="mt-2">
+                              <div className="flex justify-between text-xs text-gray-500 mb-1">
+                                <span>Progresso</span>
+                                <span>{Math.round(achievement.progress)}%</span>
+                              </div>
+                              <Progress value={achievement.progress} className="h-1" />
+                            </div>
+                          )}
+                          {unlockedAchievements.includes(achievement.id) && (
+                            <div className="flex items-center gap-1 mt-2">
+                              <Sparkles className="h-3 w-3 text-yellow-500" />
+                              <span className="text-xs font-medium text-yellow-600">+{achievement.points} punti</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {unlockedAchievements.includes(achievement.id) && (
+                        <div className="absolute top-2 right-2">
+                          <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                            <CheckCircle className="w-3 h-3 text-white" />
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            )
+          })}
         </CardContent>
       </Card>
 
-      {/* Stats Overview */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="text-center">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-blue-600">{unlockedCount}</div>
-            <div className="text-sm text-muted-foreground">Sbloccati</div>
-          </CardContent>
-        </Card>
-        <Card className="text-center">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-green-600">{achievements.length}</div>
-            <div className="text-sm text-muted-foreground">Totali</div>
-          </CardContent>
-        </Card>
-        <Card className="text-center">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-purple-600">
-              {Math.round((unlockedCount / achievements.length) * 100)}%
-            </div>
-            <div className="text-sm text-muted-foreground">Completamento</div>
-          </CardContent>
-        </Card>
-        <Card className="text-center">
-          <CardContent className="p-4">
-            <div className="text-2xl font-bold text-orange-600">
-              {achievements.filter((a) => a.rarity === "legendary" && a.unlocked).length}
-            </div>
-            <div className="text-sm text-muted-foreground">Leggendari</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Category Filter */}
-      <div className="flex gap-2 overflow-x-auto pb-2">
-        {categories.map((category) => {
-          const CategoryIcon = category.icon
-          const count =
-            category.id === "all" ? achievements.length : achievements.filter((a) => a.category === category.id).length
-          const unlockedInCategory =
-            category.id === "all"
-              ? unlockedCount
-              : achievements.filter((a) => a.category === category.id && a.unlocked).length
-
-          return (
-            <Button
-              key={category.id}
-              variant={selectedCategory === category.id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedCategory(category.id)}
-              className="whitespace-nowrap"
-            >
-              <CategoryIcon className="h-4 w-4 mr-2" />
-              {category.name}
-              <Badge variant="secondary" className="ml-2">
-                {unlockedInCategory}/{count}
-              </Badge>
-            </Button>
-          )
-        })}
-      </div>
-
-      {/* Achievements Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <AnimatePresence>
-          {filteredAchievements.map((achievement, index) => {
-            const IconComponent = achievement.icon
-            return (
-              <motion.div
-                key={achievement.id}
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ delay: index * 0.05 }}
-                whileHover={{ scale: 1.02 }}
-                className="cursor-pointer"
-                onClick={() => setSelectedAchievement(achievement)}
-              >
-                <Card
-                  className={`relative overflow-hidden transition-all duration-300 ${
-                    achievement.unlocked
-                      ? "border-transparent shadow-lg hover:shadow-xl"
-                      : "border-dashed border-gray-300 dark:border-gray-600 opacity-75"
-                  }`}
-                >
-                  {achievement.unlocked && (
-                    <div className="absolute inset-0 opacity-10">
-                      <div className={`w-full h-full bg-gradient-to-r ${achievement.color}`} />
-                    </div>
-                  )}
-
-                  <CardContent className="p-4 relative">
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`p-3 rounded-xl bg-gradient-to-r ${achievement.color} ${
-                          achievement.unlocked ? "shadow-lg" : "opacity-50 grayscale"
-                        }`}
-                      >
-                        <IconComponent className="h-6 w-6 text-white" />
-                      </div>
-
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-start justify-between mb-2">
-                          <h3
-                            className={`font-semibold ${
-                              achievement.unlocked ? "text-foreground" : "text-muted-foreground"
-                            }`}
-                          >
-                            {achievement.title}
-                          </h3>
-                          <Badge className={`text-xs ${getRarityColor(achievement.rarity)}`}>
-                            {achievement.rarity}
-                          </Badge>
-                        </div>
-
-                        <p
-                          className={`text-sm mb-3 ${
-                            achievement.unlocked ? "text-muted-foreground" : "text-muted-foreground/70"
-                          }`}
-                        >
-                          {achievement.description}
-                        </p>
-
-                        {!achievement.unlocked && (
-                          <div className="space-y-2">
-                            <div className="flex justify-between text-xs">
-                              <span>Progresso</span>
-                              <span>
-                                {achievement.progress}/{achievement.maxProgress}
-                              </span>
-                            </div>
-                            <Progress value={(achievement.progress / achievement.maxProgress) * 100} className="h-2" />
-                          </div>
-                        )}
-
-                        {achievement.unlocked && (
-                          <div className="flex items-center justify-between">
-                            <Badge className="bg-green-100 text-green-700">
-                              <Trophy className="h-3 w-3 mr-1" />+{achievement.points} punti
-                            </Badge>
-                            <div className="text-xs text-muted-foreground">Sbloccato!</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {achievement.unlocked && (
-                      <div className="absolute top-2 right-2">
-                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                          <Trophy className="w-3 h-3 text-white" />
-                        </div>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
-      </div>
-
-      {/* Achievement Detail Dialog */}
-      <Dialog open={!!selectedAchievement} onOpenChange={() => setSelectedAchievement(null)}>
+      {/* Achievement Unlock Dialog */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="sm:max-w-md">
-          {selectedAchievement && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-3">
-                  <div className={`p-3 rounded-xl bg-gradient-to-r ${selectedAchievement.color}`}>
-                    <selectedAchievement.icon className="h-6 w-6 text-white" />
-                  </div>
-                  <div>
-                    <div>{selectedAchievement.title}</div>
-                    <Badge className={`text-xs ${getRarityColor(selectedAchievement.rarity)}`}>
-                      {selectedAchievement.rarity}
+          <AnimatePresence>
+            {newAchievement && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.5, y: 50 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.5, y: 50 }}
+                transition={{ duration: 0.5, type: "spring" }}
+                className="text-center p-6"
+              >
+                <Button variant="ghost" size="icon" className="absolute top-2 right-2" onClick={handleCloseDialog}>
+                  <X className="h-4 w-4" />
+                </Button>
+
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring" }}
+                  className={`w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-r ${getRarityColor(
+                    newAchievement.rarity,
+                  )} flex items-center justify-center shadow-xl`}
+                >
+                  <newAchievement.icon className="h-10 w-10 text-white" />
+                </motion.div>
+
+                <motion.h2
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 }}
+                  className="text-2xl font-bold mb-2"
+                >
+                  Achievement Sbloccato! 🎉
+                </motion.h2>
+
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="mb-4"
+                >
+                  <h3 className="text-lg font-semibold mb-1">{newAchievement.title}</h3>
+                  <p className="text-muted-foreground text-sm mb-3">{newAchievement.description}</p>
+                  <div className="flex items-center justify-center gap-2">
+                    <Badge className={`bg-gradient-to-r ${getRarityColor(newAchievement.rarity)} text-white border-0`}>
+                      {newAchievement.rarity.toUpperCase()}
+                    </Badge>
+                    <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+                      <Sparkles className="h-3 w-3 mr-1" />+{newAchievement.points} punti
                     </Badge>
                   </div>
-                </DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <p className="text-muted-foreground">{selectedAchievement.description}</p>
+                </motion.div>
 
-                <div className="space-y-2">
-                  <h4 className="font-medium">Requisiti:</h4>
-                  <ul className="space-y-1">
-                    {selectedAchievement.requirements.map((req, index) => (
-                      <li key={index} className="text-sm text-muted-foreground flex items-center gap-2">
-                        <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                        {req}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-
-                {!selectedAchievement.unlocked && (
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progresso</span>
-                      <span>
-                        {selectedAchievement.progress}/{selectedAchievement.maxProgress}
-                      </span>
-                    </div>
-                    <Progress value={(selectedAchievement.progress / selectedAchievement.maxProgress) * 100} />
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                  <span className="font-medium">Ricompensa</span>
-                  <Badge className="bg-yellow-100 text-yellow-700">
-                    <Trophy className="h-3 w-3 mr-1" />
-                    {selectedAchievement.points} punti
-                  </Badge>
-                </div>
-              </div>
-            </>
-          )}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.5 }}
+                >
+                  <Button onClick={handleCloseDialog} className="w-full">
+                    Fantastico!
+                  </Button>
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </DialogContent>
       </Dialog>
-
-      {/* New Achievement Unlock Dialog */}
-      <Dialog open={showUnlockDialog} onOpenChange={setShowUnlockDialog}>
-        <DialogContent className="sm:max-w-md">
-          <div className="text-center space-y-4">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ type: "spring", duration: 0.5 }}
-              className="w-20 h-20 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mx-auto"
-            >
-              <Trophy className="h-10 w-10 text-white" />
-            </motion.div>
-
-            <div>
-              <h2 className="text-2xl font-bold mb-2">🎉 Achievement Sbloccato!</h2>
-              {newUnlocks.map((achievement) => (
-                <div key={achievement.id} className="space-y-2">
-                  <h3 className="text-lg font-semibold">{achievement.title}</h3>
-                  <p className="text-muted-foreground">{achievement.description}</p>
-                  <Badge className="bg-yellow-100 text-yellow-700">
-                    <Trophy className="h-3 w-3 mr-1" />+{achievement.points} punti
-                  </Badge>
-                </div>
-              ))}
-            </div>
-
-            <Button onClick={() => setShowUnlockDialog(false)} className="w-full">
-              Fantastico!
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+    </>
   )
 }

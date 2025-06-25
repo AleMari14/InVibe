@@ -40,6 +40,7 @@
     "autoprefixer": "^10.0.1",
     "bcryptjs": "latest",
     "bufferutil": "latest",
+    "canvas-confetti": "latest",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "latest",
     "clsx": "^2.1.1",

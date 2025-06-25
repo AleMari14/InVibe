@@ -172,10 +172,14 @@ export function getOptimizedImageUrl(imageUrl: string | null | undefined, size =
   const optimizedUrl = getProfileImageUrl(imageUrl, size)
 
   // Add cache busting parameter for immediate updates
-  const url = new URL(optimizedUrl, window.location.origin)
-  url.searchParams.set("t", Date.now().toString())
-
-  return url.toString()
+  try {
+    const url = new URL(optimizedUrl, window.location.origin)
+    url.searchParams.set("t", Date.now().toString())
+    return url.toString()
+  } catch {
+    // Fallback if URL construction fails
+    return optimizedUrl
+  }
 }
 
 /**

@@ -14,6 +14,9 @@ import {
   CheckCircle,
   Eye,
   Loader2,
+  Edit3,
+  Trash2,
+  MoreVertical,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -22,11 +25,16 @@ import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { MessageHostButton } from "@/components/event/message-host-button"
+import { toast } from "sonner"
+import { getEventImageUrl } from "@/lib/image-utils"
 
 interface Event {
   _id: string
@@ -64,7 +72,13 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteLoading, setFavoriteLoading] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const { data: session } = useSession()
+  const router = useRouter()
+
+  // Check if current user is the event owner
+  const isOwner = session?.user?.email && event?.host?.email === session.user.email
 
   useEffect(() => {
     fetchEvent()
@@ -120,6 +134,33 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       console.error("Error toggling favorite:", error)
     } finally {
       setFavoriteLoading(false)
+    }
+  }
+
+  const handleDeleteEvent = async () => {
+    try {
+      setDeleting(true)
+
+      const response = await fetch(`/api/events/${params.id}`, {
+        method: "DELETE",
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore durante l'eliminazione")
+      }
+
+      const data = await response.json()
+      toast.success(data.message || "Evento eliminato con successo!")
+
+      // Redirect to user events page
+      router.push("/user/events")
+    } catch (error: any) {
+      console.error("💥 Error deleting event:", error)
+      toast.error(error.message || "Errore durante l'eliminazione dell'evento")
+    } finally {
+      setDeleting(false)
+      setShowDeleteDialog(false)
     }
   }
 
@@ -202,7 +243,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       <div className="relative">
         {/* Navigation */}
         <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between">
-          <Link href="/">
+          <Link href={isOwner ? "/user/events" : "/"}>
             <Button variant="ghost" size="icon" className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white">
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -216,228 +257,245 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             >
               <Share className="h-4 w-4" />
             </Button>
-            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
-                onClick={toggleFavorite}
-                disabled={favoriteLoading || !session}
-              >
-                {favoriteLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`} />
-                )}
-              </Button>
-            </motion.div>
+            {!isOwner && (
+              <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
+                  onClick={toggleFavorite}
+                  disabled={favoriteLoading || !session}
+                >
+                  {favoriteLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Heart className={`h-4 w-4 ${isFavorite ? "fill-red-500 text-red-500" : "text-white"}`} />
+                  )}
+                </Button>
+              </motion.div>
+            )}
+            {isOwner && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="bg-black/30 backdrop-blur-sm hover:bg-black/40 text-white"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem asChild>
+                    <Link href={`/evento/${event._id}/edit`} className="flex items-center gap-2">
+                      <Edit3 className="h-4 w-4" />
+                      Modifica
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setShowDeleteDialog(true)}
+                    className="text-red-600 focus:text-red-600"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Elimina
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </div>
         </div>
 
         {/* Image Gallery */}
-        <div className="relative aspect-[16/10] overflow-hidden">
-          <Image
-            src={event.images?.[currentImageIndex] || "/placeholder.svg?height=400&width=600&query=event"}
-            alt={event.title}
-            fill
-            className="object-cover"
-            sizes="100vw"
-            priority
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
-
-          {/* Image indicators */}
-          {event.images && event.images.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
-              {event.images.map((_, index) => (
-                <button
-                  key={index}
-                  className={`w-2 h-2 rounded-full transition-colors ${
-                    index === currentImageIndex ? "bg-white" : "bg-white/50"
-                  }`}
-                  onClick={() => setCurrentImageIndex(index)}
-                />
-              ))}
+        <div className="aspect-[16/10] relative overflow-hidden">
+          {event.images && event.images.length > 0 ? (
+            <>
+              <Image
+                src={getEventImageUrl(event.images[currentImageIndex]) || "/placeholder.svg"}
+                alt={event.title}
+                fill
+                className="object-cover"
+                priority
+                sizes="100vw"
+              />
+              {event.images.length > 1 && (
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2">
+                  {event.images.map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentImageIndex(index)}
+                      className={`w-2 h-2 rounded-full transition-all ${
+                        index === currentImageIndex ? "bg-white" : "bg-white/50"
+                      }`}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <Calendar className="h-16 w-16 mx-auto mb-2 opacity-50" />
+                <p>Nessuna immagine disponibile</p>
+              </div>
             </div>
           )}
         </div>
       </div>
 
-      <div className="px-4 py-4 space-y-6 pb-24">
-        {/* Verification Badge */}
-        {event.verified && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-            <Alert className="border-green-200 bg-green-50 dark:bg-green-900/20 dark:border-green-800">
-              <Shield className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-700 dark:text-green-400">
-                <strong>Evento Verificato</strong> - Link di prenotazione confermato su piattaforma ufficiale
-              </AlertDescription>
-            </Alert>
-          </motion.div>
-        )}
-
+      {/* Content */}
+      <div className="px-4 py-6 space-y-6">
         {/* Title and Basic Info */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-          <div className="flex justify-between items-start mb-3">
-            <h1 className="text-2xl font-bold leading-tight text-foreground pr-4">{event.title}</h1>
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-              <span className="font-medium">{event.rating || 4.8}</span>
-              <span className="text-muted-foreground text-sm">({event.reviewCount || 0})</span>
-            </div>
+        <div>
+          <div className="flex items-start justify-between mb-2">
+            <h1 className="text-2xl font-bold text-foreground pr-4">{event.title}</h1>
+            {event.verified && (
+              <Badge className="bg-green-100 text-green-700 flex-shrink-0">
+                <Shield className="h-3 w-3 mr-1" />
+                Verificato
+              </Badge>
+            )}
           </div>
 
-          <div className="flex items-center gap-1 text-muted-foreground mb-3">
-            <MapPin className="h-4 w-4 flex-shrink-0" />
-            <span className="text-sm">{event.location}</span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-4">
             <div className="flex items-center gap-1">
-              <Calendar className="h-4 w-4" />
-              <span>{formatDateRange(event.dateStart, event.dateEnd)}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Users className="h-4 w-4" />
-              <span>
-                {event.availableSpots}/{event.totalSpots} posti disponibili
-              </span>
+              <MapPin className="h-4 w-4" />
+              <span>{event.location}</span>
             </div>
             <div className="flex items-center gap-1">
               <Eye className="h-4 w-4" />
               <span>{event.views} visualizzazioni</span>
             </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-              {event.availableSpots} posti liberi
-            </Badge>
-            {event.availableSpots <= 3 && event.availableSpots > 0 && (
-              <Badge className="bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
-                Ultimi posti!
-              </Badge>
-            )}
-            {event.availableSpots === 0 && (
-              <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">Sold Out</Badge>
+            {event.rating > 0 && (
+              <div className="flex items-center gap-1">
+                <Star className="h-4 w-4 text-yellow-500" />
+                <span>
+                  {event.rating.toFixed(1)} ({event.reviewCount})
+                </span>
+              </div>
             )}
           </div>
-        </motion.div>
 
-        <Separator />
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-1">
+              <Calendar className="h-4 w-4 text-blue-500" />
+              <span className="font-medium">{formatDateRange(event.dateStart, event.dateEnd)}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Users className="h-4 w-4 text-green-500" />
+              <span className="font-medium">
+                {event.availableSpots}/{event.totalSpots} posti disponibili
+              </span>
+            </div>
+          </div>
+        </div>
 
         {/* Host Info */}
-        {event.host && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-            <Card className="border-0 shadow-sm bg-card/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="ring-2 ring-blue-200">
-                      <AvatarImage src={event.host.image || "/placeholder.svg?height=40&width=40&query=host"} />
-                      <AvatarFallback>
-                        {event.host.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium">Organizzato da {event.host.name}</span>
-                        {event.host.verified && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      </div>
-                      <div className="text-sm text-muted-foreground flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                        {event.host.rating || 4.8} • {event.host.reviewCount || 0} recensioni
-                      </div>
+        {event.host && !isOwner && (
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={event.host.image || "/placeholder.svg"} alt={event.host.name} />
+                    <AvatarFallback>{event.host.name.charAt(0).toUpperCase()}</AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{event.host.name}</h3>
+                      {event.host.verified && <CheckCircle className="h-4 w-4 text-blue-500" />}
                     </div>
+                    {event.host.rating > 0 && (
+                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Star className="h-3 w-3 text-yellow-500" />
+                        <span>
+                          {event.host.rating.toFixed(1)} • {event.host.reviewCount} recensioni
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  {session?.user?.email !== event.host.email && event.host && (
-                    <div className="flex gap-2">
-                      <MessageHostButton
-                        hostId={event.host._id || event.hostId || ""}
-                        hostName={event.host.name}
-                        hostEmail={event.host.email}
-                        eventId={event._id}
-                        eventTitle={event.title}
-                      />
-                    </div>
-                  )}
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
+                <MessageHostButton hostId={event.hostId || event.host._id || ""} hostName={event.host.name} />
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        <Separator />
+        {/* Owner Info */}
+        {isOwner && (
+          <Alert>
+            <Shield className="h-4 w-4" />
+            <AlertDescription>
+              Questo è il tuo evento. Puoi modificarlo o eliminarlo usando il menu in alto a destra.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Description */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <h3 className="font-semibold mb-3 text-lg">Descrizione</h3>
-          <p className="text-muted-foreground leading-relaxed">{event.description}</p>
-        </motion.div>
+        <div>
+          <h2 className="text-lg font-semibold mb-3">Descrizione</h2>
+          <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{event.description}</p>
+        </div>
 
         {/* Amenities */}
         {event.amenities && event.amenities.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-            <h3 className="font-semibold mb-3 text-lg">Servizi Inclusi</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {event.amenities.map((amenity) => (
-                <div key={amenity} className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg">
-                  <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
-                  <span className="text-sm">{amenity}</span>
-                </div>
+          <div>
+            <h2 className="text-lg font-semibold mb-3">Servizi Inclusi</h2>
+            <div className="flex flex-wrap gap-2">
+              {event.amenities.map((amenity, index) => (
+                <Badge key={index} variant="secondary" className="text-sm">
+                  {amenity}
+                </Badge>
               ))}
             </div>
-          </motion.div>
-        )}
-
-        {/* Booking Link */}
-        {event.bookingLink && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-            <h3 className="font-semibold mb-3 text-lg">Prenotazione Ufficiale</h3>
-            <a
-              href={event.bookingLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-3 p-4 border border-blue-200 rounded-lg hover:bg-blue-50 dark:border-blue-800 dark:hover:bg-blue-900/20 transition-colors"
-            >
-              <ExternalLink className="h-5 w-5 text-blue-600" />
-              <div>
-                <span className="text-blue-600 font-medium">Prenota su piattaforma ufficiale</span>
-                <p className="text-xs text-muted-foreground">Clicca per prenotare l'alloggio</p>
-              </div>
-            </a>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Bottom Booking Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-md border-t border-border p-4 safe-area-pb">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-2xl font-bold text-foreground">€{event.price}</div>
-            <div className="text-sm text-muted-foreground">a persona</div>
           </div>
-          {event.availableSpots > 0 ? (
-            <Link href={`/prenota/${event._id}`}>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button
-                  size="lg"
-                  className="px-8 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                >
-                  Unisciti al Gruppo
+        )}
+
+        <Separator />
+
+        {/* Price and Booking */}
+        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <div className="text-3xl font-bold text-blue-600">€{event.price}</div>
+              <div className="text-sm text-muted-foreground">per persona</div>
+            </div>
+            <div className="text-right">
+              <div className="text-sm text-muted-foreground">Posti disponibili</div>
+              <div className="text-2xl font-bold text-green-600">{event.availableSpots}</div>
+            </div>
+          </div>
+
+          {!isOwner && (
+            <>
+              {event.bookingLink ? (
+                <Button asChild className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white">
+                  <a href={event.bookingLink} target="_blank" rel="noopener noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Prenota Ora
+                  </a>
                 </Button>
-              </motion.div>
-            </Link>
-          ) : (
-            <Button size="lg" disabled className="px-8">
-              Sold Out
-            </Button>
+              ) : (
+                <Button disabled className="w-full">
+                  Link di prenotazione non disponibile
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        title="Elimina Evento"
+        description="Sei sicuro di voler eliminare questo evento? Questa azione non può essere annullata e tutti i partecipanti riceveranno una notifica."
+        confirmText="Elimina"
+        cancelText="Annulla"
+        onConfirm={handleDeleteEvent}
+        loading={deleting}
+        variant="destructive"
+      />
     </div>
   )
 }
