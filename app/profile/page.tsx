@@ -43,7 +43,7 @@ interface UserProfile {
   rating: number
   reviewCount: number
   joinedAt: string
-  stats?: {
+  stats: {
     eventsCreated: number
     eventsAttended: number
     totalViews: number
@@ -90,14 +90,14 @@ export default function ProfilePage() {
       const response = await fetch("/api/profile")
       if (response.ok) {
         const data = await response.json()
-        // Assicurati che stats esista sempre
+        // Assicurati che stats esista sempre con valori di default
         const profileData = {
           ...data,
-          stats: data.stats || {
-            eventsCreated: 0,
-            eventsAttended: 0,
-            totalViews: 0,
-            favoriteCount: 0,
+          stats: {
+            eventsCreated: data.stats?.eventsCreated || 0,
+            eventsAttended: data.stats?.eventsAttended || 0,
+            totalViews: data.stats?.totalViews || 0,
+            favoriteCount: data.stats?.favoriteCount || 0,
           },
         }
         setProfile(profileData)
@@ -140,6 +140,20 @@ export default function ProfilePage() {
       month: "short",
     })
   }
+
+  // Prepara le stats per l'AchievementSystem
+  const achievementStats = profile
+    ? {
+        eventsCreated: profile.stats?.eventsCreated || 0,
+        eventsParticipated: profile.stats?.eventsAttended || 0,
+        totalReviews: profile.reviewCount || 0,
+        totalMessages: 0, // Da implementare
+        rating: profile.rating || 0,
+        consecutiveDays: 7, // Mock data
+        totalPoints: 0,
+        level: 1,
+      }
+    : undefined
 
   if (status === "loading" || loading) {
     return (
@@ -222,22 +236,22 @@ export default function ProfilePage() {
           {profile?.bio && <p className="text-white/90 text-sm mb-4 leading-relaxed">{profile.bio}</p>}
 
           {/* Stats */}
-          {profile && (
+          {profile?.stats && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats?.eventsCreated || 0}</div>
+                <div className="text-2xl font-bold">{profile.stats.eventsCreated}</div>
                 <div className="text-white/70 text-xs">Eventi Creati</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats?.eventsAttended || 0}</div>
+                <div className="text-2xl font-bold">{profile.stats.eventsAttended}</div>
                 <div className="text-white/70 text-xs">Partecipazioni</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats?.totalViews || 0}</div>
+                <div className="text-2xl font-bold">{profile.stats.totalViews}</div>
                 <div className="text-white/70 text-xs">Visualizzazioni</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats?.favoriteCount || 0}</div>
+                <div className="text-2xl font-bold">{profile.stats.favoriteCount}</div>
                 <div className="text-white/70 text-xs">Preferiti</div>
               </div>
             </div>
@@ -246,8 +260,8 @@ export default function ProfilePage() {
       </div>
 
       <div className="px-4 py-6 space-y-6">
-        {/* Achievement System */}
-        <AchievementSystem />
+        {/* Achievement System - Solo se abbiamo i dati del profilo */}
+        {achievementStats && <AchievementSystem stats={achievementStats} />}
 
         {/* My Events Section */}
         <Card>
