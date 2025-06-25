@@ -15,6 +15,7 @@ import {
   Trash2,
   MoreVertical,
   AlertTriangle,
+  RefreshCw,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -57,6 +58,7 @@ export default function UserEventsPage() {
   const [error, setError] = useState("")
   const [deleteEventId, setDeleteEventId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const { data: session, status } = useSession()
   const router = useRouter()
 
@@ -76,9 +78,20 @@ export default function UserEventsPage() {
       setLoading(true)
       setError("")
 
-      const response = await fetch("/api/user/events")
+      console.log("🔍 Fetching user events...")
+
+      const response = await fetch("/api/user/events", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      })
+
+      console.log("📋 Response status:", response.status)
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
@@ -91,13 +104,19 @@ export default function UserEventsPage() {
         setEvents([])
         setError("Formato dati non valido ricevuto dal server")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("💥 Error fetching user events:", error)
-      setError("Errore nel caricamento degli eventi. Riprova.")
+      setError(error.message || "Errore nel caricamento degli eventi. Riprova.")
       setEvents([])
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
+  }
+
+  const handleRefresh = () => {
+    setRefreshing(true)
+    fetchUserEvents()
   }
 
   const handleDeleteEvent = async (eventId: string) => {
@@ -243,12 +262,23 @@ export default function UserEventsPage() {
                 {events.reduce((sum, event) => sum + event.views, 0)} visualizzazioni
               </span>
             </div>
-            <Link href="/crea-evento">
-              <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30">
-                <Plus className="h-4 w-4 mr-2" />
-                Nuovo Evento
+            <div className="flex gap-2">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-white hover:bg-white/20"
+                onClick={handleRefresh}
+                disabled={refreshing}
+              >
+                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
               </Button>
-            </Link>
+              <Link href="/crea-evento">
+                <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nuovo Evento
+                </Button>
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -264,8 +294,17 @@ export default function UserEventsPage() {
           </motion.div>
         )}
 
+        {/* Debug Info */}
+        {process.env.NODE_ENV === "development" && (
+          <div className="mb-4 p-4 bg-gray-100 rounded-lg text-sm">
+            <p>
+              <strong>Debug:</strong> User: {session?.user?.email}, Events found: {events.length}
+            </p>
+          </div>
+        )}
+
         {/* Events List */}
-        {events.length === 0 ? (
+        {events.length === 0 && !loading ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
             <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
               <Calendar className="h-10 w-10 text-blue-500" />

@@ -37,7 +37,16 @@ export async function GET(request: NextRequest) {
       const usersCollection = db.collection("users")
       const currentUser = await usersCollection.findOne({ email: currentUserEmail })
       if (currentUser) {
-        query.hostId = { $ne: currentUser._id }
+        query.$and = [
+          {
+            $nor: [
+              { hostId: currentUser._id },
+              { hostId: currentUser._id.toString() },
+              { createdBy: currentUser._id },
+              { createdBy: currentUser._id.toString() },
+            ],
+          },
+        ]
       }
     }
 
@@ -170,10 +179,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "User not found" }, { status: 404 })
     }
 
-    // Create event
+    // Create event with proper hostId
     const eventData = {
       ...body,
-      hostId: user._id,
+      hostId: user._id, // Use ObjectId for consistency
+      createdBy: user._id, // Also set createdBy for backup
       verified: false, // Events need verification
       views: 0,
       rating: 0,
