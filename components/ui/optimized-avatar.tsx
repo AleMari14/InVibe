@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getProfileImageUrl, generatePlaceholder } from "@/lib/image-utils"
+import { getOptimizedImageUrl, generatePlaceholder } from "@/lib/image-utils"
 import { cn } from "@/lib/utils"
 
 interface OptimizedAvatarProps {
@@ -12,16 +12,41 @@ interface OptimizedAvatarProps {
   size?: number
   className?: string
   onError?: () => void
+  forceRefresh?: boolean
 }
 
-export function OptimizedAvatar({ src, alt = "", fallback, size = 96, className, onError }: OptimizedAvatarProps) {
+export function OptimizedAvatar({
+  src,
+  alt = "",
+  fallback,
+  size = 96,
+  className,
+  onError,
+  forceRefresh = false,
+}: OptimizedAvatarProps) {
   const [imageError, setImageError] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!!src)
+  const [imageUrl, setImageUrl] = useState<string>("")
+
+  // Update image URL when src changes or forceRefresh is triggered
+  useEffect(() => {
+    if (src) {
+      const optimizedUrl = getOptimizedImageUrl(src, size)
+      setImageUrl(optimizedUrl)
+      setImageError(false)
+      setIsLoading(true)
+    } else {
+      setImageUrl(generatePlaceholder(size, size, alt || "user"))
+      setImageError(false)
+      setIsLoading(false)
+    }
+  }, [src, size, alt, forceRefresh])
 
   const handleImageError = () => {
-    console.log("Avatar image failed to load:", src)
+    console.log("Avatar image failed to load:", imageUrl)
     setImageError(true)
     setIsLoading(false)
+    setImageUrl(generatePlaceholder(size, size, alt || "user"))
     onError?.()
   }
 
@@ -30,10 +55,7 @@ export function OptimizedAvatar({ src, alt = "", fallback, size = 96, className,
     setImageError(false)
   }
 
-  // Se c'è stato un errore o non c'è src, usa il placeholder
-  const imageUrl = imageError || !src ? generatePlaceholder(size, size, alt || "user") : getProfileImageUrl(src, size)
-
-  // Genera il fallback dalle iniziali del nome
+  // Generate fallback text from alt or fallback prop
   const getFallbackText = () => {
     if (fallback) return fallback
     if (alt) {

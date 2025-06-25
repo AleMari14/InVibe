@@ -796,10 +796,8 @@ export default function HomePage() {
           </Link>
 
           <Link href={session ? "/crea-evento" : "/auth/login"} className="flex flex-col items-center p-2 min-w-0">
-            <div className="w-12 h-12 bg-gradient-to-r from-blue-600 to-purple-600 rounded-full flex items-center justify-center -mt-6 shadow-lg">
-              <Plus className="h-6 w-6 text-white" />
-            </div>
-            <span className="text-[10px] text-muted-foreground mt-1">Crea</span>
+            <Plus className="h-5 w-5 text-muted-foreground" />
+            <span className="text-[10px] text-muted-foreground">Crea</span>
           </Link>
 
           <Link href="/messaggi" className="flex flex-col items-center p-2 min-w-0">

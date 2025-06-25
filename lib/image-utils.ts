@@ -2,6 +2,9 @@
  * Utility functions for image optimization and handling
  */
 
+// Cloudinary base configuration
+const CLOUDINARY_BASE_URL = "https://res.cloudinary.com"
+
 export interface ImageOptimizationOptions {
   width?: number
   height?: number
@@ -22,7 +25,7 @@ export function optimizeCloudinaryImage(
 
   // Se non c'è URL, restituisci placeholder
   if (!imageUrl) {
-    return `/placeholder.svg?height=${height}&width=${width}&query=user`
+    return generatePlaceholder(width, height, "user")
   }
 
   // Se è un URL Cloudinary, ottimizzalo
@@ -63,10 +66,116 @@ export function optimizeCloudinaryImage(
 }
 
 /**
- * Genera un URL placeholder con query personalizzata
+ * Generates a placeholder image URL
  */
-export function generatePlaceholder(width: number, height: number, query = "user"): string {
-  return `/placeholder.svg?height=${height}&width=${width}&query=${query}`
+export function generatePlaceholder(width: number, height: number, text = "image"): string {
+  return `/placeholder.svg?height=${height}&width=${width}&query=${encodeURIComponent(text)}`
+}
+
+/**
+ * Optimizes a Cloudinary image URL with transformations
+ */
+export function getCloudinaryImageUrl(imageUrl: string, width: number, height?: number): string {
+  if (!imageUrl || !imageUrl.includes("cloudinary.com")) {
+    return imageUrl
+  }
+
+  try {
+    const parts = imageUrl.split("/upload/")
+    if (parts.length !== 2) return imageUrl
+
+    const h = height || width
+    const transformations = [
+      `w_${width * 2}`, // 2x for retina
+      `h_${h * 2}`,
+      "c_fill", // Crop to fill
+      "f_auto", // Auto format
+      "q_auto", // Auto quality
+      "dpr_2.0", // Device pixel ratio
+      "g_face", // Focus on face if present
+    ].join(",")
+
+    return `${parts[0]}/upload/${transformations}/${parts[1]}`
+  } catch (error) {
+    console.error("Error optimizing Cloudinary URL:", error)
+    return imageUrl
+  }
+}
+
+/**
+ * Gets optimized profile image URL
+ */
+export function getProfileImageUrl(imageUrl: string | null | undefined, size = 96): string {
+  if (!imageUrl) {
+    return generatePlaceholder(size, size, "user")
+  }
+
+  // Handle Cloudinary URLs
+  if (imageUrl.includes("cloudinary.com")) {
+    return getCloudinaryImageUrl(imageUrl, size)
+  }
+
+  // Handle Google OAuth images
+  if (imageUrl.includes("googleusercontent.com")) {
+    // Google images support size parameter
+    const url = new URL(imageUrl)
+    url.searchParams.set("s", (size * 2).toString()) // 2x for retina
+    return url.toString()
+  }
+
+  // Handle other URLs as-is
+  return imageUrl
+}
+
+/**
+ * Optimizes event image URL
+ */
+export function getEventImageUrl(imageUrl: string | null | undefined, width: number, height: number): string {
+  if (!imageUrl) {
+    return generatePlaceholder(width, height, "event")
+  }
+
+  if (imageUrl.includes("cloudinary.com")) {
+    return getCloudinaryImageUrl(imageUrl, width, height)
+  }
+
+  return imageUrl
+}
+
+/**
+ * Validates image file
+ */
+export function validateImageFile(file: File): { valid: boolean; error?: string } {
+  // Check file type
+  if (!file.type.startsWith("image/")) {
+    return { valid: false, error: "Il file deve essere un'immagine" }
+  }
+
+  // Check file size (max 10MB)
+  const maxSize = 10 * 1024 * 1024
+  if (file.size > maxSize) {
+    return { valid: false, error: "L'immagine deve essere inferiore a 10MB" }
+  }
+
+  // Check image dimensions (optional)
+  return { valid: true }
+}
+
+/**
+ * Creates an optimized image URL with cache busting
+ */
+export function getOptimizedImageUrl(imageUrl: string | null | undefined, size = 96): string {
+  if (!imageUrl) {
+    return generatePlaceholder(size, size, "user")
+  }
+
+  const optimizedUrl = getProfileImageUrl(imageUrl, size)
+
+  // Add cache busting parameter for immediate updates
+  const url = new URL(optimizedUrl, window.location.origin)
+  url.searchParams.set("t", Date.now().toString())
+
+  return url.toString()
 }
 
 /**
@@ -81,18 +190,4 @@ export function isValidImageUrl(url: string | null | undefined): boolean {
   } catch {
     return false
   }
-}
-
-/**
- * Ottiene l'URL dell'immagine del profilo ottimizzato
- */
-export function getProfileImageUrl(imageUrl: string | null | undefined, size = 96): string {
-  return optimizeCloudinaryImage(imageUrl, {
-    width: size,
-    height: size,
-    crop: "fill",
-    format: "auto",
-    quality: "auto",
-    dpr: 2,
-  })
 }

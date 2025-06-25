@@ -21,19 +21,14 @@ import {
   Sun,
   Monitor,
   HelpCircle,
-  UserCheck,
-  Trophy,
   Award,
-  Crown,
-  Medal,
   Users,
-  MapPin,
   Camera,
-  Upload,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { AchievementSystem } from "@/components/gamification/achievement-system"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -42,7 +37,6 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Progress } from "@/components/ui/progress"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { useTheme } from "next-themes"
@@ -56,6 +50,7 @@ export default function ProfilePage() {
   const [mounted, setMounted] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [forceRefresh, setForceRefresh] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { profile, isLoading, updateProfile, refreshProfile } = useUserProfile()
 
@@ -81,6 +76,9 @@ export default function ProfilePage() {
     totalReviews: 0,
     totalMessages: 0,
     rating: 0,
+    consecutiveDays: 7, // Mock data
+    totalPoints: 0,
+    level: 1,
   })
 
   useEffect(() => {
@@ -110,6 +108,9 @@ export default function ProfilePage() {
             totalReviews: data.stats?.totalReviews || 0,
             totalMessages: data.stats?.totalBookings || 0,
             rating: data.rating || 0,
+            consecutiveDays: 7, // Mock data - implement real streak tracking
+            totalPoints: 0, // Will be calculated by achievement system
+            level: 1, // Will be calculated by achievement system
           })
         }
       } catch (error) {
@@ -157,6 +158,7 @@ export default function ProfilePage() {
     try {
       const formData = new FormData()
       formData.append("file", file)
+      formData.append("type", "profile")
 
       const response = await fetch("/api/upload", {
         method: "POST",
@@ -187,6 +189,9 @@ export default function ProfilePage() {
               image: newImageUrl,
             },
           })
+
+          // Force refresh degli avatar
+          setForceRefresh((prev) => prev + 1)
 
           // Refresh del profilo
           refreshProfile()
@@ -230,6 +235,9 @@ export default function ProfilePage() {
           })
         }
 
+        // Force refresh degli avatar
+        setForceRefresh((prev) => prev + 1)
+
         setIsEditingProfile(false)
         toast.success("Profilo aggiornato con successo!")
         refreshProfile()
@@ -253,6 +261,11 @@ export default function ProfilePage() {
     setTimeout(() => {
       signOut({ callbackUrl: "/" })
     }, 1000)
+  }
+
+  const handleAchievementUnlock = (achievement: any) => {
+    // Handle achievement unlock - could trigger confetti, sound, etc.
+    console.log("Achievement unlocked:", achievement)
   }
 
   const stats = [
@@ -281,71 +294,6 @@ export default function ProfilePage() {
       color: "from-purple-500 to-pink-500",
     },
   ]
-
-  // Calculate achievements based on real data
-  const calculateAchievements = () => {
-    const achievements = [
-      {
-        id: 1,
-        title: "Primo Evento",
-        description: "Hai creato il tuo primo evento!",
-        icon: Trophy,
-        unlocked: realStats.eventsCreated >= 1,
-        color: "from-yellow-400 to-yellow-600",
-        progress: Math.min(100, (realStats.eventsCreated / 1) * 100),
-      },
-      {
-        id: 2,
-        title: "Socializzatore",
-        description: "Partecipa a 10 eventi",
-        icon: Users,
-        unlocked: realStats.eventsParticipated >= 10,
-        color: "from-green-400 to-green-600",
-        progress: Math.min(100, (realStats.eventsParticipated / 10) * 100),
-      },
-      {
-        id: 3,
-        title: "Organizzatore",
-        description: "Crea 5 eventi",
-        icon: MapPin,
-        unlocked: realStats.eventsCreated >= 5,
-        color: "from-blue-400 to-blue-600",
-        progress: Math.min(100, (realStats.eventsCreated / 5) * 100),
-      },
-      {
-        id: 4,
-        title: "Influencer",
-        description: "Raggiungi 50 partecipanti totali",
-        icon: Crown,
-        unlocked: realStats.eventsParticipated >= 50,
-        color: "from-purple-400 to-purple-600",
-        progress: Math.min(100, (realStats.eventsParticipated / 50) * 100),
-      },
-      {
-        id: 5,
-        title: "Recensore",
-        description: "Ricevi 20 recensioni",
-        icon: Camera,
-        unlocked: realStats.totalReviews >= 20,
-        color: "from-pink-400 to-pink-600",
-        progress: Math.min(100, (realStats.totalReviews / 20) * 100),
-      },
-      {
-        id: 6,
-        title: "Leggenda",
-        description: "Crea 100 eventi",
-        icon: Medal,
-        unlocked: realStats.eventsCreated >= 100,
-        color: "from-orange-400 to-red-600",
-        progress: Math.min(100, (realStats.eventsCreated / 100) * 100),
-      },
-    ]
-
-    return achievements
-  }
-
-  const achievements = calculateAchievements()
-  const unlockedCount = achievements.filter((a) => a.unlocked).length
 
   const menuItems = [
     { label: "I Miei Eventi", href: "/user/events", icon: Calendar, color: "text-blue-500" },
@@ -387,6 +335,7 @@ export default function ProfilePage() {
                 alt={profile?.name || session?.user?.name || ""}
                 size={96}
                 className="h-24 w-24 border-4 border-white/30 shadow-xl"
+                forceRefresh={forceRefresh > 0}
               />
               <div className="absolute -bottom-2 -right-2 bg-green-500 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -420,12 +369,6 @@ export default function ProfilePage() {
                   <Award className="w-3 h-3 mr-1" />
                   Membro Verificato
                 </Badge>
-                {unlockedCount >= 3 && (
-                  <Badge className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white border-0">
-                    <Crown className="w-3 h-3 mr-1" />
-                    VIP
-                  </Badge>
-                )}
               </motion.div>
             </div>
 
@@ -470,78 +413,9 @@ export default function ProfilePage() {
           ))}
         </motion.div>
 
-        {/* Achievements */}
+        {/* Enhanced Achievement System */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Trophy className="h-6 w-6 text-yellow-500" />
-                Achievements
-                <Badge variant="secondary" className="ml-auto">
-                  {unlockedCount}/{achievements.length} Completati
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {achievements.map((achievement, index) => (
-                  <motion.div
-                    key={achievement.id}
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.4 + index * 0.1 }}
-                    className={`relative p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
-                      achievement.unlocked
-                        ? "border-transparent bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-lg"
-                        : "border-dashed border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/50"
-                    }`}
-                  >
-                    <div className="flex items-start gap-3">
-                      <div
-                        className={`p-2 rounded-lg bg-gradient-to-r ${achievement.color} ${
-                          achievement.unlocked ? "shadow-lg" : "opacity-50"
-                        }`}
-                      >
-                        <achievement.icon className="h-5 w-5 text-white" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3
-                          className={`font-semibold text-sm ${
-                            achievement.unlocked ? "text-gray-900 dark:text-white" : "text-gray-500"
-                          }`}
-                        >
-                          {achievement.title}
-                        </h3>
-                        <p
-                          className={`text-xs mt-1 ${
-                            achievement.unlocked ? "text-gray-600 dark:text-gray-300" : "text-gray-400"
-                          }`}
-                        >
-                          {achievement.description}
-                        </p>
-                        {!achievement.unlocked && (
-                          <div className="mt-2">
-                            <div className="flex justify-between text-xs text-gray-500 mb-1">
-                              <span>Progresso</span>
-                              <span>{Math.round(achievement.progress)}%</span>
-                            </div>
-                            <Progress value={achievement.progress} className="h-1" />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {achievement.unlocked && (
-                      <div className="absolute top-2 right-2">
-                        <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                          <Award className="w-3 h-3 text-white" />
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <AchievementSystem stats={realStats} onAchievementUnlock={handleAchievementUnlock} />
         </motion.div>
 
         {/* Menu Items */}
@@ -703,38 +577,15 @@ export default function ProfilePage() {
 
               <Separator />
 
-              {/* Account Actions */}
-              <div className="space-y-3">
-                <Button
-                  variant="outline"
-                  className="w-full justify-start h-auto p-4 border-0 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                      <UserCheck className="h-5 w-5 text-indigo-600" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Cambia Account</div>
-                      <div className="text-sm text-muted-foreground">Gestisci account multipli</div>
-                    </div>
-                  </div>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-start h-auto p-4 border-0 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 text-red-600 hover:text-red-700"
-                  onClick={handleSignOut}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                      <LogOut className="h-5 w-5 text-red-600" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Disconnetti</div>
-                      <div className="text-sm text-red-500">Esci dall'applicazione</div>
-                    </div>
-                  </div>
-                </Button>
-              </div>
+              {/* Logout */}
+              <Button
+                variant="destructive"
+                onClick={handleSignOut}
+                className="w-full h-12 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300"
+              >
+                <LogOut className="h-5 w-5 mr-2" />
+                Disconnetti
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
@@ -742,117 +593,105 @@ export default function ProfilePage() {
 
       {/* Edit Profile Dialog */}
       <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
-        <DialogContent className="sm:max-w-md max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit3 className="h-5 w-5" />
               Modifica Profilo
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-6 py-4">
-            {/* Profile Image Upload */}
+          <div className="space-y-6">
+            {/* Profile Image */}
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <OptimizedAvatar
                   src={profileData.image}
-                  alt="Profile"
+                  alt={profileData.name}
                   size={96}
-                  className="h-24 w-24 border-4 border-gray-200 dark:border-gray-700"
+                  className="h-24 w-24 border-4 border-gray-200"
+                  forceRefresh={forceRefresh > 0}
                 />
-                <Button
-                  size="icon"
-                  variant="outline"
-                  className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-white dark:bg-gray-800 border-2"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isUploading}
-                >
-                  {isUploading ? (
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                  ) : (
-                    <Camera className="h-4 w-4" />
-                  )}
-                </Button>
+                {isUploading && (
+                  <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  </div>
+                )}
               </div>
-              <div className="text-center">
+              <div className="flex gap-2">
                 <Button
                   variant="outline"
+                  size="sm"
                   onClick={() => fileInputRef.current?.click()}
                   disabled={isUploading}
-                  className="gap-2"
+                  className="flex items-center gap-2"
                 >
-                  <Upload className="h-4 w-4" />
-                  {isUploading ? "Caricamento..." : "Cambia Foto"}
+                  <Camera className="h-4 w-4" />
+                  Cambia Foto
                 </Button>
-                <p className="text-xs text-muted-foreground mt-2">JPG, PNG o GIF. Max 5MB.</p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
               </div>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
             </div>
-
-            <Separator />
 
             {/* Form Fields */}
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name">Nome Completo</Label>
+              <div>
+                <Label htmlFor="name">Nome</Label>
                 <Input
                   id="name"
                   value={profileData.name}
-                  onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, name: e.target.value }))}
                   placeholder="Il tuo nome"
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  value={profileData.email}
-                  onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
-                  placeholder="email@esempio.com"
-                  disabled
-                  className="bg-gray-50 dark:bg-gray-800"
-                />
-                <p className="text-xs text-muted-foreground">L'email non può essere modificata</p>
-              </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="bio">Bio</Label>
                 <Textarea
                   id="bio"
-                  placeholder="Raccontaci qualcosa di te..."
                   value={profileData.bio}
-                  onChange={(e) => setProfileData({ ...profileData, bio: e.target.value })}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, bio: e.target.value }))}
+                  placeholder="Raccontaci qualcosa di te..."
                   rows={3}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Telefono</Label>
-                <Input
-                  id="phone"
-                  placeholder="+39 123 456 7890"
-                  value={profileData.phone}
-                  onChange={(e) => setProfileData({ ...profileData, phone: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="location">Località</Label>
                 <Input
                   id="location"
-                  placeholder="Milano, Italia"
                   value={profileData.location}
-                  onChange={(e) => setProfileData({ ...profileData, location: e.target.value })}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, location: e.target.value }))}
+                  placeholder="La tua città"
+                />
+              </div>
+              <div>
+                <Label htmlFor="phone">Telefono</Label>
+                <Input
+                  id="phone"
+                  value={profileData.phone}
+                  onChange={(e) => setProfileData((prev) => ({ ...prev, phone: e.target.value }))}
+                  placeholder="+39 123 456 7890"
                 />
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-4">
+            <div className="flex gap-2">
+              <Button onClick={handleProfileUpdate} disabled={isUploading} className="flex-1">
+                {isUploading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Salvando...
+                  </>
+                ) : (
+                  "Salva Modifiche"
+                )}
+              </Button>
               <Button variant="outline" onClick={() => setIsEditingProfile(false)} disabled={isUploading}>
                 Annulla
-              </Button>
-              <Button
-                onClick={handleProfileUpdate}
-                disabled={isUploading}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white"
-              >
-                {isUploading ? "Salvando..." : "Salva Modifiche"}
               </Button>
             </div>
           </div>

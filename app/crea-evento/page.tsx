@@ -1320,67 +1320,43 @@ export default function CreaEventoPage() {
                     )}
 
                     {/* Bottone per creare evento inline */}
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="text-center pt-6"
-                    >
+                    {/* Navigation Buttons */}
+                    <div className="flex justify-between items-center pt-6 border-t border-border">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handlePrevStep}
+                        className="flex items-center gap-2"
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Indietro
+                      </Button>
+
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <span>Step {currentStep}/4</span>
+                      </div>
+
                       <Button
                         type="submit"
                         onClick={handleSubmit}
                         disabled={isSubmitting}
-                        className="bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-bold px-12 py-4 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        size="lg"
+                        className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-bold px-8"
                       >
                         {isSubmitting ? (
                           <>
-                            <Loader2 className="h-5 w-5 animate-spin mr-2" />
-                            Creazione in corso...
+                            <Loader2 className="h-5 w-5 animate-spin" />
+                            Creazione...
                           </>
                         ) : (
                           <>
-                            <CheckCircle className="h-5 w-5 mr-2" />
-                            Crea il Mio Evento
+                            <CheckCircle className="h-5 w-5" />
+                            Crea Evento
                           </>
                         )}
                       </Button>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Il tuo evento sarà subito visibile a tutti gli utenti
-                      </p>
-                    </motion.div>
+                    </div>
                   </CardContent>
                 </Card>
-
-                {/* Navigation Buttons */}
-                <div className="flex justify-between items-center pt-6 border-t border-border">
-                  <Button type="button" variant="outline" onClick={handlePrevStep} className="flex items-center gap-2">
-                    <ChevronLeft className="h-4 w-4" />
-                    Indietro
-                  </Button>
-
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <span>Step {currentStep}/4</span>
-                  </div>
-
-                  <Button
-                    type="submit"
-                    onClick={handleSubmit}
-                    disabled={isSubmitting}
-                    className="flex items-center gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 text-primary-foreground font-bold px-8"
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2 className="h-5 w-5 animate-spin" />
-                        Creazione...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle className="h-5 w-5" />
-                        Crea Evento
-                      </>
-                    )}
-                  </Button>
-                </div>
               </motion.div>
             )}
           </AnimatePresence>
