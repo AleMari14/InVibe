@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { cn } from "@/lib/utils"
-import { getOptimizedImageUrl } from "@/lib/image-utils"
 
 interface OptimizedAvatarProps {
   src?: string | null
@@ -11,47 +10,28 @@ interface OptimizedAvatarProps {
   size?: number
   className?: string
   fallback?: string
-  forceRefresh?: boolean
-  key?: string
 }
 
-export function OptimizedAvatar({
-  src,
-  alt,
-  size = 40,
-  className,
-  fallback,
-  forceRefresh = false,
-  ...props
-}: OptimizedAvatarProps) {
+export function OptimizedAvatar({ src, alt, size = 40, className, fallback, ...props }: OptimizedAvatarProps) {
   const [imageError, setImageError] = useState(false)
-  const [imageKey, setImageKey] = useState(0)
+  const [imageLoaded, setImageLoaded] = useState(false)
 
-  // Force refresh quando forceRefresh cambia
-  useEffect(() => {
-    if (forceRefresh) {
-      setImageError(false)
-      setImageKey((prev) => prev + 1)
-    }
-  }, [forceRefresh, src])
-
-  // Reset error quando src cambia
+  // Reset states when src changes
   useEffect(() => {
     setImageError(false)
-    setImageKey((prev) => prev + 1)
+    setImageLoaded(false)
   }, [src])
 
-  const optimizedSrc = src ? getOptimizedImageUrl(src, size) : null
-  const shouldShowImage = optimizedSrc && !imageError
-
   const handleImageError = () => {
-    console.log("Image error for:", optimizedSrc)
+    console.log("❌ Image error for:", src)
     setImageError(true)
+    setImageLoaded(false)
   }
 
   const handleImageLoad = () => {
-    console.log("Image loaded successfully:", optimizedSrc)
+    console.log("✅ Image loaded successfully:", src)
     setImageError(false)
+    setImageLoaded(true)
   }
 
   const getInitials = (name: string) => {
@@ -63,7 +43,37 @@ export function OptimizedAvatar({
       .slice(0, 2)
   }
 
+  const getOptimizedSrc = (url: string) => {
+    if (!url) return null
+
+    // Handle Google OAuth images
+    if (url.includes("googleusercontent.com")) {
+      // Remove existing size parameters and add new ones
+      const baseUrl = url.split("=")[0]
+      return `${baseUrl}=s${size * 2}-c` // 2x for retina, -c for crop
+    }
+
+    // Handle Cloudinary images
+    if (url.includes("cloudinary.com") && url.includes("/upload/")) {
+      try {
+        const parts = url.split("/upload/")
+        if (parts.length === 2) {
+          const transformations = [`w_${size * 2}`, `h_${size * 2}`, "c_fill", "f_auto", "q_auto", "dpr_2.0"].join(",")
+          return `${parts[0]}/upload/${transformations}/${parts[1]}`
+        }
+      } catch (error) {
+        console.error("Error optimizing Cloudinary URL:", error)
+      }
+    }
+
+    // Add cache busting for immediate updates
+    const separator = url.includes("?") ? "&" : "?"
+    return `${url}${separator}t=${Date.now()}`
+  }
+
   const initials = fallback || (alt ? getInitials(alt) : "U")
+  const optimizedSrc = src ? getOptimizedSrc(src) : null
+  const shouldShowImage = optimizedSrc && !imageError
 
   return (
     <div
@@ -75,18 +85,20 @@ export function OptimizedAvatar({
       {...props}
     >
       {shouldShowImage ? (
-        <Image
-          key={`avatar-${imageKey}`}
-          src={optimizedSrc || "/placeholder.svg"}
-          alt={alt}
-          width={size}
-          height={size}
-          className="object-cover w-full h-full"
-          onError={handleImageError}
-          onLoad={handleImageLoad}
-          priority={size > 50}
-          unoptimized={optimizedSrc.includes("googleusercontent.com")}
-        />
+        <>
+          <Image
+            src={optimizedSrc || "/placeholder.svg"}
+            alt={alt}
+            width={size}
+            height={size}
+            className="object-cover w-full h-full"
+            onError={handleImageError}
+            onLoad={handleImageLoad}
+            priority={size > 50}
+            unoptimized={src?.includes("googleusercontent.com")}
+          />
+          {!imageLoaded && <div className="absolute inset-0 bg-muted animate-pulse rounded-full" />}
+        </>
       ) : (
         <span className="text-muted-foreground font-medium select-none" style={{ fontSize: size * 0.4 }}>
           {initials}

@@ -28,6 +28,7 @@ import {
   Target,
   Sparkles,
   CheckCircle,
+  ChevronRight,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -54,7 +55,7 @@ export default function ProfilePage() {
   const [mounted, setMounted] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [forceRefresh, setForceRefresh] = useState(0)
+  const [imageKey, setImageKey] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { profile, isLoading, updateProfile, refreshProfile } = useUserProfile()
 
@@ -177,6 +178,7 @@ export default function ProfilePage() {
 
       if (data.success && data.url) {
         const newImageUrl = data.url
+        console.log("New image URL:", newImageUrl)
 
         // Aggiorna lo stato locale immediatamente
         setProfileData((prev) => ({ ...prev, image: newImageUrl }))
@@ -195,7 +197,7 @@ export default function ProfilePage() {
           })
 
           // Force refresh degli avatar
-          setForceRefresh((prev) => prev + 1)
+          setImageKey((prev) => prev + 1)
 
           // Refresh del profilo
           refreshProfile()
@@ -236,7 +238,7 @@ export default function ProfilePage() {
           })
         }
 
-        setForceRefresh((prev) => prev + 1)
+        setImageKey((prev) => prev + 1)
         setIsEditingProfile(false)
         toast.success("Profilo aggiornato con successo!")
         refreshProfile()
@@ -370,15 +372,15 @@ export default function ProfilePage() {
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case "common":
-        return "bg-gray-100 text-gray-800"
+        return "from-gray-400 to-gray-500"
       case "rare":
-        return "bg-blue-100 text-blue-800"
+        return "from-blue-400 to-blue-500"
       case "epic":
-        return "bg-purple-100 text-purple-800"
+        return "from-purple-400 to-purple-500"
       case "legendary":
-        return "bg-yellow-100 text-yellow-800"
+        return "from-yellow-400 to-yellow-500"
       default:
-        return "bg-gray-100 text-gray-800"
+        return "from-gray-400 to-gray-500"
     }
   }
 
@@ -410,12 +412,11 @@ export default function ProfilePage() {
               className="relative"
             >
               <OptimizedAvatar
+                key={`profile-header-${imageKey}-${currentImage}`}
                 src={currentImage}
                 alt={profile?.name || session?.user?.name || ""}
                 size={96}
                 className="h-24 w-24 border-4 border-white/30 shadow-xl"
-                forceRefresh={forceRefresh > 0}
-                key={`profile-avatar-${forceRefresh}`}
               />
               <div className="absolute -bottom-2 -right-2 bg-green-500 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -493,70 +494,120 @@ export default function ProfilePage() {
           ))}
         </motion.div>
 
-        {/* Achievement System */}
+        {/* Achievement System - Horizontal Scroll */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Trophy className="h-6 w-6 text-yellow-500" />
-                Achievement System
-                <Badge variant="secondary" className="ml-auto">
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2 text-xl">
+                  <Trophy className="h-6 w-6 text-yellow-500" />
+                  Achievement System
+                </CardTitle>
+                <Badge variant="secondary">
                   {achievements.filter((a) => a.unlocked).length}/{achievements.length}
                 </Badge>
-              </CardTitle>
+              </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {achievements.map((achievement, index) => (
-                <motion.div
-                  key={achievement.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.1 + index * 0.05 }}
-                  className={`p-4 rounded-lg border-2 transition-all duration-300 ${
-                    achievement.unlocked
-                      ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
-                      : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
-                  }`}
-                >
-                  <div className="flex items-start gap-3">
+            <CardContent>
+              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+                {achievements.map((achievement, index) => (
+                  <motion.div
+                    key={achievement.id}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.1 + index * 0.05 }}
+                    className="flex-shrink-0 w-48"
+                  >
                     <div
-                      className={`p-2 rounded-lg ${
-                        achievement.unlocked ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
+                        achievement.unlocked
+                          ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 dark:from-green-950/20 dark:to-emerald-950/20 dark:border-green-800"
+                          : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
                       }`}
                     >
-                      <achievement.icon className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h4 className={`font-semibold ${achievement.unlocked ? "text-green-800" : "text-gray-700"}`}>
-                          {achievement.title}
-                        </h4>
-                        <Badge className={`text-xs ${getRarityColor(achievement.rarity)}`}>{achievement.rarity}</Badge>
-                        {achievement.unlocked && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">{achievement.description}</p>
-                      <div className="flex items-center gap-2">
-                        <Progress
-                          value={
-                            (Math.min(achievement.current, achievement.requirement) / achievement.requirement) * 100
-                          }
-                          className="flex-1 h-2"
-                        />
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {Math.min(achievement.current, achievement.requirement)}/{achievement.requirement}
-                        </span>
-                      </div>
+                      {/* Rarity Glow */}
                       {achievement.unlocked && (
-                        <div className="mt-2">
-                          <Badge className="bg-green-100 text-green-800 text-xs">
-                            <Sparkles className="h-3 w-3 mr-1" />+{achievement.points} punti
-                          </Badge>
-                        </div>
+                        <div
+                          className={`absolute inset-0 rounded-xl bg-gradient-to-r ${getRarityColor(
+                            achievement.rarity,
+                          )} opacity-20 blur-sm`}
+                        />
                       )}
+
+                      <div className="relative">
+                        {/* Icon */}
+                        <div className="flex justify-center mb-3">
+                          <div
+                            className={`p-3 rounded-full ${
+                              achievement.unlocked
+                                ? `bg-gradient-to-r ${getRarityColor(achievement.rarity)} text-white shadow-lg`
+                                : "bg-gray-100 text-gray-400 dark:bg-gray-700"
+                            }`}
+                          >
+                            <achievement.icon className="h-6 w-6" />
+                          </div>
+                        </div>
+
+                        {/* Title & Status */}
+                        <div className="text-center mb-2">
+                          <div className="flex items-center justify-center gap-1 mb-1">
+                            <h4
+                              className={`font-semibold text-sm ${
+                                achievement.unlocked
+                                  ? "text-green-800 dark:text-green-300"
+                                  : "text-gray-700 dark:text-gray-300"
+                              }`}
+                            >
+                              {achievement.title}
+                            </h4>
+                            {achievement.unlocked && <CheckCircle className="h-4 w-4 text-green-500" />}
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{achievement.description}</p>
+                        </div>
+
+                        {/* Progress */}
+                        <div className="mb-3">
+                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                            <span>Progresso</span>
+                            <span>
+                              {Math.min(achievement.current, achievement.requirement)}/{achievement.requirement}
+                            </span>
+                          </div>
+                          <Progress
+                            value={
+                              (Math.min(achievement.current, achievement.requirement) / achievement.requirement) * 100
+                            }
+                            className="h-2"
+                          />
+                        </div>
+
+                        {/* Badges */}
+                        <div className="flex justify-center gap-1">
+                          <Badge
+                            className={`text-xs px-2 py-1 ${
+                              achievement.rarity === "common"
+                                ? "bg-gray-100 text-gray-700"
+                                : achievement.rarity === "rare"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : achievement.rarity === "epic"
+                                    ? "bg-purple-100 text-purple-700"
+                                    : "bg-yellow-100 text-yellow-700"
+                            }`}
+                          >
+                            {achievement.rarity}
+                          </Badge>
+                          {achievement.unlocked && (
+                            <Badge className="bg-green-100 text-green-700 text-xs px-2 py-1">
+                              <Sparkles className="h-3 w-3 mr-1" />
+                              {achievement.points}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </motion.div>
-              ))}
+                  </motion.div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </motion.div>
@@ -581,10 +632,8 @@ export default function ProfilePage() {
                     <div className={`p-2 rounded-lg bg-gray-100 dark:bg-gray-800 ${item.color}`}>
                       <item.icon className="h-5 w-5" />
                     </div>
-                    <span className="font-medium text-gray-900 dark:text-white">{item.label}</span>
-                    <div className="ml-auto">
-                      <div className="w-2 h-2 bg-gray-300 rounded-full"></div>
-                    </div>
+                    <span className="font-medium text-gray-900 dark:text-white flex-1">{item.label}</span>
+                    <ChevronRight className="h-4 w-4 text-gray-400" />
                   </CardContent>
                 </Card>
               </Link>
@@ -748,11 +797,11 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <OptimizedAvatar
+                  key={`profile-edit-${imageKey}-${profileData.image}`}
                   src={profileData.image}
                   alt={profileData.name}
                   size={96}
                   className="h-24 w-24 border-4 border-gray-200"
-                  forceRefresh={forceRefresh > 0}
                 />
                 {isUploading && (
                   <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">

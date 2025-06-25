@@ -1,209 +1,173 @@
 import { type NextRequest, NextResponse } from "next/server"
-import clientPromise from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ObjectId } from "mongodb"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("🔍 GET /api/events/[id] called with ID:", params.id)
+    const { db } = await connectToDatabase()
+    const eventId = params.id
 
-    if (!params.id || !ObjectId.isValid(params.id)) {
-      return NextResponse.json({ error: "Invalid event ID" }, { status: 400 })
+    if (!ObjectId.isValid(eventId)) {
+      return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
     }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
-    const eventsCollection = db.collection("events")
+    const event = await db.collection("events").findOne({ _id: new ObjectId(eventId) })
 
-    // Use aggregation to get event with host information
-    const events = await eventsCollection
-      .aggregate([
-        { $match: { _id: new ObjectId(params.id) } },
-        {
-          $lookup: {
-            from: "users",
-            localField: "hostId",
-            foreignField: "_id",
-            as: "hostInfo",
-          },
-        },
-        {
-          $addFields: {
-            host: {
-              $cond: {
-                if: { $gt: [{ $size: "$hostInfo" }, 0] },
-                then: {
-                  _id: { $arrayElemAt: ["$hostInfo._id", 0] },
-                  name: { $arrayElemAt: ["$hostInfo.name", 0] },
-                  email: { $arrayElemAt: ["$hostInfo.email", 0] },
-                  image: { $arrayElemAt: ["$hostInfo.image", 0] },
-                  verified: { $arrayElemAt: ["$hostInfo.verified", 0] },
-                  rating: { $arrayElemAt: ["$hostInfo.rating", 0] },
-                  reviewCount: { $arrayElemAt: ["$hostInfo.reviewCount", 0] },
-                },
-                else: null,
-              },
-            },
-          },
-        },
-        { $project: { hostInfo: 0 } },
-      ])
-      .toArray()
-
-    if (events.length === 0) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 })
+    if (!event) {
+      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
-    const event = events[0]
-
-    // Increment view count
-    await eventsCollection.updateOne({ _id: new ObjectId(params.id) }, { $inc: { views: 1 } })
-
-    // Serialize the event data
-    const serializedEvent = {
-      ...event,
+    // Transform event to match expected format
+    const transformedEvent = {
       _id: event._id.toString(),
-      hostId: event.hostId?.toString(),
-      dateStart: event.dateStart?.toISOString?.() || event.dateStart,
-      dateEnd: event.dateEnd?.toISOString?.() || event.dateEnd,
-      createdAt: event.createdAt?.toISOString?.() || event.createdAt,
-      updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
-      host: event.host
-        ? {
-            ...event.host,
-            _id: event.host._id?.toString(),
-          }
-        : null,
+      title: event.title || event.name || "Evento senza titolo",
+      description: event.description || "",
+      location: event.location || event.address || "",
+      price: event.price || 0,
+      rating: event.rating || 0,
+      reviewCount: event.reviewCount || 0,
+      images: event.images || [event.image].filter(Boolean) || [],
+      category: event.category || "evento",
+      dateStart: event.dateStart || event.date || new Date().toISOString(),
+      dateEnd: event.dateEnd || null,
+      totalSpots: event.totalSpots || event.maxGuests || 10,
+      availableSpots: event.availableSpots || event.maxGuests || 10,
+      amenities: event.amenities || [],
+      bookingLink: event.bookingLink || "",
+      verified: event.verified || false,
+      views: event.views || 0,
+      createdAt: event.createdAt || new Date().toISOString(),
+      updatedAt: event.updatedAt || new Date().toISOString(),
+      createdBy: event.createdBy,
+      host: event.host || {},
     }
 
-    console.log("✅ Event found:", serializedEvent.title)
-    console.log("📋 Host info:", serializedEvent.host)
-
-    return NextResponse.json(serializedEvent)
+    return NextResponse.json(transformedEvent)
   } catch (error) {
-    console.error("💥 Error in GET /api/events/[id]:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("💥 Error fetching event:", error)
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
 
 export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("📝 PUT /api/events/[id] called with ID:", params.id)
-
     const session = await getServerSession(authOptions)
+
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    if (!params.id || !ObjectId.isValid(params.id)) {
-      return NextResponse.json({ error: "Invalid event ID" }, { status: 400 })
+    const { db } = await connectToDatabase()
+    const eventId = params.id
+
+    if (!ObjectId.isValid(eventId)) {
+      return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
+    }
+
+    // Find user
+    const user = await db.collection("users").findOne({ email: session.user.email })
+    if (!user) {
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    }
+
+    // Check if event exists and user owns it
+    const existingEvent = await db.collection("events").findOne({
+      _id: new ObjectId(eventId),
+      $or: [
+        { createdBy: user._id.toString() },
+        { createdBy: user._id },
+        { "host.id": user._id.toString() },
+        { "host.email": session.user.email },
+      ],
+    })
+
+    if (!existingEvent) {
+      return NextResponse.json({ error: "Evento non trovato o non autorizzato" }, { status: 404 })
     }
 
     const body = await request.json()
-    console.log("📋 Update data received:", body)
-
-    const client = await clientPromise
-    const db = client.db("invibe")
-    const eventsCollection = db.collection("events")
-    const usersCollection = db.collection("users")
-
-    // Get current user
-    const user = await usersCollection.findOne({ email: session.user.email })
-    if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
-    }
-
-    // Check if event exists and user is the owner
-    const event = await eventsCollection.findOne({ _id: new ObjectId(params.id) })
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 })
-    }
-
-    if (!event.hostId.equals(user._id)) {
-      return NextResponse.json({ error: "Not authorized to edit this event" }, { status: 403 })
-    }
 
     // Update event
-    const updateData = {
-      ...body,
-      updatedAt: new Date(),
+    const updateResult = await db.collection("events").updateOne(
+      { _id: new ObjectId(eventId) },
+      {
+        $set: {
+          ...body,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    )
+
+    if (updateResult.matchedCount === 0) {
+      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
-
-    // Remove fields that shouldn't be updated
-    delete updateData._id
-    delete updateData.hostId
-    delete updateData.createdAt
-    delete updateData.views
-    delete updateData.participants
-
-    const result = await eventsCollection.updateOne({ _id: new ObjectId(params.id) }, { $set: updateData })
-
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 })
-    }
-
-    console.log("✅ Event updated successfully")
 
     return NextResponse.json({
       success: true,
-      message: "Evento aggiornato con successo!",
+      message: "Evento aggiornato con successo",
     })
   } catch (error) {
-    console.error("💥 Error in PUT /api/events/[id]:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("💥 Error updating event:", error)
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    console.log("🗑️ DELETE /api/events/[id] called with ID:", params.id)
-
     const session = await getServerSession(authOptions)
+
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    if (!params.id || !ObjectId.isValid(params.id)) {
-      return NextResponse.json({ error: "Invalid event ID" }, { status: 400 })
+    const { db } = await connectToDatabase()
+    const eventId = params.id
+
+    if (!ObjectId.isValid(eventId)) {
+      return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
     }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
-    const eventsCollection = db.collection("events")
-    const usersCollection = db.collection("users")
-
-    // Get current user
-    const user = await usersCollection.findOne({ email: session.user.email })
+    // Find user
+    const user = await db.collection("users").findOne({ email: session.user.email })
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    // Check if event exists and user is the owner
-    const event = await eventsCollection.findOne({ _id: new ObjectId(params.id) })
-    if (!event) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 })
-    }
+    console.log("🗑️ Attempting to delete event:", eventId, "by user:", user._id)
 
-    if (!event.hostId.equals(user._id)) {
-      return NextResponse.json({ error: "Not authorized to delete this event" }, { status: 403 })
+    // Check if event exists and user owns it
+    const existingEvent = await db.collection("events").findOne({
+      _id: new ObjectId(eventId),
+      $or: [
+        { createdBy: user._id.toString() },
+        { createdBy: user._id },
+        { "host.id": user._id.toString() },
+        { "host.email": session.user.email },
+      ],
+    })
+
+    if (!existingEvent) {
+      console.log("❌ Event not found or not authorized")
+      return NextResponse.json({ error: "Evento non trovato o non autorizzato" }, { status: 404 })
     }
 
     // Delete event
-    const result = await eventsCollection.deleteOne({ _id: new ObjectId(params.id) })
+    const deleteResult = await db.collection("events").deleteOne({ _id: new ObjectId(eventId) })
 
-    if (result.deletedCount === 0) {
-      return NextResponse.json({ error: "Event not found" }, { status: 404 })
+    if (deleteResult.deletedCount === 0) {
+      return NextResponse.json({ error: "Errore durante l'eliminazione" }, { status: 500 })
     }
 
     console.log("✅ Event deleted successfully")
 
     return NextResponse.json({
       success: true,
-      message: "Evento eliminato con successo!",
+      message: "Evento eliminato con successo",
     })
   } catch (error) {
-    console.error("💥 Error in DELETE /api/events/[id]:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    console.error("💥 Error deleting event:", error)
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
