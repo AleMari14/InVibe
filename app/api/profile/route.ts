@@ -35,12 +35,13 @@ export async function GET() {
 
     // Calculate stats
     const stats = {
-      eventsParticipated: participatedEvents.length,
-      eventsOrganized: events.length,
+      eventsCreated: events.length,
+      eventsAttended: participatedEvents.length,
+      totalViews: events.reduce((sum, event) => sum + (event.views || 0), 0),
+      favoriteCount: favorites.length,
       totalReviews: reviews.length,
       totalBookings: bookings.length,
-      totalFavorites: favorites.length,
-      responseRate: user.responseRate || 95, // Default value if not set
+      responseRate: user.responseRate || 95,
     }
 
     // Format events
@@ -94,6 +95,7 @@ export async function GET() {
     )
 
     return NextResponse.json({
+      _id: user._id.toString(),
       name: user.name,
       email: user.email,
       image: user.image,
@@ -104,12 +106,12 @@ export async function GET() {
       verified: user.verified || false,
       rating: user.rating || 0,
       reviewCount: user.reviewCount || 0,
-      memberSince: user.createdAt || new Date("2023-01-01").toISOString(),
-      stats,
+      joinedAt: user.createdAt || new Date("2023-01-01").toISOString(),
+      stats, // Assicurati che stats sia sempre presente
       eventi: formattedEvents,
       reviews: formattedReviews,
       bookings: formattedBookings,
-      activities: [], // Implementare in futuro
+      activities: [],
     })
   } catch (error) {
     console.error("Error fetching profile:", error)

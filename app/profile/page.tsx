@@ -43,7 +43,7 @@ interface UserProfile {
   rating: number
   reviewCount: number
   joinedAt: string
-  stats: {
+  stats?: {
     eventsCreated: number
     eventsAttended: number
     totalViews: number
@@ -90,7 +90,17 @@ export default function ProfilePage() {
       const response = await fetch("/api/profile")
       if (response.ok) {
         const data = await response.json()
-        setProfile(data)
+        // Assicurati che stats esista sempre
+        const profileData = {
+          ...data,
+          stats: data.stats || {
+            eventsCreated: 0,
+            eventsAttended: 0,
+            totalViews: 0,
+            favoriteCount: 0,
+          },
+        }
+        setProfile(profileData)
       }
     } catch (error) {
       console.error("Error fetching profile:", error)
@@ -212,22 +222,22 @@ export default function ProfilePage() {
           {profile?.bio && <p className="text-white/90 text-sm mb-4 leading-relaxed">{profile.bio}</p>}
 
           {/* Stats */}
-          {profile?.stats && (
+          {profile && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats.eventsCreated}</div>
+                <div className="text-2xl font-bold">{profile.stats?.eventsCreated || 0}</div>
                 <div className="text-white/70 text-xs">Eventi Creati</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats.eventsAttended}</div>
+                <div className="text-2xl font-bold">{profile.stats?.eventsAttended || 0}</div>
                 <div className="text-white/70 text-xs">Partecipazioni</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats.totalViews}</div>
+                <div className="text-2xl font-bold">{profile.stats?.totalViews || 0}</div>
                 <div className="text-white/70 text-xs">Visualizzazioni</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">{profile.stats.favoriteCount}</div>
+                <div className="text-2xl font-bold">{profile.stats?.favoriteCount || 0}</div>
                 <div className="text-white/70 text-xs">Preferiti</div>
               </div>
             </div>
