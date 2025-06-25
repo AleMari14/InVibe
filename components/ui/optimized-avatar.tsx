@@ -1,91 +1,97 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getOptimizedImageUrl, generatePlaceholder } from "@/lib/image-utils"
+import Image from "next/image"
 import { cn } from "@/lib/utils"
+import { getOptimizedImageUrl } from "@/lib/image-utils"
 
 interface OptimizedAvatarProps {
   src?: string | null
-  alt?: string
-  fallback?: string
+  alt: string
   size?: number
   className?: string
-  onError?: () => void
+  fallback?: string
   forceRefresh?: boolean
+  key?: string
 }
 
 export function OptimizedAvatar({
   src,
-  alt = "",
-  fallback,
-  size = 96,
+  alt,
+  size = 40,
   className,
-  onError,
+  fallback,
   forceRefresh = false,
+  ...props
 }: OptimizedAvatarProps) {
   const [imageError, setImageError] = useState(false)
-  const [isLoading, setIsLoading] = useState(!!src)
-  const [imageUrl, setImageUrl] = useState<string>("")
+  const [imageKey, setImageKey] = useState(0)
 
-  // Update image URL when src changes or forceRefresh is triggered
+  // Force refresh quando forceRefresh cambia
   useEffect(() => {
-    if (src) {
-      const optimizedUrl = getOptimizedImageUrl(src, size)
-      setImageUrl(optimizedUrl)
+    if (forceRefresh) {
       setImageError(false)
-      setIsLoading(true)
-    } else {
-      setImageUrl(generatePlaceholder(size, size, alt || "user"))
-      setImageError(false)
-      setIsLoading(false)
+      setImageKey((prev) => prev + 1)
     }
-  }, [src, size, alt, forceRefresh])
+  }, [forceRefresh, src])
+
+  // Reset error quando src cambia
+  useEffect(() => {
+    setImageError(false)
+    setImageKey((prev) => prev + 1)
+  }, [src])
+
+  const optimizedSrc = src ? getOptimizedImageUrl(src, size) : null
+  const shouldShowImage = optimizedSrc && !imageError
 
   const handleImageError = () => {
-    console.log("Avatar image failed to load:", imageUrl)
+    console.log("Image error for:", optimizedSrc)
     setImageError(true)
-    setIsLoading(false)
-    setImageUrl(generatePlaceholder(size, size, alt || "user"))
-    onError?.()
   }
 
   const handleImageLoad = () => {
-    setIsLoading(false)
+    console.log("Image loaded successfully:", optimizedSrc)
     setImageError(false)
   }
 
-  // Generate fallback text from alt or fallback prop
-  const getFallbackText = () => {
-    if (fallback) return fallback
-    if (alt) {
-      return alt
-        .split(" ")
-        .map((word) => word.charAt(0))
-        .join("")
-        .toUpperCase()
-        .slice(0, 2)
-    }
-    return "U"
+  const getInitials = (name: string) => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
   }
 
+  const initials = fallback || (alt ? getInitials(alt) : "U")
+
   return (
-    <Avatar className={cn("relative", className)}>
-      <AvatarImage
-        src={imageUrl || "/placeholder.svg"}
-        alt={alt}
-        onError={handleImageError}
-        onLoad={handleImageLoad}
-        className="object-cover"
-      />
-      <AvatarFallback className="bg-gradient-to-r from-blue-500 to-purple-500 text-white font-semibold">
-        {getFallbackText()}
-      </AvatarFallback>
-      {isLoading && !imageError && (
-        <div className="absolute inset-0 flex items-center justify-center bg-gray-100 dark:bg-gray-800 rounded-full">
-          <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-        </div>
+    <div
+      className={cn(
+        "relative inline-flex items-center justify-center rounded-full bg-muted overflow-hidden",
+        className,
       )}
-    </Avatar>
+      style={{ width: size, height: size }}
+      {...props}
+    >
+      {shouldShowImage ? (
+        <Image
+          key={`avatar-${imageKey}`}
+          src={optimizedSrc || "/placeholder.svg"}
+          alt={alt}
+          width={size}
+          height={size}
+          className="object-cover w-full h-full"
+          onError={handleImageError}
+          onLoad={handleImageLoad}
+          priority={size > 50}
+          unoptimized={optimizedSrc.includes("googleusercontent.com")}
+        />
+      ) : (
+        <span className="text-muted-foreground font-medium select-none" style={{ fontSize: size * 0.4 }}>
+          {initials}
+        </span>
+      )}
+    </div>
   )
 }

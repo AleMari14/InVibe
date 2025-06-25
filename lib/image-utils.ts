@@ -115,12 +115,12 @@ export function getProfileImageUrl(imageUrl: string | null | undefined, size = 9
     return getCloudinaryImageUrl(imageUrl, size)
   }
 
-  // Handle Google OAuth images
+  // Handle Google OAuth images - FIXED
   if (imageUrl.includes("googleusercontent.com")) {
-    // Google images support size parameter
-    const url = new URL(imageUrl)
-    url.searchParams.set("s", (size * 2).toString()) // 2x for retina
-    return url.toString()
+    // Remove any existing size parameters
+    const baseUrl = imageUrl.split("=")[0]
+    // Add size parameter for Google images
+    return `${baseUrl}=s${size * 2}-c` // 2x for retina, -c for crop
   }
 
   // Handle other URLs as-is
@@ -157,7 +157,6 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
     return { valid: false, error: "L'immagine deve essere inferiore a 10MB" }
   }
 
-  // Check image dimensions (optional)
   return { valid: true }
 }
 
@@ -171,15 +170,9 @@ export function getOptimizedImageUrl(imageUrl: string | null | undefined, size =
 
   const optimizedUrl = getProfileImageUrl(imageUrl, size)
 
-  // Add cache busting parameter for immediate updates
-  try {
-    const url = new URL(optimizedUrl, window.location.origin)
-    url.searchParams.set("t", Date.now().toString())
-    return url.toString()
-  } catch {
-    // Fallback if URL construction fails
-    return optimizedUrl
-  }
+  // Add cache busting for immediate updates
+  const separator = optimizedUrl.includes("?") ? "&" : "?"
+  return `${optimizedUrl}${separator}t=${Date.now()}`
 }
 
 /**

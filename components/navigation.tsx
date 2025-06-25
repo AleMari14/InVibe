@@ -16,10 +16,18 @@ export function Navigation() {
   const { data: session } = useSession()
   const { unreadCount } = useNotifications()
   const [mounted, setMounted] = useState(false)
+  const [imageKey, setImageKey] = useState(0)
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  // Force refresh dell'immagine quando la sessione cambia
+  useEffect(() => {
+    if (session?.user?.image) {
+      setImageKey((prev) => prev + 1)
+    }
+  }, [session?.user?.image])
 
   if (!mounted) return null
 
@@ -65,7 +73,7 @@ export function Navigation() {
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-lg border-t border-border safe-area-pb">
+    <div className="fixed bottom-0 left-0 right-0 z-[100] bg-background/95 backdrop-blur-lg border-t border-border safe-area-pb">
       <div className="flex items-center justify-around py-1 px-1 max-w-md mx-auto">
         {navItems.map((item) => (
           <Link key={item.name} href={item.href} className="relative flex-1">
@@ -87,6 +95,8 @@ export function Navigation() {
                     alt={session.user?.name || ""}
                     size={24}
                     className="h-6 w-6"
+                    key={`nav-avatar-${imageKey}`}
+                    forceRefresh={true}
                   />
                   {item.active && (
                     <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full border-2 border-background" />

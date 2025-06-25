@@ -24,11 +24,14 @@ import {
   Award,
   Users,
   Camera,
+  Trophy,
+  Target,
+  Sparkles,
+  CheckCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
-import { AchievementSystem } from "@/components/gamification/achievement-system"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
@@ -37,6 +40,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Progress } from "@/components/ui/progress"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { useTheme } from "next-themes"
@@ -76,7 +80,7 @@ export default function ProfilePage() {
     totalReviews: 0,
     totalMessages: 0,
     rating: 0,
-    consecutiveDays: 7, // Mock data
+    consecutiveDays: 7,
     totalPoints: 0,
     level: 1,
   })
@@ -108,9 +112,9 @@ export default function ProfilePage() {
             totalReviews: data.stats?.totalReviews || 0,
             totalMessages: data.stats?.totalBookings || 0,
             rating: data.rating || 0,
-            consecutiveDays: 7, // Mock data - implement real streak tracking
-            totalPoints: 0, // Will be calculated by achievement system
-            level: 1, // Will be calculated by achievement system
+            consecutiveDays: 7,
+            totalPoints: 0,
+            level: 1,
           })
         }
       } catch (error) {
@@ -206,11 +210,9 @@ export default function ProfilePage() {
     } catch (error: any) {
       console.error("Upload error:", error)
       toast.error(error.message || "Errore durante l'upload dell'immagine")
-      // Ripristina l'immagine precedente in caso di errore
       setProfileData((prev) => ({ ...prev, image: profile?.image || "" }))
     } finally {
       setIsUploading(false)
-      // Reset del file input
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
@@ -223,7 +225,6 @@ export default function ProfilePage() {
       const result = await updateProfile(profileData)
 
       if (result.success) {
-        // Update session if name or image changed
         if (profileData.name !== session?.user?.name || profileData.image !== session?.user?.image) {
           await update({
             ...session,
@@ -235,9 +236,7 @@ export default function ProfilePage() {
           })
         }
 
-        // Force refresh degli avatar
         setForceRefresh((prev) => prev + 1)
-
         setIsEditingProfile(false)
         toast.success("Profilo aggiornato con successo!")
         refreshProfile()
@@ -261,11 +260,6 @@ export default function ProfilePage() {
     setTimeout(() => {
       signOut({ callbackUrl: "/" })
     }, 1000)
-  }
-
-  const handleAchievementUnlock = (achievement: any) => {
-    // Handle achievement unlock - could trigger confetti, sound, etc.
-    console.log("Achievement unlocked:", achievement)
   }
 
   const stats = [
@@ -303,10 +297,95 @@ export default function ProfilePage() {
     { label: "Notifiche", href: "/notifiche", icon: Bell, color: "text-yellow-500" },
   ]
 
+  // Achievement definitions
+  const achievements = [
+    {
+      id: "first_event",
+      title: "Primo Evento",
+      description: "Crea il tuo primo evento",
+      icon: Trophy,
+      requirement: 1,
+      current: realStats.eventsCreated,
+      unlocked: realStats.eventsCreated >= 1,
+      points: 50,
+      rarity: "common" as const,
+    },
+    {
+      id: "event_creator",
+      title: "Organizzatore",
+      description: "Crea 5 eventi",
+      icon: Calendar,
+      requirement: 5,
+      current: realStats.eventsCreated,
+      unlocked: realStats.eventsCreated >= 5,
+      points: 200,
+      rarity: "rare" as const,
+    },
+    {
+      id: "social_butterfly",
+      title: "Farfalla Sociale",
+      description: "Partecipa a 10 eventi",
+      icon: Users,
+      requirement: 10,
+      current: realStats.eventsParticipated,
+      unlocked: realStats.eventsParticipated >= 10,
+      points: 150,
+      rarity: "rare" as const,
+    },
+    {
+      id: "reviewer",
+      title: "Recensore",
+      description: "Scrivi 10 recensioni",
+      icon: Star,
+      requirement: 10,
+      current: realStats.totalReviews,
+      unlocked: realStats.totalReviews >= 10,
+      points: 100,
+      rarity: "common" as const,
+    },
+    {
+      id: "streak_master",
+      title: "Maestro della Costanza",
+      description: "Accedi per 30 giorni consecutivi",
+      icon: Target,
+      requirement: 30,
+      current: realStats.consecutiveDays,
+      unlocked: realStats.consecutiveDays >= 30,
+      points: 250,
+      rarity: "epic" as const,
+    },
+    {
+      id: "perfect_rating",
+      title: "Perfezione",
+      description: "Raggiungi un rating di 5.0",
+      icon: Award,
+      requirement: 5,
+      current: realStats.rating,
+      unlocked: realStats.rating >= 5,
+      points: 300,
+      rarity: "legendary" as const,
+    },
+  ]
+
+  const getRarityColor = (rarity: string) => {
+    switch (rarity) {
+      case "common":
+        return "bg-gray-100 text-gray-800"
+      case "rare":
+        return "bg-blue-100 text-blue-800"
+      case "epic":
+        return "bg-purple-100 text-purple-800"
+      case "legendary":
+        return "bg-yellow-100 text-yellow-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
   const currentImage = profileData.image || profile?.image || session?.user?.image || ""
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-20 relative z-0">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden">
         {/* Background Pattern */}
@@ -336,6 +415,7 @@ export default function ProfilePage() {
                 size={96}
                 className="h-24 w-24 border-4 border-white/30 shadow-xl"
                 forceRefresh={forceRefresh > 0}
+                key={`profile-avatar-${forceRefresh}`}
               />
               <div className="absolute -bottom-2 -right-2 bg-green-500 w-6 h-6 rounded-full border-4 border-white flex items-center justify-center">
                 <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -384,7 +464,7 @@ export default function ProfilePage() {
         </div>
       </motion.div>
 
-      <div className="px-4 py-6 space-y-6">
+      <div className="px-4 py-6 space-y-6 relative z-10">
         {/* Stats */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -413,9 +493,72 @@ export default function ProfilePage() {
           ))}
         </motion.div>
 
-        {/* Enhanced Achievement System */}
+        {/* Achievement System */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <AchievementSystem stats={realStats} onAchievementUnlock={handleAchievementUnlock} />
+          <Card className="border-0 shadow-lg">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <Trophy className="h-6 w-6 text-yellow-500" />
+                Achievement System
+                <Badge variant="secondary" className="ml-auto">
+                  {achievements.filter((a) => a.unlocked).length}/{achievements.length}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {achievements.map((achievement, index) => (
+                <motion.div
+                  key={achievement.id}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + index * 0.05 }}
+                  className={`p-4 rounded-lg border-2 transition-all duration-300 ${
+                    achievement.unlocked
+                      ? "bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800"
+                      : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`p-2 rounded-lg ${
+                        achievement.unlocked ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400"
+                      }`}
+                    >
+                      <achievement.icon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h4 className={`font-semibold ${achievement.unlocked ? "text-green-800" : "text-gray-700"}`}>
+                          {achievement.title}
+                        </h4>
+                        <Badge className={`text-xs ${getRarityColor(achievement.rarity)}`}>{achievement.rarity}</Badge>
+                        {achievement.unlocked && <CheckCircle className="h-4 w-4 text-green-500" />}
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">{achievement.description}</p>
+                      <div className="flex items-center gap-2">
+                        <Progress
+                          value={
+                            (Math.min(achievement.current, achievement.requirement) / achievement.requirement) * 100
+                          }
+                          className="flex-1 h-2"
+                        />
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {Math.min(achievement.current, achievement.requirement)}/{achievement.requirement}
+                        </span>
+                      </div>
+                      {achievement.unlocked && (
+                        <div className="mt-2">
+                          <Badge className="bg-green-100 text-green-800 text-xs">
+                            <Sparkles className="h-3 w-3 mr-1" />+{achievement.points} punti
+                          </Badge>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* Menu Items */}
