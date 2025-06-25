@@ -99,6 +99,8 @@ export default function ProfilePage() {
             totalViews: data.stats?.totalViews || 0,
             favoriteCount: data.stats?.favoriteCount || 0,
           },
+          rating: data.rating || 0,
+          reviewCount: data.reviewCount || 0,
         }
         setProfile(profileData)
       }
@@ -127,21 +129,29 @@ export default function ProfilePage() {
   }
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
+    try {
+      return new Date(dateString).toLocaleDateString("it-IT", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      })
+    } catch {
+      return "N/A"
+    }
   }
 
   const formatDateShort = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "short",
-    })
+    try {
+      return new Date(dateString).toLocaleDateString("it-IT", {
+        day: "numeric",
+        month: "short",
+      })
+    } catch {
+      return "N/A"
+    }
   }
 
-  // Prepara le stats per l'AchievementSystem
+  // Prepara le stats per l'AchievementSystem solo se abbiamo i dati del profilo
   const achievementStats = profile
     ? {
         eventsCreated: profile.stats?.eventsCreated || 0,

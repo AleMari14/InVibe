@@ -7,10 +7,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Trophy, Star, Users, Calendar, MessageCircle, Award, Zap, Target, Crown } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Trophy, Star, Users, Calendar, MessageCircle, Award, Zap, Target, Crown, X } from "lucide-react"
 import { motion } from "framer-motion"
-import confetti from "canvas-confetti"
 
 interface Stats {
   eventsCreated?: number
@@ -50,6 +49,7 @@ export function AchievementSystem({ stats = {}, onAchievementUnlock }: Achieveme
   const [userLevel, setUserLevel] = useState(1)
   const [totalPoints, setTotalPoints] = useState(0)
   const [nextLevelProgress, setNextLevelProgress] = useState(0)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
 
   // Safely extract stats with defaults
   const safeStats = {
@@ -164,104 +164,109 @@ export function AchievementSystem({ stats = {}, onAchievementUnlock }: Achieveme
   ]
 
   useEffect(() => {
-    initializeAchievements()
+    try {
+      initializeAchievements()
+    } catch (error) {
+      console.error("Error initializing achievements:", error)
+    }
   }, [safeStats])
 
   const initializeAchievements = () => {
-    const savedAchievements = localStorage.getItem(ACHIEVEMENT_STORAGE_KEY)
-    const shownAchievements = JSON.parse(localStorage.getItem(SHOWN_ACHIEVEMENTS_KEY) || "[]")
+    try {
+      const savedAchievements = localStorage.getItem(ACHIEVEMENT_STORAGE_KEY)
+      const shownAchievements = JSON.parse(localStorage.getItem(SHOWN_ACHIEVEMENTS_KEY) || "[]")
 
-    const updatedAchievements = achievementDefinitions.map((def) => {
-      let currentProgress = 0
+      const updatedAchievements = achievementDefinitions.map((def) => {
+        let currentProgress = 0
 
-      switch (def.id) {
-        case "first_event":
-        case "event_creator":
-        case "event_master":
-          currentProgress = safeStats.eventsCreated
-          break
-        case "social_butterfly":
-        case "party_animal":
-          currentProgress = safeStats.eventsParticipated
-          break
-        case "reviewer":
-          currentProgress = safeStats.totalReviews
-          break
-        case "communicator":
-          currentProgress = safeStats.totalMessages
-          break
-        case "perfect_rating":
-          currentProgress = safeStats.rating
-          break
-        case "streak_master":
-          currentProgress = safeStats.consecutiveDays
-          break
-        default:
-          currentProgress = 0
+        switch (def.id) {
+          case "first_event":
+          case "event_creator":
+          case "event_master":
+            currentProgress = safeStats.eventsCreated
+            break
+          case "social_butterfly":
+          case "party_animal":
+            currentProgress = safeStats.eventsParticipated
+            break
+          case "reviewer":
+            currentProgress = safeStats.totalReviews
+            break
+          case "communicator":
+            currentProgress = safeStats.totalMessages
+            break
+          case "perfect_rating":
+            currentProgress = safeStats.rating
+            break
+          case "streak_master":
+            currentProgress = safeStats.consecutiveDays
+            break
+          default:
+            currentProgress = 0
+        }
+
+        const wasUnlocked = savedAchievements
+          ? JSON.parse(savedAchievements).find((a: Achievement) => a.id === def.id)?.unlocked || false
+          : false
+
+        const isUnlocked = currentProgress >= def.requirement
+        const isNewlyUnlocked = isUnlocked && !wasUnlocked
+
+        return {
+          ...def,
+          currentProgress: Math.min(currentProgress, def.requirement),
+          unlocked: isUnlocked,
+        }
+      })
+
+      setAchievements(updatedAchievements)
+
+      // Check for newly unlocked achievements
+      const newlyUnlocked = updatedAchievements.filter(
+        (achievement) =>
+          achievement.unlocked &&
+          !JSON.parse(savedAchievements || "[]").find((a: Achievement) => a.id === achievement.id && a.unlocked),
+      )
+
+      // Show popup only for achievements not yet shown
+      const achievementToShow = newlyUnlocked.find((achievement) => !shownAchievements.includes(achievement.id))
+
+      if (achievementToShow) {
+        setNewAchievement(achievementToShow)
+        setIsDialogOpen(true)
+        onAchievementUnlock?.(achievementToShow)
       }
 
-      const wasUnlocked = savedAchievements
-        ? JSON.parse(savedAchievements).find((a: Achievement) => a.id === def.id)?.unlocked || false
-        : false
+      // Save updated achievements
+      localStorage.setItem(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(updatedAchievements))
 
-      const isUnlocked = currentProgress >= def.requirement
-      const isNewlyUnlocked = isUnlocked && !wasUnlocked
+      // Calculate level and points
+      const unlockedAchievements = updatedAchievements.filter((a) => a.unlocked)
+      const points = unlockedAchievements.reduce((sum, a) => sum + a.points, 0)
+      const level = Math.floor(points / 500) + 1
+      const progressToNext = ((points % 500) / 500) * 100
 
-      return {
-        ...def,
-        currentProgress: Math.min(currentProgress, def.requirement),
-        unlocked: isUnlocked,
-      }
-    })
-
-    setAchievements(updatedAchievements)
-
-    // Check for newly unlocked achievements
-    const newlyUnlocked = updatedAchievements.filter(
-      (achievement) =>
-        achievement.unlocked &&
-        !JSON.parse(savedAchievements || "[]").find((a: Achievement) => a.id === achievement.id && a.unlocked),
-    )
-
-    // Show popup only for achievements not yet shown
-    const achievementToShow = newlyUnlocked.find((achievement) => !shownAchievements.includes(achievement.id))
-
-    if (achievementToShow) {
-      setNewAchievement(achievementToShow)
-      triggerConfetti()
-      onAchievementUnlock?.(achievementToShow)
+      setTotalPoints(points)
+      setUserLevel(level)
+      setNextLevelProgress(progressToNext)
+    } catch (error) {
+      console.error("Error in initializeAchievements:", error)
     }
-
-    // Save updated achievements
-    localStorage.setItem(ACHIEVEMENT_STORAGE_KEY, JSON.stringify(updatedAchievements))
-
-    // Calculate level and points
-    const unlockedAchievements = updatedAchievements.filter((a) => a.unlocked)
-    const points = unlockedAchievements.reduce((sum, a) => sum + a.points, 0)
-    const level = Math.floor(points / 500) + 1
-    const progressToNext = ((points % 500) / 500) * 100
-
-    setTotalPoints(points)
-    setUserLevel(level)
-    setNextLevelProgress(progressToNext)
-  }
-
-  const triggerConfetti = () => {
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 },
-      colors: ["#3B82F6", "#8B5CF6", "#10B981", "#F59E0B"],
-    })
   }
 
   const handleAchievementClose = () => {
-    if (newAchievement) {
-      const shownAchievements = JSON.parse(localStorage.getItem(SHOWN_ACHIEVEMENTS_KEY) || "[]")
-      shownAchievements.push(newAchievement.id)
-      localStorage.setItem(SHOWN_ACHIEVEMENTS_KEY, JSON.stringify(shownAchievements))
+    try {
+      if (newAchievement) {
+        const shownAchievements = JSON.parse(localStorage.getItem(SHOWN_ACHIEVEMENTS_KEY) || "[]")
+        shownAchievements.push(newAchievement.id)
+        localStorage.setItem(SHOWN_ACHIEVEMENTS_KEY, JSON.stringify(shownAchievements))
+      }
+      setNewAchievement(null)
+      setIsDialogOpen(false)
+    } catch (error) {
+      console.error("Error closing achievement dialog:", error)
+      setIsDialogOpen(false)
     }
-    setNewAchievement(null)
   }
 
   const getRarityColor = (rarity: string) => {
@@ -407,12 +412,17 @@ export function AchievementSystem({ stats = {}, onAchievementUnlock }: Achieveme
       </Card>
 
       {/* Achievement Unlock Dialog */}
-      <Dialog open={!!newAchievement} onOpenChange={handleAchievementClose}>
-        <DialogContent className="sm:max-w-md">
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogContent className="sm:max-w-md" aria-describedby="achievement-description">
           <DialogHeader>
             <DialogTitle className="text-center text-2xl font-bold text-green-600">
               🎉 Achievement Sbloccato!
             </DialogTitle>
+            <DialogDescription id="achievement-description" className="text-center text-muted-foreground">
+              {newAchievement
+                ? `Hai sbloccato l'achievement: ${newAchievement.title}`
+                : "Hai sbloccato un nuovo achievement!"}
+            </DialogDescription>
           </DialogHeader>
           {newAchievement && (
             <motion.div
@@ -420,6 +430,16 @@ export function AchievementSystem({ stats = {}, onAchievementUnlock }: Achieveme
               animate={{ scale: 1, opacity: 1 }}
               className="text-center space-y-4"
             >
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-2 right-2"
+                onClick={handleAchievementClose}
+                aria-label="Chiudi dialog"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+
               <div className="mx-auto w-20 h-20 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center">
                 <newAchievement.icon className="h-10 w-10 text-white" />
               </div>
