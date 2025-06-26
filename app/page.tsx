@@ -15,7 +15,6 @@ import {
   MessageSquare,
   Menu,
   Zap,
-  SlidersHorizontal,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -313,13 +312,17 @@ export default function HomePage() {
               placeholder="Cerca eventi, luoghi..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-12 h-11 text-sm bg-white/80 backdrop-blur-sm border-white/20 focus:bg-white"
+              className="pl-10 pr-16 h-11 text-sm bg-white/80 backdrop-blur-sm border-white/20 focus:bg-white"
             />
             <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex gap-1">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-9 w-9">
-                    <SlidersHorizontal className="h-4 w-4" />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-md"
+                  >
+                    <span className="text-xs font-medium">Ordina</span>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
@@ -336,7 +339,11 @@ export default function HomePage() {
                 </DropdownMenuContent>
               </DropdownMenu>
               <Link href="/filtri">
-                <Button variant="ghost" size="icon" className="h-9 w-9">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-9 w-9 bg-purple-100 hover:bg-purple-200 text-purple-600 rounded-md"
+                >
                   <Filter className="h-4 w-4" />
                 </Button>
               </Link>

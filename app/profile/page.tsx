@@ -1060,71 +1060,73 @@ export default function ProfilePage() {
             </TabsContent>
 
             <TabsContent value="notifications" className="space-y-4">
-              {Object.entries(settings.notifications).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
-                >
-                  <Label className="font-medium cursor-pointer">
-                    {key === "events" && `🎉 ${t("events_updates")}`}
-                    {key === "messages" && `💬 ${t("messages_chat")}`}
-                    {key === "reviews" && `⭐ ${t("reviews_feedback")}`}
-                    {key === "marketing" && `📧 ${t("offers_promotions")}`}
-                    {key === "push" && `📱 ${t("push_notifications")}`}
-                    {key === "email" && `📧 ${t("email_notifications")}`}
-                  </Label>
-                  <Switch
-                    checked={value}
-                    onCheckedChange={(checked) => {
-                      const newNotifications = { ...settings.notifications, [key]: checked }
-                      handleSettingsUpdate({ notifications: newNotifications })
-                    }}
-                  />
-                </div>
-              ))}
+              {settings.notifications &&
+                Object.entries(settings.notifications).map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                  >
+                    <Label className="font-medium cursor-pointer">
+                      {key === "events" && `🎉 ${t("events_updates")}`}
+                      {key === "messages" && `💬 ${t("messages_chat")}`}
+                      {key === "reviews" && `⭐ ${t("reviews_feedback")}`}
+                      {key === "marketing" && `📧 ${t("offers_promotions")}`}
+                      {key === "push" && `📱 ${t("push_notifications")}`}
+                      {key === "email" && `📧 ${t("email_notifications")}`}
+                    </Label>
+                    <Switch
+                      checked={value}
+                      onCheckedChange={(checked) => {
+                        const newNotifications = { ...settings.notifications, [key]: checked }
+                        handleSettingsUpdate({ notifications: newNotifications })
+                      }}
+                    />
+                  </div>
+                ))}
             </TabsContent>
 
             <TabsContent value="privacy" className="space-y-4">
-              {Object.entries(settings.privacy).map(([key, value]) => (
-                <div
-                  key={key}
-                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
-                >
-                  <Label className="font-medium cursor-pointer flex items-center gap-2">
-                    {key === "profileVisible" && (
-                      <>
-                        <Eye className="h-4 w-4" />
-                        {t("profile_visible")}
-                      </>
-                    )}
-                    {key === "showEmail" && (
-                      <>
-                        <Mail className="h-4 w-4" />
-                        {t("show_email")}
-                      </>
-                    )}
-                    {key === "showPhone" && (
-                      <>
-                        <Phone className="h-4 w-4" />
-                        {t("show_phone")}
-                      </>
-                    )}
-                    {key === "allowMessages" && (
-                      <>
-                        <MessageCircle className="h-4 w-4" />
-                        {t("allow_messages")}
-                      </>
-                    )}
-                  </Label>
-                  <Switch
-                    checked={value}
-                    onCheckedChange={(checked) => {
-                      const newPrivacy = { ...settings.privacy, [key]: checked }
-                      handleSettingsUpdate({ privacy: newPrivacy })
-                    }}
-                  />
-                </div>
-              ))}
+              {settings.privacy &&
+                Object.entries(settings.privacy).map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                  >
+                    <Label className="font-medium cursor-pointer flex items-center gap-2">
+                      {key === "profileVisible" && (
+                        <>
+                          <Eye className="h-4 w-4" />
+                          {t("profile_visible")}
+                        </>
+                      )}
+                      {key === "showEmail" && (
+                        <>
+                          <Mail className="h-4 w-4" />
+                          {t("show_email")}
+                        </>
+                      )}
+                      {key === "showPhone" && (
+                        <>
+                          <Phone className="h-4 w-4" />
+                          {t("show_phone")}
+                        </>
+                      )}
+                      {key === "allowMessages" && (
+                        <>
+                          <MessageCircle className="h-4 w-4" />
+                          {t("allow_messages")}
+                        </>
+                      )}
+                    </Label>
+                    <Switch
+                      checked={value}
+                      onCheckedChange={(checked) => {
+                        const newPrivacy = { ...settings.privacy, [key]: checked }
+                        handleSettingsUpdate({ privacy: newPrivacy })
+                      }}
+                    />
+                  </div>
+                ))}
             </TabsContent>
           </Tabs>
         </DialogContent>
