@@ -11,14 +11,15 @@ export async function GET() {
     }
 
     const { db } = await connectToDatabase()
-    const user = await db.collection("users").findOne({ email: session.user.email })
 
+    const user = await db.collection("users").findOne({ email: session.user.email })
     if (!user) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    const settings = {
-      notifications: user.settings?.notifications || {
+    // Default settings if not found
+    const defaultSettings = {
+      notifications: {
         events: true,
         messages: true,
         reviews: false,
@@ -26,17 +27,17 @@ export async function GET() {
         push: true,
         email: true,
       },
-      privacy: user.settings?.privacy || {
+      privacy: {
         profileVisible: true,
         showEmail: false,
         showPhone: false,
         allowMessages: true,
       },
-      language: user.settings?.language || "it",
-      theme: user.settings?.theme || "system",
+      language: "it",
+      theme: "system",
     }
 
-    return NextResponse.json(settings)
+    return NextResponse.json(user.settings || defaultSettings)
   } catch (error) {
     console.error("Error fetching settings:", error)
     return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
@@ -51,26 +52,35 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { notifications, privacy, language, theme } = body
-
     const { db } = await connectToDatabase()
 
-    const updateData: any = {
-      "settings.updatedAt": new Date(),
-    }
-
-    if (notifications) updateData["settings.notifications"] = notifications
-    if (privacy) updateData["settings.privacy"] = privacy
-    if (language) updateData["settings.language"] = language
-    if (theme) updateData["settings.theme"] = theme
-
-    const result = await db.collection("users").updateOne({ email: session.user.email }, { $set: updateData })
-
-    if (result.matchedCount === 0) {
+    const user = await db.collection("users").findOne({ email: session.user.email })
+    if (!user) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    return NextResponse.json({ success: true, message: "Impostazioni aggiornate con successo" })
+    // Merge with existing settings
+    const currentSettings = user.settings || {}
+    const updatedSettings = {
+      ...currentSettings,
+      ...body,
+      updatedAt: new Date(),
+    }
+
+    await db.collection("users").updateOne(
+      { email: session.user.email },
+      {
+        $set: {
+          settings: updatedSettings,
+        },
+      },
+    )
+
+    return NextResponse.json({
+      success: true,
+      message: "Impostazioni aggiornate con successo",
+      settings: updatedSettings,
+    })
   } catch (error) {
     console.error("Error updating settings:", error)
     return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })

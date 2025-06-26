@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  MessageCircle,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -30,7 +31,9 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
@@ -39,6 +42,7 @@ import { motion } from "framer-motion"
 import { MessageHostButton } from "@/components/event/message-host-button"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
+import { useLanguage } from "@/contexts/language-context"
 
 interface Event {
   _id: string
@@ -79,8 +83,15 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showImageModal, setShowImageModal] = useState(false)
+  const [showReviewDialog, setShowReviewDialog] = useState(false)
+  const [reviewRating, setReviewRating] = useState(0)
+  const [reviewComment, setReviewComment] = useState("")
+  const [submittingReview, setSubmittingReview] = useState(false)
+  const [userHasReviewed, setUserHasReviewed] = useState(false)
+  const [userCanReview, setUserCanReview] = useState(false)
   const { data: session } = useSession()
   const router = useRouter()
+  const { t } = useLanguage()
 
   // Check if current user is the event owner
   const isOwner = session?.user?.email && event?.host?.email === session.user.email
@@ -89,6 +100,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     fetchEvent()
     if (session?.user?.email) {
       checkFavoriteStatus()
+      checkReviewStatus()
     }
   }, [params.id, session])
 
@@ -118,6 +130,19 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       }
     } catch (error) {
       console.error("Error checking favorite status:", error)
+    }
+  }
+
+  const checkReviewStatus = async () => {
+    try {
+      const response = await fetch(`/api/reviews?eventId=${params.id}&checkUser=true`)
+      if (response.ok) {
+        const data = await response.json()
+        setUserHasReviewed(data.hasReviewed)
+        setUserCanReview(data.canReview)
+      }
+    } catch (error) {
+      console.error("Error checking review status:", error)
     }
   }
 
@@ -166,6 +191,47 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     } finally {
       setDeleting(false)
       setShowDeleteDialog(false)
+    }
+  }
+
+  const handleSubmitReview = async () => {
+    if (!reviewRating || !event?.hostId) return
+
+    try {
+      setSubmittingReview(true)
+
+      const response = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId: params.id,
+          hostId: event.hostId,
+          rating: reviewRating,
+          comment: reviewComment.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore durante l'invio della recensione")
+      }
+
+      const data = await response.json()
+      toast.success(data.message || t("review_success"))
+
+      // Reset form and close dialog
+      setReviewRating(0)
+      setReviewComment("")
+      setShowReviewDialog(false)
+      setUserHasReviewed(true)
+
+      // Refresh event data to update rating
+      fetchEvent()
+    } catch (error: any) {
+      console.error("Error submitting review:", error)
+      toast.error(error.message || "Errore durante l'invio della recensione")
+    } finally {
+      setSubmittingReview(false)
     }
   }
 
@@ -245,10 +311,10 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 pb-24">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-2">Evento non trovato</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">{t("event_not_found")}</h2>
           <p className="text-muted-foreground mb-4">L'evento che stai cercando non esiste o è stato rimosso.</p>
           <Link href="/">
-            <Button>Torna alla Home</Button>
+            <Button>{t("back_to_home")}</Button>
           </Link>
         </div>
       </div>
@@ -311,7 +377,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   <DropdownMenuItem asChild>
                     <Link href={`/evento/${event._id}/edit`} className="flex items-center gap-2">
                       <Edit3 className="h-4 w-4" />
-                      Modifica
+                      {t("edit")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -319,7 +385,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                     className="text-red-600 focus:text-red-600"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    Elimina
+                    {t("delete")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -328,7 +394,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
         </div>
 
         {/* Enhanced Image Gallery */}
-        <div className="aspect-[16/9] relative overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
+        <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
           {event.images && event.images.length > 0 ? (
             <>
               <motion.div
@@ -340,7 +406,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                 onClick={() => setShowImageModal(true)}
               >
                 <Image
-                  src={getEventImageUrl(event.images[currentImageIndex], 1200, 675) || "/placeholder.svg"}
+                  src={getEventImageUrl(event.images[currentImageIndex], 800, 600) || "/placeholder.svg"}
                   alt={event.title}
                   fill
                   className="object-cover hover:scale-105 transition-transform duration-700"
@@ -396,7 +462,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
               <div className="text-center text-gray-500">
                 <Calendar className="h-20 w-20 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">Nessuna immagine disponibile</p>
+                <p className="text-lg">{t("no_image_available")}</p>
               </div>
             </div>
           )}
@@ -412,7 +478,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             {event.verified && (
               <Badge className="bg-green-100 text-green-700 flex-shrink-0">
                 <Shield className="h-3 w-3 mr-1" />
-                Verificato
+                {t("verified")}
               </Badge>
             )}
           </div>
@@ -424,7 +490,9 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             </div>
             <div className="flex items-center gap-1">
               <Eye className="h-4 w-4" />
-              <span>{event.views} visualizzazioni</span>
+              <span>
+                {event.views} {t("views")}
+              </span>
             </div>
             {event.rating > 0 && (
               <div className="flex items-center gap-1">
@@ -444,7 +512,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             <div className="flex items-center gap-1">
               <Users className="h-4 w-4 text-green-500" />
               <span className="font-medium">
-                {event.availableSpots}/{event.totalSpots} posti disponibili
+                {event.availableSpots}/{event.totalSpots} {t("available_spots").toLowerCase()}
               </span>
             </div>
           </div>
@@ -469,13 +537,26 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Star className="h-3 w-3 text-yellow-500" />
                         <span>
-                          {event.host.rating.toFixed(1)} • {event.host.reviewCount} recensioni
+                          {event.host.rating.toFixed(1)} • {event.host.reviewCount} {t("reviews").toLowerCase()}
                         </span>
                       </div>
                     )}
                   </div>
                 </div>
-                <MessageHostButton hostId={event.hostId || event.host._id || ""} hostName={event.host.name} />
+                <div className="flex gap-2">
+                  <MessageHostButton hostId={event.hostId || event.host._id || ""} hostName={event.host.name} />
+                  {userCanReview && !userHasReviewed && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowReviewDialog(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <Star className="h-4 w-4" />
+                      {t("write_review")}
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -485,22 +566,20 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
         {isOwner && (
           <Alert>
             <Shield className="h-4 w-4" />
-            <AlertDescription>
-              Questo è il tuo evento. Puoi modificarlo o eliminarlo usando il menu in alto a destra.
-            </AlertDescription>
+            <AlertDescription>{t("this_is_your_event")}</AlertDescription>
           </Alert>
         )}
 
         {/* Description */}
         <div>
-          <h2 className="text-lg font-semibold mb-3">Descrizione</h2>
+          <h2 className="text-lg font-semibold mb-3">{t("description")}</h2>
           <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{event.description}</p>
         </div>
 
         {/* Amenities */}
         {event.amenities && event.amenities.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-3">Servizi Inclusi</h2>
+            <h2 className="text-lg font-semibold mb-3">{t("included_services")}</h2>
             <div className="flex flex-wrap gap-2">
               {event.amenities.map((amenity, index) => (
                 <Badge key={index} variant="secondary" className="text-sm">
@@ -518,10 +597,10 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-3xl font-bold text-blue-600">€{event.price}</div>
-              <div className="text-sm text-muted-foreground">per persona</div>
+              <div className="text-sm text-muted-foreground">{t("per_person")}</div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">Posti disponibili</div>
+              <div className="text-sm text-muted-foreground">{t("available_spots")}</div>
               <div className="text-2xl font-bold text-green-600">{event.availableSpots}</div>
             </div>
           </div>
@@ -532,12 +611,12 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                 <Button asChild className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                   <a href={event.bookingLink} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Prenota Ora
+                    {t("book_now")}
                   </a>
                 </Button>
               ) : (
                 <Button disabled className="w-full">
-                  Link di prenotazione non disponibile
+                  {t("booking_link_unavailable")}
                 </Button>
               )}
             </>
@@ -590,6 +669,80 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                 )}
               </>
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Review Dialog */}
+      <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5" />
+              {t("write_review")}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            {/* Rating */}
+            <div className="space-y-3">
+              <Label className="text-base font-medium">{t("your_rating")}</Label>
+              <div className="flex gap-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setReviewRating(i + 1)}
+                    className="transition-all duration-200 hover:scale-110"
+                  >
+                    <Star
+                      className={`h-8 w-8 ${
+                        i < reviewRating ? "text-yellow-500 fill-current" : "text-gray-300 hover:text-yellow-400"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Comment */}
+            <div className="space-y-3">
+              <Label htmlFor="review-comment">{t("your_comment")}</Label>
+              <Textarea
+                id="review-comment"
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                placeholder={t("comment_placeholder")}
+                rows={4}
+                maxLength={500}
+              />
+              <div className="text-xs text-muted-foreground text-right">{reviewComment.length}/500</div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={handleSubmitReview} disabled={!reviewRating || submittingReview} className="flex-1">
+                {submittingReview ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    {t("loading")}
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    {t("submit_review")}
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowReviewDialog(false)
+                  setReviewRating(0)
+                  setReviewComment("")
+                }}
+                disabled={submittingReview}
+              >
+                {t("cancel")}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

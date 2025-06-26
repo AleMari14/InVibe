@@ -29,6 +29,8 @@ import {
   Eye,
   Mail,
   Phone,
+  Crown,
+  Zap,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -226,7 +228,7 @@ export default function ProfilePage() {
       <div className="min-h-screen bg-background flex items-center justify-center pb-24">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">{t("loading")}</p>
+          <p className="text-muted-foreground">{t("loading_profile")}</p>
         </div>
       </div>
     )
@@ -411,12 +413,12 @@ export default function ProfilePage() {
     { label: t("notifications"), href: "/notifiche", icon: Bell, color: "text-yellow-500" },
   ]
 
-  // Achievement definitions
+  // Achievement definitions with translations
   const achievements = [
     {
       id: "first_event",
-      title: "Primo Evento",
-      description: "Crea il tuo primo evento",
+      title: t("first_event"),
+      description: t("first_event_desc"),
       icon: Trophy,
       requirement: 1,
       current: realStats.eventsCreated,
@@ -426,8 +428,8 @@ export default function ProfilePage() {
     },
     {
       id: "event_creator",
-      title: "Organizzatore",
-      description: "Crea 5 eventi",
+      title: t("event_creator"),
+      description: t("event_creator_desc"),
       icon: Calendar,
       requirement: 5,
       current: realStats.eventsCreated,
@@ -436,20 +438,42 @@ export default function ProfilePage() {
       rarity: "rare" as const,
     },
     {
+      id: "event_master",
+      title: t("event_master"),
+      description: t("event_master_desc"),
+      icon: Crown,
+      requirement: 20,
+      current: realStats.eventsCreated,
+      unlocked: realStats.eventsCreated >= 20,
+      points: 500,
+      rarity: "epic" as const,
+    },
+    {
       id: "social_butterfly",
-      title: "Farfalla Sociale",
-      description: "Partecipa a 10 eventi",
+      title: t("social_butterfly"),
+      description: t("social_butterfly_desc"),
       icon: Users,
       requirement: 10,
       current: realStats.eventsParticipated,
       unlocked: realStats.eventsParticipated >= 10,
       points: 150,
+      rarity: "common" as const,
+    },
+    {
+      id: "party_animal",
+      title: t("party_animal"),
+      description: t("party_animal_desc"),
+      icon: Zap,
+      requirement: 50,
+      current: realStats.eventsParticipated,
+      unlocked: realStats.eventsParticipated >= 50,
+      points: 400,
       rarity: "rare" as const,
     },
     {
       id: "reviewer",
-      title: "Recensore",
-      description: "Scrivi 10 recensioni",
+      title: t("reviewer"),
+      description: t("reviewer_desc"),
       icon: Star,
       requirement: 10,
       current: realStats.totalReviews,
@@ -458,26 +482,37 @@ export default function ProfilePage() {
       rarity: "common" as const,
     },
     {
-      id: "streak_master",
-      title: "Maestro della Costanza",
-      description: "Accedi per 30 giorni consecutivi",
-      icon: Target,
-      requirement: 30,
-      current: realStats.consecutiveDays,
-      unlocked: realStats.consecutiveDays >= 30,
-      points: 250,
-      rarity: "epic" as const,
+      id: "communicator",
+      title: t("communicator"),
+      description: t("communicator_desc"),
+      icon: MessageCircle,
+      requirement: 100,
+      current: realStats.totalMessages,
+      unlocked: realStats.totalMessages >= 100,
+      points: 150,
+      rarity: "common" as const,
     },
     {
       id: "perfect_rating",
-      title: "Perfezione",
-      description: "Raggiungi un rating di 5.0",
+      title: t("perfect_rating"),
+      description: t("perfect_rating_desc"),
       icon: Award,
       requirement: 5,
       current: realStats.rating,
       unlocked: realStats.rating >= 5,
       points: 300,
       rarity: "legendary" as const,
+    },
+    {
+      id: "streak_master",
+      title: t("streak_master"),
+      description: t("streak_master_desc"),
+      icon: Target,
+      requirement: 30,
+      current: realStats.consecutiveDays,
+      unlocked: realStats.consecutiveDays >= 30,
+      points: 250,
+      rarity: "epic" as const,
     },
   ]
 
@@ -493,6 +528,21 @@ export default function ProfilePage() {
         return "from-yellow-400 to-yellow-500"
       default:
         return "from-gray-400 to-gray-500"
+    }
+  }
+
+  const getRarityBadgeColor = (rarity: string) => {
+    switch (rarity) {
+      case "common":
+        return "bg-gray-100 text-gray-700 border-gray-300"
+      case "rare":
+        return "bg-blue-100 text-blue-700 border-blue-300"
+      case "epic":
+        return "bg-purple-100 text-purple-700 border-purple-300"
+      case "legendary":
+        return "bg-yellow-100 text-yellow-700 border-yellow-300"
+      default:
+        return "bg-gray-100 text-gray-700 border-gray-300"
     }
   }
 
@@ -606,115 +656,132 @@ export default function ProfilePage() {
           ))}
         </motion.div>
 
-        {/* Achievement System - Fixed Height */}
+        {/* Achievement System - Improved Design */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <Card className="border-0 shadow-lg">
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Trophy className="h-6 w-6 text-yellow-500" />
                   {t("achievement_system")}
                 </CardTitle>
-                <Badge variant="secondary">
-                  {achievements.filter((a) => a.unlocked).length}/{achievements.length}
-                </Badge>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {t("level")}{" "}
+                    {Math.floor(achievements.filter((a) => a.unlocked).reduce((sum, a) => sum + a.points, 0) / 500) + 1}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    {achievements.filter((a) => a.unlocked).reduce((sum, a) => sum + a.points, 0)} {t("points")}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4">
+                <div className="flex justify-between text-sm mb-2">
+                  <span>{t("next_level_progress")}</span>
+                  <span>
+                    {Math.round(
+                      ((achievements.filter((a) => a.unlocked).reduce((sum, a) => sum + a.points, 0) % 500) / 500) *
+                        100,
+                    )}
+                    %
+                  </span>
+                </div>
+                <Progress
+                  value={
+                    ((achievements.filter((a) => a.unlocked).reduce((sum, a) => sum + a.points, 0) % 500) / 500) * 100
+                  }
+                  className="h-3"
+                />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {achievements.map((achievement, index) => (
                   <motion.div
                     key={achievement.id}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.1 + index * 0.05 }}
-                    className="flex-shrink-0 w-48 h-40"
-                  >
-                    <div
-                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 h-full flex flex-col ${
+                    className={`
+                      relative p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 cursor-pointer
+                      ${
                         achievement.unlocked
-                          ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 dark:from-green-950/20 dark:to-emerald-950/20 dark:border-green-800"
-                          : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
-                      }`}
-                    >
-                      {/* Rarity Glow */}
-                      {achievement.unlocked && (
+                          ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 shadow-lg dark:from-green-950/20 dark:to-emerald-950/20 dark:border-green-800"
+                          : "bg-white border-gray-200 hover:border-gray-300 dark:bg-gray-800 dark:border-gray-700"
+                      }
+                    `}
+                  >
+                    {/* Rarity Glow Effect */}
+                    {achievement.unlocked && (
+                      <div
+                        className={`absolute inset-0 rounded-xl bg-gradient-to-r ${getRarityColor(
+                          achievement.rarity,
+                        )} opacity-10 blur-sm`}
+                      />
+                    )}
+
+                    <div className="relative">
+                      {/* Header with Icon and Status */}
+                      <div className="flex items-center justify-between mb-3">
                         <div
-                          className={`absolute inset-0 rounded-xl bg-gradient-to-r ${getRarityColor(
-                            achievement.rarity,
-                          )} opacity-20 blur-sm`}
-                        />
-                      )}
-
-                      <div className="relative flex flex-col h-full">
-                        {/* Icon */}
-                        <div className="flex justify-center mb-2">
-                          <div
-                            className={`p-2 rounded-full ${
-                              achievement.unlocked
-                                ? `bg-gradient-to-r ${getRarityColor(achievement.rarity)} text-white shadow-lg`
-                                : "bg-gray-100 text-gray-400 dark:bg-gray-700"
-                            }`}
-                          >
-                            <achievement.icon className="h-5 w-5" />
-                          </div>
+                          className={`p-3 rounded-full transition-all duration-300 ${
+                            achievement.unlocked
+                              ? `bg-gradient-to-r ${getRarityColor(achievement.rarity)} text-white shadow-lg`
+                              : "bg-gray-100 text-gray-400 dark:bg-gray-700 dark:text-gray-500"
+                          }`}
+                        >
+                          <achievement.icon className="h-6 w-6" />
                         </div>
-
-                        {/* Title & Status */}
-                        <div className="text-center mb-2 flex-1">
-                          <div className="flex items-center justify-center gap-1 mb-1">
-                            <h4
-                              className={`font-semibold text-xs ${
-                                achievement.unlocked
-                                  ? "text-green-800 dark:text-green-300"
-                                  : "text-gray-700 dark:text-gray-300"
-                              }`}
-                            >
-                              {achievement.title}
-                            </h4>
-                            {achievement.unlocked && <CheckCircle className="h-3 w-3 text-green-500" />}
+                        {achievement.unlocked && (
+                          <div className="flex items-center gap-1">
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            <Badge className="bg-green-100 text-green-800 text-xs px-2 py-1">
+                              <Sparkles className="h-3 w-3 mr-1" />+{achievement.points}
+                            </Badge>
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-2">{achievement.description}</p>
+                        )}
+                      </div>
+
+                      {/* Title and Description */}
+                      <div className="mb-4">
+                        <h4
+                          className={`font-bold text-base mb-1 ${
+                            achievement.unlocked
+                              ? "text-green-800 dark:text-green-200"
+                              : "text-gray-700 dark:text-gray-300"
+                          }`}
+                        >
+                          {achievement.title}
+                        </h4>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{achievement.description}</p>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="mb-3">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground mb-2">
+                          <span>{t("progress")}</span>
+                          <span className="font-medium">
+                            {Math.min(achievement.current, achievement.requirement)}/{achievement.requirement}
+                          </span>
                         </div>
-
-                        {/* Progress */}
-                        <div className="mb-2">
-                          <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                            <span>Progresso</span>
-                            <span>
-                              {Math.min(achievement.current, achievement.requirement)}/{achievement.requirement}
-                            </span>
-                          </div>
+                        <div className="relative">
                           <Progress
                             value={
                               (Math.min(achievement.current, achievement.requirement) / achievement.requirement) * 100
                             }
-                            className="h-1.5"
+                            className="h-2"
                           />
-                        </div>
-
-                        {/* Badges */}
-                        <div className="flex justify-center gap-1">
-                          <Badge
-                            className={`text-xs px-1.5 py-0.5 ${
-                              achievement.rarity === "common"
-                                ? "bg-gray-100 text-gray-700"
-                                : achievement.rarity === "rare"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : achievement.rarity === "epic"
-                                    ? "bg-purple-100 text-purple-700"
-                                    : "bg-yellow-100 text-yellow-700"
-                            }`}
-                          >
-                            {achievement.rarity}
-                          </Badge>
                           {achievement.unlocked && (
-                            <Badge className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5">
-                              <Sparkles className="h-2 w-2 mr-1" />
-                              {achievement.points}
-                            </Badge>
+                            <div className="absolute inset-0 bg-gradient-to-r from-green-400 to-emerald-400 rounded-full opacity-20 animate-pulse" />
                           )}
                         </div>
+                      </div>
+
+                      {/* Rarity Badge */}
+                      <div className="flex justify-center">
+                        <Badge className={`text-xs font-medium px-3 py-1 ${getRarityBadgeColor(achievement.rarity)}`}>
+                          {t(achievement.rarity)}
+                        </Badge>
                       </div>
                     </div>
                   </motion.div>
@@ -767,7 +834,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="text-left">
                   <div className="font-medium">{t("settings")}</div>
-                  <div className="text-sm text-muted-foreground">Personalizza l'app</div>
+                  <div className="text-sm text-muted-foreground">{t("customize_app")}</div>
                 </div>
               </div>
             </Button>
@@ -785,7 +852,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="text-left">
                   <div className="font-medium">{t("reviews")}</div>
-                  <div className="text-sm text-muted-foreground">Le tue recensioni</div>
+                  <div className="text-sm text-muted-foreground">{t("your_reviews")}</div>
                 </div>
               </div>
             </Button>
@@ -840,7 +907,7 @@ export default function ProfilePage() {
                   className="flex items-center gap-2"
                 >
                   <Camera className="h-4 w-4" />
-                  Cambia Foto
+                  {t("change_photo")}
                 </Button>
                 <input
                   ref={fileInputRef}
@@ -855,35 +922,35 @@ export default function ProfilePage() {
             {/* Form Fields */}
             <div className="space-y-4">
               <div>
-                <Label htmlFor="name">Nome</Label>
+                <Label htmlFor="name">{t("name")}</Label>
                 <Input
                   id="name"
                   value={profileData.name}
                   onChange={(e) => setProfileData((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder="Il tuo nome"
+                  placeholder={t("your_name")}
                 />
               </div>
               <div>
-                <Label htmlFor="bio">Bio</Label>
+                <Label htmlFor="bio">{t("bio")}</Label>
                 <Textarea
                   id="bio"
                   value={profileData.bio}
                   onChange={(e) => setProfileData((prev) => ({ ...prev, bio: e.target.value }))}
-                  placeholder="Raccontaci qualcosa di te..."
+                  placeholder={t("tell_about_yourself")}
                   rows={3}
                 />
               </div>
               <div>
-                <Label htmlFor="location">Località</Label>
+                <Label htmlFor="location">{t("location")}</Label>
                 <Input
                   id="location"
                   value={profileData.location}
                   onChange={(e) => setProfileData((prev) => ({ ...prev, location: e.target.value }))}
-                  placeholder="La tua città"
+                  placeholder={t("your_city")}
                 />
               </div>
               <div>
-                <Label htmlFor="phone">Telefono</Label>
+                <Label htmlFor="phone">{t("phone")}</Label>
                 <Input
                   id="phone"
                   value={profileData.phone}
@@ -898,10 +965,10 @@ export default function ProfilePage() {
                 {isUploading ? (
                   <>
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Salvando...
+                    {t("saving")}
                   </>
                 ) : (
-                  t("save")
+                  t("save_changes")
                 )}
               </Button>
               <Button variant="outline" onClick={() => setIsEditingProfile(false)} disabled={isUploading}>
@@ -924,9 +991,9 @@ export default function ProfilePage() {
 
           <Tabs defaultValue="general" className="w-full">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="general">Generale</TabsTrigger>
-              <TabsTrigger value="notifications">Notifiche</TabsTrigger>
-              <TabsTrigger value="privacy">Privacy</TabsTrigger>
+              <TabsTrigger value="general">{t("general")}</TabsTrigger>
+              <TabsTrigger value="notifications">{t("notifications_settings")}</TabsTrigger>
+              <TabsTrigger value="privacy">{t("privacy_settings")}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-6">
@@ -971,21 +1038,21 @@ export default function ProfilePage() {
                     <RadioGroupItem value="light" id="theme-light" />
                     <Label htmlFor="theme-light" className="flex items-center gap-2">
                       <Sun className="h-4 w-4" />
-                      Chiaro
+                      {t("light_theme")}
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="dark" id="theme-dark" />
                     <Label htmlFor="theme-dark" className="flex items-center gap-2">
                       <Moon className="h-4 w-4" />
-                      Scuro
+                      {t("dark_theme")}
                     </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="system" id="theme-system" />
                     <Label htmlFor="theme-system" className="flex items-center gap-2">
                       <Monitor className="h-4 w-4" />
-                      Sistema
+                      {t("system_theme")}
                     </Label>
                   </div>
                 </RadioGroup>
@@ -999,12 +1066,12 @@ export default function ProfilePage() {
                   className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
                 >
                   <Label className="font-medium cursor-pointer">
-                    {key === "events" && "🎉 Eventi e Aggiornamenti"}
-                    {key === "messages" && "💬 Messaggi e Chat"}
-                    {key === "reviews" && "⭐ Recensioni e Feedback"}
-                    {key === "marketing" && "📧 Offerte e Promozioni"}
-                    {key === "push" && "📱 Notifiche Push"}
-                    {key === "email" && "📧 Notifiche Email"}
+                    {key === "events" && `🎉 ${t("events_updates")}`}
+                    {key === "messages" && `💬 ${t("messages_chat")}`}
+                    {key === "reviews" && `⭐ ${t("reviews_feedback")}`}
+                    {key === "marketing" && `📧 ${t("offers_promotions")}`}
+                    {key === "push" && `📱 ${t("push_notifications")}`}
+                    {key === "email" && `📧 ${t("email_notifications")}`}
                   </Label>
                   <Switch
                     checked={value}
@@ -1027,25 +1094,25 @@ export default function ProfilePage() {
                     {key === "profileVisible" && (
                       <>
                         <Eye className="h-4 w-4" />
-                        Profilo Visibile
+                        {t("profile_visible")}
                       </>
                     )}
                     {key === "showEmail" && (
                       <>
                         <Mail className="h-4 w-4" />
-                        Mostra Email
+                        {t("show_email")}
                       </>
                     )}
                     {key === "showPhone" && (
                       <>
                         <Phone className="h-4 w-4" />
-                        Mostra Telefono
+                        {t("show_phone")}
                       </>
                     )}
                     {key === "allowMessages" && (
                       <>
                         <MessageCircle className="h-4 w-4" />
-                        Consenti Messaggi
+                        {t("allow_messages")}
                       </>
                     )}
                   </Label>
@@ -1076,10 +1143,10 @@ export default function ProfilePage() {
           <Tabs defaultValue="received" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="received" onClick={() => fetchReviews("received")}>
-                Ricevute
+                {t("reviews_received")}
               </TabsTrigger>
               <TabsTrigger value="given" onClick={() => fetchReviews("given")}>
-                Date
+                {t("reviews_given")}
               </TabsTrigger>
             </TabsList>
 
@@ -1099,7 +1166,7 @@ export default function ProfilePage() {
               ) : reviews.length === 0 ? (
                 <div className="text-center py-8">
                   <Star className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-muted-foreground">Nessuna recensione trovata</p>
+                  <p className="text-muted-foreground">{t("no_reviews_found")}</p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1155,7 +1222,7 @@ export default function ProfilePage() {
               ) : reviews.length === 0 ? (
                 <div className="text-center py-8">
                   <Star className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                  <p className="text-muted-foreground">Nessuna recensione data</p>
+                  <p className="text-muted-foreground">{t("no_reviews_given")}</p>
                 </div>
               ) : (
                 <div className="space-y-4">

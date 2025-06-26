@@ -14,6 +14,8 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get("type") // "received" or "given"
     const userId = searchParams.get("userId")
+    const eventId = searchParams.get("eventId")
+    const checkUser = searchParams.get("checkUser") === "true"
 
     const { db } = await connectToDatabase()
 
@@ -21,6 +23,25 @@ export async function GET(request: NextRequest) {
     const currentUser = await db.collection("users").findOne({ email: session.user.email })
     if (!currentUser) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    }
+
+    // Check if user can review specific event
+    if (checkUser && eventId) {
+      const hasReviewed = await db.collection("reviews").findOne({
+        eventId: new ObjectId(eventId),
+        userId: currentUser._id,
+      })
+
+      const hasBooking = await db.collection("bookings").findOne({
+        eventId: new ObjectId(eventId),
+        userId: currentUser._id,
+        status: { $in: ["confirmed", "completed"] },
+      })
+
+      return NextResponse.json({
+        hasReviewed: !!hasReviewed,
+        canReview: !!hasBooking,
+      })
     }
 
     const targetUserId = userId || currentUser._id.toString()
