@@ -12,6 +12,7 @@ import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { motion, AnimatePresence } from "framer-motion"
+import { getEventImageUrl } from "@/lib/image-utils"
 
 interface Booking {
   _id: string
@@ -130,14 +131,14 @@ export default function PrenotazioniPage() {
 
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center pb-24">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-background pb-24">
       {/* Header */}
       <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
         <div className="flex items-center gap-3">
@@ -173,7 +174,7 @@ export default function PrenotazioniPage() {
               <Card key={index} className="overflow-hidden border-border">
                 <CardContent className="p-4">
                   <div className="flex gap-4">
-                    <Skeleton className="w-20 h-20 rounded-lg" />
+                    <Skeleton className="w-16 h-16 rounded-lg" />
                     <div className="flex-1 space-y-2">
                       <Skeleton className="h-4 w-3/4" />
                       <Skeleton className="h-3 w-1/2" />
@@ -214,13 +215,16 @@ export default function PrenotazioniPage() {
                   <Card className="overflow-hidden border-border bg-card/80 backdrop-blur-sm hover:shadow-xl transition-all duration-300">
                     <CardContent className="p-4">
                       <div className="flex gap-4">
-                        <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
                           <Image
-                            src={booking.event.images?.[0] || "/placeholder.svg?height=80&width=80"}
+                            src={
+                              getEventImageUrl(booking.event.images?.[0], 64, 64) ||
+                              "/placeholder.svg?height=64&width=64"
+                            }
                             alt={booking.event.title}
                             fill
                             className="object-cover"
-                            sizes="80px"
+                            sizes="64px"
                           />
                         </div>
 

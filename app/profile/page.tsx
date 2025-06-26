@@ -11,16 +11,13 @@ import {
   Calendar,
   MessageCircle,
   Bell,
-  Shield,
   LogOut,
   Edit3,
   Star,
   Globe,
-  CreditCard,
   Moon,
   Sun,
   Monitor,
-  HelpCircle,
   Award,
   Users,
   Camera,
@@ -29,6 +26,9 @@ import {
   Sparkles,
   CheckCircle,
   ChevronRight,
+  Eye,
+  Mail,
+  Phone,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,20 +42,63 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Progress } from "@/components/ui/progress"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { motion } from "framer-motion"
 import { useTheme } from "next-themes"
 import Link from "next/link"
 import { useUserProfile } from "@/hooks/use-user-profile"
+import { useLanguage } from "@/contexts/language-context"
+
+interface UserSettings {
+  notifications: {
+    events: boolean
+    messages: boolean
+    reviews: boolean
+    marketing: boolean
+    push: boolean
+    email: boolean
+  }
+  privacy: {
+    profileVisible: boolean
+    showEmail: boolean
+    showPhone: boolean
+    allowMessages: boolean
+  }
+  language: string
+  theme: string
+}
+
+interface Review {
+  _id: string
+  rating: number
+  comment: string
+  createdAt: string
+  event: {
+    _id: string
+    title: string
+  }
+  reviewer?: {
+    name: string
+    image?: string
+  }
+  host?: {
+    name: string
+    image?: string
+  }
+}
 
 export default function ProfilePage() {
   const { data: session, status, update } = useSession()
   const router = useRouter()
   const { theme, setTheme } = useTheme()
+  const { language, setLanguage, t } = useLanguage()
   const [mounted, setMounted] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
   const [imageKey, setImageKey] = useState(0)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showReviews, setShowReviews] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { profile, isLoading, updateProfile, refreshProfile } = useUserProfile()
 
@@ -68,12 +111,27 @@ export default function ProfilePage() {
     image: "",
   })
 
-  const [notifications, setNotifications] = useState({
-    events: true,
-    messages: true,
-    reviews: false,
-    marketing: false,
+  const [settings, setSettings] = useState<UserSettings>({
+    notifications: {
+      events: true,
+      messages: true,
+      reviews: false,
+      marketing: false,
+      push: true,
+      email: true,
+    },
+    privacy: {
+      profileVisible: true,
+      showEmail: false,
+      showPhone: false,
+      allowMessages: true,
+    },
+    language: "it",
+    theme: "system",
   })
+
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
 
   const [realStats, setRealStats] = useState({
     eventsCreated: 0,
@@ -99,6 +157,25 @@ export default function ProfilePage() {
       })
     }
   }, [profile])
+
+  // Fetch settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const response = await fetch("/api/settings")
+        if (response.ok) {
+          const data = await response.json()
+          setSettings(data)
+        }
+      } catch (error) {
+        console.error("Error fetching settings:", error)
+      }
+    }
+
+    if (session?.user) {
+      fetchSettings()
+    }
+  }, [session])
 
   // Fetch real stats
   useEffect(() => {
@@ -128,12 +205,28 @@ export default function ProfilePage() {
     }
   }, [session])
 
+  // Fetch reviews
+  const fetchReviews = async (type = "all") => {
+    try {
+      setReviewsLoading(true)
+      const response = await fetch(`/api/reviews?type=${type}`)
+      if (response.ok) {
+        const data = await response.json()
+        setReviews(data)
+      }
+    } catch (error) {
+      console.error("Error fetching reviews:", error)
+    } finally {
+      setReviewsLoading(false)
+    }
+  }
+
   if (status === "loading" || !mounted || isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center pb-24">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Caricamento profilo...</p>
+          <p className="text-muted-foreground">{t("loading")}</p>
         </div>
       </div>
     )
@@ -252,9 +345,28 @@ export default function ProfilePage() {
     }
   }
 
-  const handleNotificationChange = (key: string, value: boolean) => {
-    setNotifications((prev) => ({ ...prev, [key]: value }))
-    toast.success("Impostazioni notifiche aggiornate")
+  const handleSettingsUpdate = async (newSettings: Partial<UserSettings>) => {
+    try {
+      const response = await fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newSettings),
+      })
+
+      if (response.ok) {
+        setSettings((prev) => ({ ...prev, ...newSettings }))
+        toast.success("Impostazioni aggiornate con successo!")
+      } else {
+        throw new Error("Errore durante l'aggiornamento")
+      }
+    } catch (error) {
+      toast.error("Errore durante l'aggiornamento delle impostazioni")
+    }
+  }
+
+  const handleLanguageChange = (newLanguage: string) => {
+    setLanguage(newLanguage as "it" | "en" | "es")
+    handleSettingsUpdate({ language: newLanguage })
   }
 
   const handleSignOut = () => {
@@ -266,25 +378,25 @@ export default function ProfilePage() {
 
   const stats = [
     {
-      label: "Eventi Creati",
+      label: t("events_created"),
       value: realStats.eventsCreated.toString(),
       icon: Calendar,
       color: "from-blue-500 to-cyan-500",
     },
     {
-      label: "Partecipazioni",
+      label: t("participations"),
       value: realStats.eventsParticipated.toString(),
       icon: Users,
       color: "from-green-500 to-emerald-500",
     },
     {
-      label: "Rating",
+      label: t("rating"),
       value: realStats.rating > 0 ? realStats.rating.toFixed(1) : "N/A",
       icon: Star,
       color: "from-yellow-500 to-orange-500",
     },
     {
-      label: "Recensioni",
+      label: t("reviews"),
       value: realStats.totalReviews.toString(),
       icon: MessageCircle,
       color: "from-purple-500 to-pink-500",
@@ -292,11 +404,11 @@ export default function ProfilePage() {
   ]
 
   const menuItems = [
-    { label: "I Miei Eventi", href: "/user/events", icon: Calendar, color: "text-blue-500" },
-    { label: "Prenotazioni", href: "/prenotazioni", icon: Calendar, color: "text-green-500" },
-    { label: "Preferiti", href: "/preferiti", icon: Heart, color: "text-red-500" },
-    { label: "Messaggi", href: "/messaggi", icon: MessageCircle, color: "text-purple-500" },
-    { label: "Notifiche", href: "/notifiche", icon: Bell, color: "text-yellow-500" },
+    { label: t("my_events"), href: "/user/events", icon: Calendar, color: "text-blue-500" },
+    { label: t("bookings"), href: "/prenotazioni", icon: Calendar, color: "text-green-500" },
+    { label: t("favorites"), href: "/preferiti", icon: Heart, color: "text-red-500" },
+    { label: t("messages"), href: "/messaggi", icon: MessageCircle, color: "text-purple-500" },
+    { label: t("notifications"), href: "/notifiche", icon: Bell, color: "text-yellow-500" },
   ]
 
   // Achievement definitions
@@ -387,7 +499,7 @@ export default function ProfilePage() {
   const currentImage = profileData.image || profile?.image || session?.user?.image || ""
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-20 relative z-0">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 pb-24 relative z-0">
       {/* Header */}
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="relative overflow-hidden">
         {/* Background Pattern */}
@@ -448,7 +560,7 @@ export default function ProfilePage() {
               >
                 <Badge className="bg-white/20 text-white border-white/30 hover:bg-white/30">
                   <Award className="w-3 h-3 mr-1" />
-                  Membro Verificato
+                  {t("verified_member")}
                 </Badge>
               </motion.div>
             </div>
@@ -494,14 +606,14 @@ export default function ProfilePage() {
           ))}
         </motion.div>
 
-        {/* Achievement System - Horizontal Scroll */}
+        {/* Achievement System - Fixed Height */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <Card className="border-0 shadow-lg">
             <CardHeader className="pb-4">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2 text-xl">
                   <Trophy className="h-6 w-6 text-yellow-500" />
-                  Achievement System
+                  {t("achievement_system")}
                 </CardTitle>
                 <Badge variant="secondary">
                   {achievements.filter((a) => a.unlocked).length}/{achievements.length}
@@ -516,10 +628,10 @@ export default function ProfilePage() {
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.1 + index * 0.05 }}
-                    className="flex-shrink-0 w-48"
+                    className="flex-shrink-0 w-48 h-40"
                   >
                     <div
-                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 ${
+                      className={`relative p-4 rounded-xl border-2 transition-all duration-300 hover:scale-105 h-full flex flex-col ${
                         achievement.unlocked
                           ? "bg-gradient-to-br from-green-50 to-emerald-50 border-green-200 dark:from-green-950/20 dark:to-emerald-950/20 dark:border-green-800"
                           : "bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
@@ -534,25 +646,25 @@ export default function ProfilePage() {
                         />
                       )}
 
-                      <div className="relative">
+                      <div className="relative flex flex-col h-full">
                         {/* Icon */}
-                        <div className="flex justify-center mb-3">
+                        <div className="flex justify-center mb-2">
                           <div
-                            className={`p-3 rounded-full ${
+                            className={`p-2 rounded-full ${
                               achievement.unlocked
                                 ? `bg-gradient-to-r ${getRarityColor(achievement.rarity)} text-white shadow-lg`
                                 : "bg-gray-100 text-gray-400 dark:bg-gray-700"
                             }`}
                           >
-                            <achievement.icon className="h-6 w-6" />
+                            <achievement.icon className="h-5 w-5" />
                           </div>
                         </div>
 
                         {/* Title & Status */}
-                        <div className="text-center mb-2">
+                        <div className="text-center mb-2 flex-1">
                           <div className="flex items-center justify-center gap-1 mb-1">
                             <h4
-                              className={`font-semibold text-sm ${
+                              className={`font-semibold text-xs ${
                                 achievement.unlocked
                                   ? "text-green-800 dark:text-green-300"
                                   : "text-gray-700 dark:text-gray-300"
@@ -560,13 +672,13 @@ export default function ProfilePage() {
                             >
                               {achievement.title}
                             </h4>
-                            {achievement.unlocked && <CheckCircle className="h-4 w-4 text-green-500" />}
+                            {achievement.unlocked && <CheckCircle className="h-3 w-3 text-green-500" />}
                           </div>
                           <p className="text-xs text-muted-foreground line-clamp-2">{achievement.description}</p>
                         </div>
 
                         {/* Progress */}
-                        <div className="mb-3">
+                        <div className="mb-2">
                           <div className="flex justify-between text-xs text-muted-foreground mb-1">
                             <span>Progresso</span>
                             <span>
@@ -577,14 +689,14 @@ export default function ProfilePage() {
                             value={
                               (Math.min(achievement.current, achievement.requirement) / achievement.requirement) * 100
                             }
-                            className="h-2"
+                            className="h-1.5"
                           />
                         </div>
 
                         {/* Badges */}
                         <div className="flex justify-center gap-1">
                           <Badge
-                            className={`text-xs px-2 py-1 ${
+                            className={`text-xs px-1.5 py-0.5 ${
                               achievement.rarity === "common"
                                 ? "bg-gray-100 text-gray-700"
                                 : achievement.rarity === "rare"
@@ -597,8 +709,8 @@ export default function ProfilePage() {
                             {achievement.rarity}
                           </Badge>
                           {achievement.unlocked && (
-                            <Badge className="bg-green-100 text-green-700 text-xs px-2 py-1">
-                              <Sparkles className="h-3 w-3 mr-1" />
+                            <Badge className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5">
+                              <Sparkles className="h-2 w-2 mr-1" />
                               {achievement.points}
                             </Badge>
                           )}
@@ -641,145 +753,55 @@ export default function ProfilePage() {
           ))}
         </motion.div>
 
-        {/* Settings */}
+        {/* Quick Actions */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }}>
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-xl">
-                <Settings className="h-6 w-6 text-gray-600" />
-                Impostazioni
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Theme */}
-              <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                    <Sun className="h-5 w-5 text-blue-600" />
-                  </div>
-                  <div>
-                    <Label className="font-medium">Tema Applicazione</Label>
-                    <p className="text-sm text-muted-foreground">Personalizza l'aspetto</p>
-                  </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <Button
+              variant="outline"
+              className="justify-start h-auto p-4 border-0 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
+              onClick={() => setShowSettings(true)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+                  <Settings className="h-5 w-5 text-blue-600" />
                 </div>
-                <RadioGroup value={theme} onValueChange={setTheme} className="flex gap-2">
-                  <div className="flex items-center space-x-1">
-                    <RadioGroupItem value="light" id="light" />
-                    <Sun className="h-4 w-4" />
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <RadioGroupItem value="dark" id="dark" />
-                    <Moon className="h-4 w-4" />
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <RadioGroupItem value="system" id="system" />
-                    <Monitor className="h-4 w-4" />
-                  </div>
-                </RadioGroup>
-              </div>
-
-              {/* Notifications */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                    <Bell className="h-5 w-5 text-yellow-600" />
-                  </div>
-                  <div>
-                    <Label className="font-medium">Notifiche</Label>
-                    <p className="text-sm text-muted-foreground">Gestisci le tue preferenze</p>
-                  </div>
+                <div className="text-left">
+                  <div className="font-medium">{t("settings")}</div>
+                  <div className="text-sm text-muted-foreground">Personalizza l'app</div>
                 </div>
-                {Object.entries(notifications).map(([key, value]) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
-                  >
-                    <Label className="font-medium cursor-pointer">
-                      {key === "events" && "🎉 Eventi e Aggiornamenti"}
-                      {key === "messages" && "💬 Messaggi e Chat"}
-                      {key === "reviews" && "⭐ Recensioni e Feedback"}
-                      {key === "marketing" && "📧 Offerte e Promozioni"}
-                    </Label>
-                    <Switch checked={value} onCheckedChange={(checked) => handleNotificationChange(key, checked)} />
-                  </div>
-                ))}
               </div>
-
-              <Separator />
-
-              {/* Quick Actions */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <Button
-                  variant="outline"
-                  className="justify-start h-auto p-4 border-0 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                      <Shield className="h-5 w-5 text-green-600" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Privacy</div>
-                      <div className="text-sm text-muted-foreground">Sicurezza account</div>
-                    </div>
-                  </div>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="justify-start h-auto p-4 border-0 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                      <CreditCard className="h-5 w-5 text-purple-600" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Pagamenti</div>
-                      <div className="text-sm text-muted-foreground">Metodi e fatture</div>
-                    </div>
-                  </div>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="justify-start h-auto p-4 border-0 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <Globe className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Lingua</div>
-                      <div className="text-sm text-muted-foreground">Regione e formato</div>
-                    </div>
-                  </div>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="justify-start h-auto p-4 border-0 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                      <HelpCircle className="h-5 w-5 text-orange-600" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-medium">Supporto</div>
-                      <div className="text-sm text-muted-foreground">Aiuto e FAQ</div>
-                    </div>
-                  </div>
-                </Button>
+            </Button>
+            <Button
+              variant="outline"
+              className="justify-start h-auto p-4 border-0 bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800"
+              onClick={() => {
+                setShowReviews(true)
+                fetchReviews()
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+                  <Star className="h-5 w-5 text-yellow-600" />
+                </div>
+                <div className="text-left">
+                  <div className="font-medium">{t("reviews")}</div>
+                  <div className="text-sm text-muted-foreground">Le tue recensioni</div>
+                </div>
               </div>
+            </Button>
+          </div>
+        </motion.div>
 
-              <Separator />
-
-              {/* Logout */}
-              <Button
-                variant="destructive"
-                onClick={handleSignOut}
-                className="w-full h-12 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300"
-              >
-                <LogOut className="h-5 w-5 mr-2" />
-                Disconnetti
-              </Button>
-            </CardContent>
-          </Card>
+        {/* Logout */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.8 }}>
+          <Button
+            variant="destructive"
+            onClick={handleSignOut}
+            className="w-full h-12 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 hover:border-red-300"
+          >
+            <LogOut className="h-5 w-5 mr-2" />
+            {t("logout")}
+          </Button>
         </motion.div>
       </div>
 
@@ -789,7 +811,7 @@ export default function ProfilePage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit3 className="h-5 w-5" />
-              Modifica Profilo
+              {t("edit_profile")}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
@@ -879,14 +901,300 @@ export default function ProfilePage() {
                     Salvando...
                   </>
                 ) : (
-                  "Salva Modifiche"
+                  t("save")
                 )}
               </Button>
               <Button variant="outline" onClick={() => setIsEditingProfile(false)} disabled={isUploading}>
-                Annulla
+                {t("cancel")}
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettings} onOpenChange={setShowSettings}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              {t("settings")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <Tabs defaultValue="general" className="w-full">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="general">Generale</TabsTrigger>
+              <TabsTrigger value="notifications">Notifiche</TabsTrigger>
+              <TabsTrigger value="privacy">Privacy</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="general" className="space-y-6">
+              {/* Language */}
+              <div className="space-y-3">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  {t("language")}
+                </Label>
+                <RadioGroup value={language} onValueChange={handleLanguageChange}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="it" id="lang-it" />
+                    <Label htmlFor="lang-it" className="flex items-center gap-2">
+                      🇮🇹 Italiano
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="en" id="lang-en" />
+                    <Label htmlFor="lang-en" className="flex items-center gap-2">
+                      🇬🇧 English
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="es" id="lang-es" />
+                    <Label htmlFor="lang-es" className="flex items-center gap-2">
+                      🇪🇸 Español
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              <Separator />
+
+              {/* Theme */}
+              <div className="space-y-3">
+                <Label className="text-base font-medium flex items-center gap-2">
+                  <Sun className="h-4 w-4" />
+                  {t("theme")}
+                </Label>
+                <RadioGroup value={theme} onValueChange={setTheme}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="light" id="theme-light" />
+                    <Label htmlFor="theme-light" className="flex items-center gap-2">
+                      <Sun className="h-4 w-4" />
+                      Chiaro
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="dark" id="theme-dark" />
+                    <Label htmlFor="theme-dark" className="flex items-center gap-2">
+                      <Moon className="h-4 w-4" />
+                      Scuro
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="system" id="theme-system" />
+                    <Label htmlFor="theme-system" className="flex items-center gap-2">
+                      <Monitor className="h-4 w-4" />
+                      Sistema
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+            </TabsContent>
+
+            <TabsContent value="notifications" className="space-y-4">
+              {Object.entries(settings.notifications).map(([key, value]) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                >
+                  <Label className="font-medium cursor-pointer">
+                    {key === "events" && "🎉 Eventi e Aggiornamenti"}
+                    {key === "messages" && "💬 Messaggi e Chat"}
+                    {key === "reviews" && "⭐ Recensioni e Feedback"}
+                    {key === "marketing" && "📧 Offerte e Promozioni"}
+                    {key === "push" && "📱 Notifiche Push"}
+                    {key === "email" && "📧 Notifiche Email"}
+                  </Label>
+                  <Switch
+                    checked={value}
+                    onCheckedChange={(checked) => {
+                      const newNotifications = { ...settings.notifications, [key]: checked }
+                      handleSettingsUpdate({ notifications: newNotifications })
+                    }}
+                  />
+                </div>
+              ))}
+            </TabsContent>
+
+            <TabsContent value="privacy" className="space-y-4">
+              {Object.entries(settings.privacy).map(([key, value]) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg"
+                >
+                  <Label className="font-medium cursor-pointer flex items-center gap-2">
+                    {key === "profileVisible" && (
+                      <>
+                        <Eye className="h-4 w-4" />
+                        Profilo Visibile
+                      </>
+                    )}
+                    {key === "showEmail" && (
+                      <>
+                        <Mail className="h-4 w-4" />
+                        Mostra Email
+                      </>
+                    )}
+                    {key === "showPhone" && (
+                      <>
+                        <Phone className="h-4 w-4" />
+                        Mostra Telefono
+                      </>
+                    )}
+                    {key === "allowMessages" && (
+                      <>
+                        <MessageCircle className="h-4 w-4" />
+                        Consenti Messaggi
+                      </>
+                    )}
+                  </Label>
+                  <Switch
+                    checked={value}
+                    onCheckedChange={(checked) => {
+                      const newPrivacy = { ...settings.privacy, [key]: checked }
+                      handleSettingsUpdate({ privacy: newPrivacy })
+                    }}
+                  />
+                </div>
+              ))}
+            </TabsContent>
+          </Tabs>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reviews Dialog */}
+      <Dialog open={showReviews} onOpenChange={setShowReviews}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5" />
+              {t("reviews")}
+            </DialogTitle>
+          </DialogHeader>
+
+          <Tabs defaultValue="received" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="received" onClick={() => fetchReviews("received")}>
+                Ricevute
+              </TabsTrigger>
+              <TabsTrigger value="given" onClick={() => fetchReviews("given")}>
+                Date
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="received" className="space-y-4">
+              {reviewsLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="p-4 border rounded-lg">
+                      <div className="animate-pulse space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-full"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8">
+                  <Star className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-muted-foreground">Nessuna recensione trovata</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <Card key={review._id} className="p-4">
+                      <div className="flex items-start gap-3">
+                        <OptimizedAvatar
+                          src={review.reviewer?.image || "/placeholder.svg"}
+                          alt={review.reviewer?.name || "Utente"}
+                          size={40}
+                          className="h-10 w-10"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium">{review.reviewer?.name}</span>
+                            <div className="flex items-center">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-4 w-4 ${
+                                    i < review.rating ? "text-yellow-500 fill-current" : "text-gray-300"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">Evento: {review.event.title}</p>
+                          {review.comment && <p className="text-sm">{review.comment}</p>}
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {new Date(review.createdAt).toLocaleDateString("it-IT")}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="given" className="space-y-4">
+              {reviewsLoading ? (
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="p-4 border rounded-lg">
+                      <div className="animate-pulse space-y-2">
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                        <div className="h-3 bg-gray-200 rounded w-full"></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="text-center py-8">
+                  <Star className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-muted-foreground">Nessuna recensione data</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <Card key={review._id} className="p-4">
+                      <div className="flex items-start gap-3">
+                        <OptimizedAvatar
+                          src={review.host?.image || "/placeholder.svg"}
+                          alt={review.host?.name || "Host"}
+                          size={40}
+                          className="h-10 w-10"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="font-medium">Host: {review.host?.name}</span>
+                            <div className="flex items-center">
+                              {Array.from({ length: 5 }).map((_, i) => (
+                                <Star
+                                  key={i}
+                                  className={`h-4 w-4 ${
+                                    i < review.rating ? "text-yellow-500 fill-current" : "text-gray-300"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                          <p className="text-sm text-muted-foreground mb-2">Evento: {review.event.title}</p>
+                          {review.comment && <p className="text-sm">{review.comment}</p>}
+                          <p className="text-xs text-muted-foreground mt-2">
+                            {new Date(review.createdAt).toLocaleDateString("it-IT")}
+                          </p>
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
     </div>

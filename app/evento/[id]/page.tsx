@@ -221,7 +221,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-background pb-24">
         <div className="relative">
           <Skeleton className="aspect-[16/9] w-full" />
           <div className="absolute top-4 left-4">
@@ -243,7 +243,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4 pb-24">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-foreground mb-2">Evento non trovato</h2>
           <p className="text-muted-foreground mb-4">L'evento che stai cercando non esiste o è stato rimosso.</p>
@@ -256,7 +256,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background pb-24">
       {/* Header with Enhanced Image Gallery */}
       <div className="relative">
         {/* Navigation */}
