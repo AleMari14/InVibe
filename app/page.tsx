@@ -23,7 +23,6 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import Link from "next/link"
 import Image from "next/image"
@@ -38,14 +37,6 @@ const categories = [
   { id: "viaggio", name: "Viaggi", icon: "✈️", gradient: "from-blue-500 to-cyan-600" },
   { id: "evento", name: "Eventi", icon: "🎉", gradient: "from-purple-500 to-pink-600" },
   { id: "esperienza", name: "Esperienze", icon: "🌟", gradient: "from-orange-500 to-red-600" },
-]
-
-const sortOptions = [
-  { id: "newest", name: "Più Recenti", icon: "🆕" },
-  { id: "price-low", name: "Prezzo Crescente", icon: "💰" },
-  { id: "price-high", name: "Prezzo Decrescente", icon: "💎" },
-  { id: "rating", name: "Migliori Recensioni", icon: "⭐" },
-  { id: "popular", name: "Più Popolari", icon: "🔥" },
 ]
 
 interface Event {
@@ -77,7 +68,6 @@ interface Event {
 export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
-  const [selectedSort, setSelectedSort] = useState("newest")
   const [favorites, setFavorites] = useState<string[]>([])
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
@@ -92,7 +82,7 @@ export default function HomePage() {
     if (session?.user?.email) {
       fetchFavorites()
     }
-  }, [selectedCategory, searchQuery, selectedSort, session])
+  }, [selectedCategory, searchQuery, session])
 
   const fetchEvents = async () => {
     try {
@@ -102,7 +92,6 @@ export default function HomePage() {
       const params = new URLSearchParams()
       if (selectedCategory !== "all") params.append("category", selectedCategory)
       if (searchQuery) params.append("search", searchQuery)
-      if (selectedSort) params.append("sort", selectedSort)
 
       console.log("🔍 Fetching events with params:", params.toString())
 
@@ -305,48 +294,27 @@ export default function HomePage() {
             </div>
           </div>
 
-          {/* Search Bar */}
+          {/* Enhanced Search Bar */}
           <div className="relative mb-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-            <Input
-              placeholder="Cerca eventi, luoghi..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-16 h-11 text-sm bg-white/80 backdrop-blur-sm border-white/20 focus:bg-white"
-            />
-            <div className="absolute right-1 top-1/2 transform -translate-y-1/2 flex gap-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5 z-10" />
+              <Input
+                placeholder="Cerca eventi, luoghi, esperienze..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-12 pr-20 h-12 text-sm bg-white/90 backdrop-blur-sm border-2 border-white/30 focus:border-blue-300 focus:bg-white rounded-xl shadow-lg focus:shadow-xl transition-all duration-300 placeholder:text-gray-400"
+              />
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                <Link href="/filtri">
                   <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-9 w-9 bg-blue-100 hover:bg-blue-200 text-blue-600 rounded-md"
+                    size="sm"
+                    className="h-8 px-4 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-lg shadow-md hover:shadow-lg transition-all duration-300 text-xs font-medium"
                   >
-                    <span className="text-xs font-medium">Ordina</span>
+                    <Filter className="h-3 w-3 mr-1" />
+                    Filtri
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  {sortOptions.map((option) => (
-                    <DropdownMenuItem
-                      key={option.id}
-                      onClick={() => setSelectedSort(option.id)}
-                      className={selectedSort === option.id ? "bg-blue-50 text-blue-600" : ""}
-                    >
-                      <span className="mr-2">{option.icon}</span>
-                      {option.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <Link href="/filtri">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-9 w-9 bg-purple-100 hover:bg-purple-200 text-purple-600 rounded-md"
-                >
-                  <Filter className="h-4 w-4" />
-                </Button>
-              </Link>
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -494,7 +462,7 @@ export default function HomePage() {
             size="sm"
             onClick={handleRefresh}
             disabled={refreshing}
-            className="text-xs hover:bg-blue-50 hover:text-blue-600 transition-colors"
+            className="text-xs hover:bg-blue-50 hover:text-blue-600 transition-colors bg-transparent"
           >
             {refreshing ? (
               <>
@@ -540,7 +508,7 @@ export default function HomePage() {
                   onClick={() => handleEventClick(event._id)}
                 >
                   <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                    <div className="relative aspect-[16/10]">
+                    <div className="relative aspect-[16/10] overflow-hidden">
                       <Image
                         src={getEventImageUrl(event.images?.[0], 300, 200) || "/placeholder.svg"}
                         alt={event.title}
@@ -670,7 +638,7 @@ export default function HomePage() {
                       className="overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group"
                       onClick={() => handleEventClick(event._id)}
                     >
-                      <div className="relative aspect-[4/3]">
+                      <div className="relative aspect-[4/3] overflow-hidden">
                         <Image
                           src={getEventImageUrl(event.images?.[0], 400, 300) || "/placeholder.svg"}
                           alt={event.title}

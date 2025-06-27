@@ -20,7 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
-  MessageCircle,
+  Send,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -74,9 +74,22 @@ interface Event {
   participants: string[]
 }
 
+interface Review {
+  _id: string
+  rating: number
+  comment: string
+  createdAt: string
+  reviewer: {
+    name: string
+    image?: string
+  }
+}
+
 export default function EventoDettaglio({ params }: { params: { id: string } }) {
   const [event, setEvent] = useState<Event | null>(null)
+  const [reviews, setReviews] = useState<Review[]>([])
   const [loading, setLoading] = useState(true)
+  const [reviewsLoading, setReviewsLoading] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [favoriteLoading, setFavoriteLoading] = useState(false)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
@@ -98,6 +111,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
   useEffect(() => {
     fetchEvent()
+    fetchReviews()
     if (session?.user?.email) {
       checkFavoriteStatus()
       checkReviewStatus()
@@ -118,6 +132,21 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       console.error("Error fetching event:", error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchReviews = async () => {
+    try {
+      setReviewsLoading(true)
+      const response = await fetch(`/api/reviews?eventId=${params.id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setReviews(data)
+      }
+    } catch (error) {
+      console.error("Error fetching reviews:", error)
+    } finally {
+      setReviewsLoading(false)
     }
   }
 
@@ -217,7 +246,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       }
 
       const data = await response.json()
-      toast.success(data.message || t("review_success"))
+      toast.success(data.message || "Recensione inviata con successo!")
 
       // Reset form and close dialog
       setReviewRating(0)
@@ -225,8 +254,9 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
       setShowReviewDialog(false)
       setUserHasReviewed(true)
 
-      // Refresh event data to update rating
+      // Refresh event data and reviews
       fetchEvent()
+      fetchReviews()
     } catch (error: any) {
       console.error("Error submitting review:", error)
       toast.error(error.message || "Errore durante l'invio della recensione")
@@ -253,6 +283,15 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     })
 
     return `${startFormatted} - ${endFormatted}`
+  }
+
+  const formatReviewDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString("it-IT", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
   }
 
   const shareEvent = async () => {
@@ -311,10 +350,10 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4 pb-24">
         <div className="text-center">
-          <h2 className="text-2xl font-bold text-foreground mb-2">{t("event_not_found")}</h2>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Evento non trovato</h2>
           <p className="text-muted-foreground mb-4">L'evento che stai cercando non esiste o è stato rimosso.</p>
           <Link href="/">
-            <Button>{t("back_to_home")}</Button>
+            <Button>Torna alla Home</Button>
           </Link>
         </div>
       </div>
@@ -377,7 +416,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   <DropdownMenuItem asChild>
                     <Link href={`/evento/${event._id}/edit`} className="flex items-center gap-2">
                       <Edit3 className="h-4 w-4" />
-                      {t("edit")}
+                      Modifica
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem
@@ -385,7 +424,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                     className="text-red-600 focus:text-red-600"
                   >
                     <Trash2 className="h-4 w-4 mr-2" />
-                    {t("delete")}
+                    Elimina
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -462,7 +501,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             <div className="w-full h-full bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900/20 dark:to-purple-900/20 flex items-center justify-center">
               <div className="text-center text-gray-500">
                 <Calendar className="h-20 w-20 mx-auto mb-4 opacity-50" />
-                <p className="text-lg">{t("no_image_available")}</p>
+                <p className="text-lg">Nessuna immagine disponibile</p>
               </div>
             </div>
           )}
@@ -478,7 +517,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             {event.verified && (
               <Badge className="bg-green-100 text-green-700 flex-shrink-0">
                 <Shield className="h-3 w-3 mr-1" />
-                {t("verified")}
+                Verificato
               </Badge>
             )}
           </div>
@@ -490,9 +529,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             </div>
             <div className="flex items-center gap-1">
               <Eye className="h-4 w-4" />
-              <span>
-                {event.views} {t("views")}
-              </span>
+              <span>{event.views} visualizzazioni</span>
             </div>
             {event.rating > 0 && (
               <div className="flex items-center gap-1">
@@ -512,7 +549,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             <div className="flex items-center gap-1">
               <Users className="h-4 w-4 text-green-500" />
               <span className="font-medium">
-                {event.availableSpots}/{event.totalSpots} {t("available_spots").toLowerCase()}
+                {event.availableSpots}/{event.totalSpots} posti disponibili
               </span>
             </div>
           </div>
@@ -537,7 +574,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                       <div className="flex items-center gap-1 text-sm text-muted-foreground">
                         <Star className="h-3 w-3 text-yellow-500" />
                         <span>
-                          {event.host.rating.toFixed(1)} • {event.host.reviewCount} {t("reviews").toLowerCase()}
+                          {event.host.rating.toFixed(1)} • {event.host.reviewCount} recensioni
                         </span>
                       </div>
                     )}
@@ -552,8 +589,8 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                       onClick={() => setShowReviewDialog(true)}
                       className="flex items-center gap-2"
                     >
-                      <Star className="h-4 w-4" />
-                      {t("write_review")}
+                      <Star className="h-4 w-4 mr-1" />
+                      Recensisci
                     </Button>
                   )}
                 </div>
@@ -566,20 +603,20 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
         {isOwner && (
           <Alert>
             <Shield className="h-4 w-4" />
-            <AlertDescription>{t("this_is_your_event")}</AlertDescription>
+            <AlertDescription>Questo è il tuo evento. Puoi modificarlo o eliminarlo.</AlertDescription>
           </Alert>
         )}
 
         {/* Description */}
         <div>
-          <h2 className="text-lg font-semibold mb-3">{t("description")}</h2>
+          <h2 className="text-lg font-semibold mb-3">Descrizione</h2>
           <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{event.description}</p>
         </div>
 
         {/* Amenities */}
         {event.amenities && event.amenities.length > 0 && (
           <div>
-            <h2 className="text-lg font-semibold mb-3">{t("included_services")}</h2>
+            <h2 className="text-lg font-semibold mb-3">Servizi Inclusi</h2>
             <div className="flex flex-wrap gap-2">
               {event.amenities.map((amenity, index) => (
                 <Badge key={index} variant="secondary" className="text-sm">
@@ -590,6 +627,147 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           </div>
         )}
 
+        {/* Reviews Section */}
+        <div>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Star className="h-5 w-5 text-yellow-500" />
+              Recensioni
+              {event.reviewCount > 0 && (
+                <Badge variant="secondary" className="ml-2">
+                  {event.reviewCount}
+                </Badge>
+              )}
+            </h2>
+            {userCanReview && !userHasReviewed && session && (
+              <Button
+                onClick={() => setShowReviewDialog(true)}
+                size="sm"
+                className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+              >
+                <Star className="h-4 w-4 mr-1" />
+                Scrivi recensione
+              </Button>
+            )}
+          </div>
+
+          {event.rating > 0 && (
+            <div className="bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20 rounded-lg p-4 mb-4">
+              <div className="flex items-center gap-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-yellow-600">{event.rating.toFixed(1)}</div>
+                  <div className="flex items-center justify-center gap-1 mt-1">
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`h-4 w-4 ${
+                          i < Math.floor(event.rating) ? "text-yellow-500 fill-current" : "text-gray-300"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">su {event.reviewCount} recensioni</div>
+                </div>
+                <div className="flex-1">
+                  <div className="space-y-2">
+                    {[5, 4, 3, 2, 1].map((rating) => {
+                      const count = reviews.filter((r) => r.rating === rating).length
+                      const percentage = event.reviewCount > 0 ? (count / event.reviewCount) * 100 : 0
+                      return (
+                        <div key={rating} className="flex items-center gap-2 text-sm">
+                          <span className="w-3">{rating}</span>
+                          <Star className="h-3 w-3 text-yellow-500" />
+                          <div className="flex-1 bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-yellow-500 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="w-8 text-xs text-muted-foreground">{count}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {reviewsLoading ? (
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <Card key={i}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <Skeleton className="h-10 w-10 rounded-full" />
+                      <div className="flex-1 space-y-2">
+                        <Skeleton className="h-4 w-1/4" />
+                        <Skeleton className="h-3 w-full" />
+                        <Skeleton className="h-3 w-3/4" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : reviews.length > 0 ? (
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <Card key={review._id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={review.reviewer.image || "/placeholder.svg"} alt={review.reviewer.name} />
+                        <AvatarFallback>{review.reviewer.name.charAt(0).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium">{review.reviewer.name}</h4>
+                          <span className="text-xs text-muted-foreground">{formatReviewDate(review.createdAt)}</span>
+                        </div>
+                        <div className="flex items-center gap-1 mb-2">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-4 w-4 ${
+                                i < review.rating ? "text-yellow-500 fill-current" : "text-gray-300"
+                              }`}
+                            />
+                          ))}
+                          <span className="text-sm font-medium ml-1">{review.rating}/5</span>
+                        </div>
+                        {review.comment && (
+                          <p className="text-sm text-muted-foreground leading-relaxed">{review.comment}</p>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Star className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="font-medium mb-2">Nessuna recensione ancora</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Sii il primo a lasciare una recensione per questo evento!
+              </p>
+              {userCanReview && !userHasReviewed && session && (
+                <Button
+                  onClick={() => setShowReviewDialog(true)}
+                  size="sm"
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+                >
+                  <Star className="h-4 w-4 mr-1" />
+                  Scrivi la prima recensione
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
         <Separator />
 
         {/* Price and Booking */}
@@ -597,10 +775,10 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-3xl font-bold text-blue-600">€{event.price}</div>
-              <div className="text-sm text-muted-foreground">{t("per_person")}</div>
+              <div className="text-sm text-muted-foreground">per persona</div>
             </div>
             <div className="text-right">
-              <div className="text-sm text-muted-foreground">{t("available_spots")}</div>
+              <div className="text-sm text-muted-foreground">Posti disponibili</div>
               <div className="text-2xl font-bold text-green-600">{event.availableSpots}</div>
             </div>
           </div>
@@ -611,12 +789,12 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                 <Button asChild className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                   <a href={event.bookingLink} target="_blank" rel="noopener noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    {t("book_now")}
+                    Prenota Ora
                   </a>
                 </Button>
               ) : (
                 <Button disabled className="w-full">
-                  {t("booking_link_unavailable")}
+                  Link di prenotazione non disponibile
                 </Button>
               )}
             </>
@@ -679,13 +857,13 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Star className="h-5 w-5" />
-              {t("write_review")}
+              Scrivi una recensione
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-6">
             {/* Rating */}
             <div className="space-y-3">
-              <Label className="text-base font-medium">{t("your_rating")}</Label>
+              <Label className="text-base font-medium">La tua valutazione</Label>
               <div className="flex gap-1">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <button
@@ -701,16 +879,25 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   </button>
                 ))}
               </div>
+              {reviewRating > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {reviewRating === 1 && "Pessimo"}
+                  {reviewRating === 2 && "Scarso"}
+                  {reviewRating === 3 && "Nella media"}
+                  {reviewRating === 4 && "Buono"}
+                  {reviewRating === 5 && "Eccellente"}
+                </p>
+              )}
             </div>
 
             {/* Comment */}
             <div className="space-y-3">
-              <Label htmlFor="review-comment">{t("your_comment")}</Label>
+              <Label htmlFor="review-comment">Il tuo commento (opzionale)</Label>
               <Textarea
                 id="review-comment"
                 value={reviewComment}
                 onChange={(e) => setReviewComment(e.target.value)}
-                placeholder={t("comment_placeholder")}
+                placeholder="Condividi la tua esperienza con questo evento..."
                 rows={4}
                 maxLength={500}
               />
@@ -722,12 +909,12 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                 {submittingReview ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    {t("loading")}
+                    Invio...
                   </>
                 ) : (
                   <>
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    {t("submit_review")}
+                    <Send className="h-4 w-4 mr-2" />
+                    Invia recensione
                   </>
                 )}
               </Button>
@@ -740,7 +927,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                 }}
                 disabled={submittingReview}
               >
-                {t("cancel")}
+                Annulla
               </Button>
             </div>
           </div>
