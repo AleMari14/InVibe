@@ -11,11 +11,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const { hostEmail, hostName, eventId, eventTitle } = await request.json()
+    const body = await request.json()
+    const { hostEmail, hostName, eventId, eventTitle } = body
+
+    // Validazione parametri
+    if (!hostEmail || !hostName || !eventId || !eventTitle) {
+      console.error("Missing required parameters:", { hostEmail, hostName, eventId, eventTitle })
+      return NextResponse.json({ error: "Parametri mancanti" }, { status: 400 })
+    }
+
     const currentUserEmail = session.user.email
     const currentUserName = session.user.name || "Utente"
 
-    console.log("Creating chat room between:", currentUserEmail, "and", hostEmail)
+    console.log("Creating chat room between:", currentUserEmail, "and", hostEmail, "for event:", eventId)
 
     if (currentUserEmail === hostEmail) {
       return NextResponse.json({ error: "Non puoi creare una chat con te stesso" }, { status: 400 })
@@ -26,7 +34,8 @@ export async function POST(request: Request) {
 
     // Genera un roomId univoco basato su evento e partecipanti
     const participants = [currentUserEmail, hostEmail].sort()
-    const roomId = `${eventId}_${participants.join("_").replace(/[^a-zA-Z0-9]/g, "")}`
+    const cleanParticipants = participants.map((email) => email.replace(/[^a-zA-Z0-9]/g, "")).join("_")
+    const roomId = `${eventId}_${cleanParticipants}`
 
     console.log("Generated roomId:", roomId)
 
