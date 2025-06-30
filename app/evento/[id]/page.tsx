@@ -89,6 +89,18 @@ interface Review {
   helpful: number
 }
 
+// Safe function to get initials
+const getInitials = (name?: string): string => {
+  if (!name || typeof name !== "string") return "?"
+  return name.charAt(0).toUpperCase()
+}
+
+// Safe function to get full name
+const getSafeName = (name?: string): string => {
+  if (!name || typeof name !== "string") return "Utente"
+  return name
+}
+
 export default function EventDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -119,7 +131,7 @@ export default function EventDetailPage() {
 
   // Auto-play functionality
   useEffect(() => {
-    if (isAutoPlaying && event?.images && event.images.length > 1) {
+    if (isAutoPlaying && event?.images && Array.isArray(event.images) && event.images.length > 1) {
       autoPlayRef.current = setInterval(() => {
         setCurrentImageIndex((prev) => (prev + 1) % event.images.length)
       }, 4000)
@@ -166,10 +178,11 @@ export default function EventDetailPage() {
 
       if (response.ok) {
         const data = await response.json()
-        setReviews(data)
+        setReviews(Array.isArray(data) ? data : [])
       }
     } catch (error) {
       console.error("Error fetching reviews:", error)
+      setReviews([])
     } finally {
       setReviewsLoading(false)
     }
@@ -249,13 +262,13 @@ export default function EventDetailPage() {
   }
 
   const nextImage = () => {
-    if (event?.images) {
+    if (event?.images && Array.isArray(event.images)) {
       setCurrentImageIndex((prev) => (prev + 1) % event.images.length)
     }
   }
 
   const prevImage = () => {
-    if (event?.images) {
+    if (event?.images && Array.isArray(event.images)) {
       setCurrentImageIndex((prev) => (prev - 1 + event.images.length) % event.images.length)
     }
   }
@@ -306,6 +319,7 @@ export default function EventDetailPage() {
   }
 
   const formatDate = (dateString: string) => {
+    if (!dateString) return "Data non disponibile"
     return new Date(dateString).toLocaleDateString("it-IT", {
       weekday: "long",
       year: "numeric",
@@ -315,6 +329,7 @@ export default function EventDetailPage() {
   }
 
   const formatTime = (timeString: string) => {
+    if (!timeString) return "Orario non disponibile"
     return new Date(`2000-01-01T${timeString}`).toLocaleTimeString("it-IT", {
       hour: "2-digit",
       minute: "2-digit",
@@ -537,8 +552,9 @@ export default function EventDetailPage() {
         {/* Event Header */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           <div className="flex flex-wrap gap-2">
-            <Badge variant="secondary">{event.category}</Badge>
+            <Badge variant="secondary">{event.category || "Categoria"}</Badge>
             {event.tags &&
+              Array.isArray(event.tags) &&
               event.tags.map((tag) => (
                 <Badge key={tag} variant="outline">
                   {tag}
@@ -546,16 +562,16 @@ export default function EventDetailPage() {
               ))}
           </div>
 
-          <h1 className="text-3xl font-bold leading-tight">{event.title}</h1>
+          <h1 className="text-3xl font-bold leading-tight">{event.title || "Titolo evento"}</h1>
 
           <div className="flex items-center gap-4 text-muted-foreground">
             <div className="flex items-center gap-1">
               <Eye className="h-4 w-4" />
-              <span className="text-sm">{event.views} visualizzazioni</span>
+              <span className="text-sm">{event.views || 0} visualizzazioni</span>
             </div>
             <div className="flex items-center gap-1">
               <Heart className="h-4 w-4" />
-              <span className="text-sm">{event.favorites} preferiti</span>
+              <span className="text-sm">{event.favorites || 0} preferiti</span>
             </div>
           </div>
         </motion.div>
@@ -588,8 +604,8 @@ export default function EventDetailPage() {
                   <MapPin className="h-6 w-6 text-green-600" />
                 </div>
                 <div>
-                  <div className="font-semibold">{event.location.address}</div>
-                  <div className="text-sm text-muted-foreground">{event.location.city}</div>
+                  <div className="font-semibold">{event.location?.address || "Indirizzo non disponibile"}</div>
+                  <div className="text-sm text-muted-foreground">{event.location?.city || "Città non disponibile"}</div>
                 </div>
               </div>
             </CardContent>
@@ -603,7 +619,7 @@ export default function EventDetailPage() {
                 </div>
                 <div>
                   <div className="font-semibold">
-                    {event.availableSpots} / {event.totalSpots} posti
+                    {event.availableSpots || 0} / {event.totalSpots || 0} posti
                   </div>
                   <div className="text-sm text-muted-foreground">
                     {event.availableSpots === 0 ? "Sold out" : "Posti disponibili"}
@@ -665,7 +681,9 @@ export default function EventDetailPage() {
               <CardTitle>Descrizione</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">{event.description}</p>
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                {event.description || "Nessuna descrizione disponibile"}
+              </p>
             </CardContent>
           </Card>
         </motion.div>
@@ -678,7 +696,7 @@ export default function EventDetailPage() {
             transition={{ delay: 0.4 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-4"
           >
-            {event.requirements && Array.isArray(event.requirements) && (
+            {event.requirements && Array.isArray(event.requirements) && event.requirements.length > 0 && (
               <Card className="border-0 shadow-lg">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -699,7 +717,7 @@ export default function EventDetailPage() {
               </Card>
             )}
 
-            {event.amenities && Array.isArray(event.amenities) && (
+            {event.amenities && Array.isArray(event.amenities) && event.amenities.length > 0 && (
               <Card className="border-0 shadow-lg">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -723,63 +741,65 @@ export default function EventDetailPage() {
         )}
 
         {/* Host Information */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
-          <Card className="border-0 shadow-lg">
-            <CardHeader>
-              <CardTitle>Organizzatore</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={event.host.image || "/placeholder.svg"} alt={event.host.name} />
-                  <AvatarFallback>{event.host.name.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-semibold text-lg">{event.host.name}</h3>
-                    {event.host.verified && (
-                      <Badge className="bg-blue-100 text-blue-700">
-                        <Shield className="w-3 h-3 mr-1" />
-                        Verificato
-                      </Badge>
-                    )}
-                  </div>
-                  {event.host.rating > 0 && (
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="flex items-center">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-4 w-4 ${
-                              i < Math.floor(event.host.rating) ? "text-yellow-500 fill-current" : "text-gray-300"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-sm text-muted-foreground">
-                        {event.host.rating.toFixed(1)} ({event.host.reviewCount} recensioni)
-                      </span>
+        {event.host && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle>Organizzatore</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={event.host.image || "/placeholder.svg"} alt={getSafeName(event.host.name)} />
+                    <AvatarFallback>{getInitials(event.host.name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-semibold text-lg">{getSafeName(event.host.name)}</h3>
+                      {event.host.verified && (
+                        <Badge className="bg-blue-100 text-blue-700">
+                          <Shield className="w-3 h-3 mr-1" />
+                          Verificato
+                        </Badge>
+                      )}
                     </div>
-                  )}
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/messaggi/new?hostId=${event.host._id}`}>
-                        <MessageCircle className="h-4 w-4 mr-2" />
-                        Contatta
-                      </Link>
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/profile/${event.host._id}`}>
-                        <User className="h-4 w-4 mr-2" />
-                        Profilo
-                      </Link>
-                    </Button>
+                    {event.host.rating > 0 && (
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-4 w-4 ${
+                                i < Math.floor(event.host.rating) ? "text-yellow-500 fill-current" : "text-gray-300"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-sm text-muted-foreground">
+                          {event.host.rating.toFixed(1)} ({event.host.reviewCount} recensioni)
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/messaggi/new?hostId=${event.host._id}`}>
+                          <MessageCircle className="h-4 w-4 mr-2" />
+                          Contatta
+                        </Link>
+                      </Button>
+                      <Button variant="outline" size="sm" asChild>
+                        <Link href={`/profile/${event.host._id}`}>
+                          <User className="h-4 w-4 mr-2" />
+                          Profilo
+                        </Link>
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
 
         {/* Reviews Section */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
@@ -865,12 +885,15 @@ export default function EventDetailPage() {
                             >
                               <div className="flex items-start gap-3">
                                 <Avatar className="h-10 w-10">
-                                  <AvatarImage src={review.userImage || "/placeholder.svg"} alt={review.userName} />
-                                  <AvatarFallback>{review.userName.charAt(0).toUpperCase()}</AvatarFallback>
+                                  <AvatarImage
+                                    src={review.userImage || "/placeholder.svg"}
+                                    alt={getSafeName(review.userName)}
+                                  />
+                                  <AvatarFallback>{getInitials(review.userName)}</AvatarFallback>
                                 </Avatar>
                                 <div className="flex-1">
                                   <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-medium">{review.userName}</span>
+                                    <span className="font-medium">{getSafeName(review.userName)}</span>
                                     <div className="flex items-center">
                                       {Array.from({ length: 5 }).map((_, i) => (
                                         <Star
@@ -885,7 +908,9 @@ export default function EventDetailPage() {
                                       {getRatingEmoji(review.rating)}
                                     </span>
                                   </div>
-                                  <p className="text-sm text-muted-foreground mb-2">{review.comment}</p>
+                                  <p className="text-sm text-muted-foreground mb-2">
+                                    {review.comment || "Nessun commento"}
+                                  </p>
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs text-muted-foreground">
                                       {new Date(review.createdAt).toLocaleDateString("it-IT")}
@@ -951,7 +976,7 @@ export default function EventDetailPage() {
               <X className="h-4 w-4" />
             </Button>
 
-            {event.images && (
+            {event.images && Array.isArray(event.images) && event.images.length > 0 && (
               <div className="relative h-[70vh]">
                 <Image
                   src={event.images[currentImageIndex] || "/placeholder.svg"}
@@ -984,31 +1009,30 @@ export default function EventDetailPage() {
             )}
 
             {/* Thumbnail Navigation */}
-            {event.images &&
-              event.images.map((image, index) => (
-                <div key={index} className="p-4 bg-gray-50 overflow-x-auto">
-                  <div className="flex gap-2">
-                    {event.images.map((image, index) => (
-                      <button
-                        key={index}
-                        className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
-                          index === currentImageIndex
-                            ? "border-blue-500 scale-105"
-                            : "border-transparent hover:border-gray-300"
-                        }`}
-                        onClick={() => setCurrentImageIndex(index)}
-                      >
-                        <Image
-                          src={image || "/placeholder.svg"}
-                          alt={`Thumbnail ${index + 1}`}
-                          fill
-                          className="object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
+            {event.images && Array.isArray(event.images) && event.images.length > 1 && (
+              <div className="p-4 bg-gray-50 overflow-x-auto">
+                <div className="flex gap-2">
+                  {event.images.map((image, index) => (
+                    <button
+                      key={index}
+                      className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
+                        index === currentImageIndex
+                          ? "border-blue-500 scale-105"
+                          : "border-transparent hover:border-gray-300"
+                      }`}
+                      onClick={() => setCurrentImageIndex(index)}
+                    >
+                      <Image
+                        src={image || "/placeholder.svg"}
+                        alt={`Thumbnail ${index + 1}`}
+                        fill
+                        className="object-cover"
+                      />
+                    </button>
+                  ))}
                 </div>
-              ))}
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
