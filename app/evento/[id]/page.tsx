@@ -21,6 +21,7 @@ import {
   ChevronRight,
   X,
   Send,
+  ImageIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -38,7 +39,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { MessageHostButton } from "@/components/event/message-host-button"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
@@ -102,6 +103,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   const [submittingReview, setSubmittingReview] = useState(false)
   const [userHasReviewed, setUserHasReviewed] = useState(false)
   const [userCanReview, setUserCanReview] = useState(false)
+  const [imageLoading, setImageLoading] = useState(true)
   const { data: session } = useSession()
   const router = useRouter()
   const { t } = useLanguage()
@@ -315,12 +317,14 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
   const nextImage = () => {
     if (event?.images && event.images.length > 1) {
       setCurrentImageIndex((prev) => (prev + 1) % event.images.length)
+      setImageLoading(true)
     }
   }
 
   const prevImage = () => {
     if (event?.images && event.images.length > 1) {
       setCurrentImageIndex((prev) => (prev - 1 + event.images.length) % event.images.length)
+      setImageLoading(true)
     }
   }
 
@@ -328,7 +332,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
     return (
       <div className="min-h-screen bg-background pb-24">
         <div className="relative">
-          <Skeleton className="aspect-[16/9] w-full" />
+          <Skeleton className="aspect-[4/3] w-full" />
           <div className="absolute top-4 left-4">
             <Skeleton className="w-10 h-10 rounded-full" />
           </div>
@@ -370,7 +374,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             <Button
               variant="ghost"
               size="icon"
-              className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
+              className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 shadow-lg"
             >
               <ArrowLeft className="h-4 w-4" />
             </Button>
@@ -379,7 +383,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
             <Button
               variant="ghost"
               size="icon"
-              className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
+              className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 shadow-lg"
               onClick={shareEvent}
             >
               <Share className="h-4 w-4" />
@@ -389,7 +393,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
+                  className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 shadow-lg"
                   onClick={toggleFavorite}
                   disabled={favoriteLoading || !session}
                 >
@@ -407,7 +411,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20"
+                    className="bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 shadow-lg"
                   >
                     <MoreVertical className="h-4 w-4" />
                   </Button>
@@ -432,28 +436,54 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
           </div>
         </div>
 
-        {/* Enhanced Image Gallery */}
+        {/* Enhanced Image Gallery with Better UX */}
         <div className="aspect-[4/3] relative overflow-hidden bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900">
           {event.images && event.images.length > 0 ? (
             <>
-              <motion.div
-                key={currentImageIndex}
-                initial={{ opacity: 0, scale: 1.1 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5 }}
-                className="relative w-full h-full cursor-pointer"
-                onClick={() => setShowImageModal(true)}
-              >
-                <Image
-                  src={getEventImageUrl(event.images[currentImageIndex], 800, 600) || "/placeholder.svg"}
-                  alt={event.title}
-                  fill
-                  className="object-cover hover:scale-105 transition-transform duration-700"
-                  priority
-                  sizes="100vw"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent" />
-              </motion.div>
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={currentImageIndex}
+                  initial={{ opacity: 0, scale: 1.02 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.98 }}
+                  transition={{ duration: 0.4, ease: "easeInOut" }}
+                  className="relative w-full h-full cursor-pointer group"
+                  onClick={() => setShowImageModal(true)}
+                >
+                  {/* Loading Skeleton */}
+                  {imageLoading && (
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 animate-pulse flex items-center justify-center">
+                      <ImageIcon className="h-16 w-16 text-gray-400" />
+                    </div>
+                  )}
+
+                  <Image
+                    src={getEventImageUrl(event.images[currentImageIndex], 1200, 900) || "/placeholder.svg"}
+                    alt={event.title}
+                    fill
+                    className={`object-cover transition-all duration-700 group-hover:scale-105 ${
+                      imageLoading ? "opacity-0" : "opacity-100"
+                    }`}
+                    priority={currentImageIndex === 0}
+                    sizes="100vw"
+                    onLoad={() => setImageLoading(false)}
+                    onError={() => setImageLoading(false)}
+                  />
+
+                  {/* Gradient Overlays */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-black/20" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-black/20 via-transparent to-black/20" />
+
+                  {/* Hover Effect */}
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+
+                  {/* Click to Expand Hint */}
+                  <div className="absolute bottom-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
+                    <ImageIcon className="h-3 w-3" />
+                    Clicca per ingrandire
+                  </div>
+                </motion.div>
+              </AnimatePresence>
 
               {/* Image Navigation */}
               {event.images.length > 1 && (
@@ -461,7 +491,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 z-20"
+                    className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md hover:bg-black/70 text-white border border-white/20 z-20 shadow-lg transition-all duration-200 hover:scale-110"
                     onClick={prevImage}
                   >
                     <ChevronLeft className="h-5 w-5" />
@@ -469,7 +499,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md hover:bg-black/60 text-white border border-white/20 z-20"
+                    className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 backdrop-blur-md hover:bg-black/70 text-white border border-white/20 z-20 shadow-lg transition-all duration-200 hover:scale-110"
                     onClick={nextImage}
                   >
                     <ChevronRight className="h-5 w-5" />
@@ -483,9 +513,14 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                   {event.images.map((_, index) => (
                     <button
                       key={index}
-                      onClick={() => setCurrentImageIndex(index)}
+                      onClick={() => {
+                        setCurrentImageIndex(index)
+                        setImageLoading(true)
+                      }}
                       className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                        index === currentImageIndex ? "bg-white scale-110 shadow-lg" : "bg-white/50 hover:bg-white/75"
+                        index === currentImageIndex
+                          ? "bg-white scale-110 shadow-lg ring-2 ring-white/50"
+                          : "bg-white/50 hover:bg-white/75 hover:scale-105"
                       }`}
                     />
                   ))}
@@ -493,7 +528,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
               )}
 
               {/* Image Counter */}
-              <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-sm border border-white/20 z-20">
+              <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-md text-white px-3 py-1 rounded-full text-sm border border-white/20 z-20 shadow-lg">
                 {currentImageIndex + 1} / {event.images.length}
               </div>
             </>
@@ -804,7 +839,7 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
       {/* Image Modal */}
       <Dialog open={showImageModal} onOpenChange={setShowImageModal}>
-        <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
+        <DialogContent className="max-w-6xl w-full h-[90vh] p-0">
           <div className="relative w-full h-full bg-black rounded-lg overflow-hidden">
             <Button
               variant="ghost"
@@ -817,13 +852,16 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
 
             {event.images && event.images.length > 0 && (
               <>
-                <Image
-                  src={getEventImageUrl(event.images[currentImageIndex]) || "/placeholder.svg"}
-                  alt={event.title}
-                  fill
-                  className="object-contain"
-                  sizes="100vw"
-                />
+                <div className="relative w-full h-full">
+                  <Image
+                    src={getEventImageUrl(event.images[currentImageIndex]) || "/placeholder.svg"}
+                    alt={event.title}
+                    fill
+                    className="object-contain"
+                    sizes="100vw"
+                    priority
+                  />
+                </div>
 
                 {event.images.length > 1 && (
                   <>
@@ -843,6 +881,29 @@ export default function EventoDettaglio({ params }: { params: { id: string } }) 
                     >
                       <ChevronRight className="h-6 w-6" />
                     </Button>
+
+                    {/* Thumbnail Navigation */}
+                    <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex gap-2 max-w-md overflow-x-auto">
+                      {event.images.map((image, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentImageIndex(index)}
+                          className={`relative w-16 h-12 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-all ${
+                            index === currentImageIndex
+                              ? "border-white"
+                              : "border-transparent opacity-70 hover:opacity-100"
+                          }`}
+                        >
+                          <Image
+                            src={getEventImageUrl(image, 64, 48) || "/placeholder.svg"}
+                            alt={`${event.title} ${index + 1}`}
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                          />
+                        </button>
+                      ))}
+                    </div>
                   </>
                 )}
               </>
