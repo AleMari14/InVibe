@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { useSession } from "next-auth/react"
@@ -154,9 +156,17 @@ export default function MessaggiPage() {
     }
   }
 
-  const handleDeleteClick = (roomId: string) => {
+  const handleDeleteClick = (roomId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
     setRoomToDelete(roomId)
     setDeleteDialogOpen(true)
+  }
+
+  const handleArchiveClick = (roomId: string, e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    archiveChat(roomId)
   }
 
   const confirmDelete = () => {
@@ -257,11 +267,11 @@ export default function MessaggiPage() {
                 >
                   <Avatar className="h-12 w-12">
                     <AvatarImage src={room.otherUser.image || "/placeholder.svg"} />
-                    <AvatarFallback>{room.otherUser.name.charAt(0)}</AvatarFallback>
+                    <AvatarFallback>{room.otherUser.name?.charAt(0)?.toUpperCase() || "?"}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium truncate">{room.otherUser.name}</h3>
+                      <h3 className="font-medium truncate">{room.otherUser.name || "Utente"}</h3>
                       {room.lastMessage && (
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(room.lastMessage.createdAt), "HH:mm", { locale: it })}
@@ -284,30 +294,35 @@ export default function MessaggiPage() {
                   </div>
 
                   {/* Chat Actions */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => archiveChat(room.roomId)}>
-                        <Archive className="h-4 w-4 mr-2" />
-                        {room.archived ? "Disarchivia" : "Archivia"}
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        onClick={() => handleDeleteClick(room.roomId)}
-                        className="text-red-600 focus:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Elimina
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                          }}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                        <DropdownMenuItem onClick={(e) => handleArchiveClick(room.roomId, e)}>
+                          <Archive className="h-4 w-4 mr-2" />
+                          {room.archived ? "Disarchivia" : "Archivia"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={(e) => handleDeleteClick(room.roomId, e)}
+                          className="text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Elimina
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </motion.div>
               </Link>
             ))
