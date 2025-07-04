@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import Image from "next/image"
-import { format } from "date-fns"
+import { format, isValid, parseISO } from "date-fns"
 import { it } from "date-fns/locale"
 import {
   ArrowLeft,
@@ -55,6 +55,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
 import { MessageHostButton } from "@/components/event/message-host-button"
+import { getEventImageUrl } from "@/lib/image-utils"
 
 // Safe utility functions
 const getInitials = (name?: string): string => {
@@ -69,6 +70,34 @@ const getSafeName = (name?: string): string => {
 
 const getSafeArray = <T,>(arr: T[] | undefined | null): T[] => {
   return Array.isArray(arr) ? arr : []
+}
+
+const safeFormatDate = (dateString: string | Date, formatStr = "EEEE d MMMM yyyy"): string => {
+  try {
+    if (!dateString) return "Data non disponibile"
+
+    let date: Date
+    if (typeof dateString === "string") {
+      // Try parsing ISO string first
+      date = parseISO(dateString)
+      if (!isValid(date)) {
+        // Fallback to Date constructor
+        date = new Date(dateString)
+      }
+    } else {
+      date = dateString
+    }
+
+    if (!isValid(date)) {
+      console.warn("Invalid date:", dateString)
+      return "Data non valida"
+    }
+
+    return format(date, formatStr, { locale: it })
+  } catch (error) {
+    console.error("Error formatting date:", error, dateString)
+    return "Data non disponibile"
+  }
 }
 
 interface Event {
@@ -104,6 +133,8 @@ interface Event {
   likes?: number
   rating?: number
   totalReviews?: number
+  dateStart?: string
+  dateEnd?: string
 }
 
 interface Review {
@@ -126,6 +157,10 @@ const categoryIcons: Record<string, any> = {
   sport: "⚽",
   arte: "🎨",
   cibo: "🍽️",
+  casa: "🏠",
+  viaggio: "✈️",
+  evento: "🎉",
+  esperienza: "🌟",
 }
 
 const amenityIcons: Record<string, any> = {
@@ -176,6 +211,7 @@ export default function EventoPage() {
       const response = await fetch(`/api/events/${eventId}`)
       if (!response.ok) throw new Error("Evento non trovato")
       const data = await response.json()
+      console.log("📅 Event data received:", data)
       setEvent(data)
     } catch (error) {
       console.error("Error fetching event:", error)
@@ -336,11 +372,14 @@ export default function EventoPage() {
           <Card className="overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-xl">
             <div className="relative h-80 md:h-96">
               <Image
-                src={safeImages[currentImageIndex] || "/placeholder.svg?height=400&width=800"}
+                src={
+                  getEventImageUrl(safeImages[currentImageIndex], 800, 400) || "/placeholder.svg?height=400&width=800"
+                }
                 alt={event.title}
                 fill
                 className="object-cover"
                 priority
+                sizes="(max-width: 768px) 100vw, 800px"
               />
 
               {/* Controlli Galleria */}
@@ -472,12 +511,12 @@ export default function EventoPage() {
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-blue-500" />
                   <span className="font-medium">
-                    {format(new Date(event.date), "EEEE d MMMM yyyy", { locale: it })}
+                    {event.dateStart ? safeFormatDate(event.dateStart) : safeFormatDate(event.date)}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Clock className="h-5 w-5 text-green-500" />
-                  <span className="font-medium">{event.time}</span>
+                  <span className="font-medium">{event.time || "Orario da definire"}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <MapPin className="h-5 w-5 text-red-500" />
@@ -742,7 +781,7 @@ export default function EventoPage() {
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">{review.comment}</p>
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(review.createdAt), "d MMMM yyyy", { locale: it })}
+                          {safeFormatDate(review.createdAt, "d MMMM yyyy")}
                         </span>
                       </div>
                     </div>
@@ -801,10 +840,11 @@ export default function EventoPage() {
         <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
           <div className="relative w-full h-full">
             <Image
-              src={safeImages[currentImageIndex] || "/placeholder.svg?height=600&width=800"}
+              src={getEventImageUrl(safeImages[currentImageIndex], 800, 600) || "/placeholder.svg?height=600&width=800"}
               alt={event.title}
               fill
               className="object-contain"
+              sizes="800px"
             />
             <Button
               variant="ghost"
