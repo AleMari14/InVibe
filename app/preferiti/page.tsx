@@ -22,7 +22,6 @@ import {
   Eye,
   Loader2,
   SlidersHorizontal,
-  Clock,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,20 +40,17 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
+import { getEventImageUrl } from "@/lib/image-utils"
 
 interface FavoriteEvent {
   _id: string
   title: string
   description: string
-  date: string
-  time: string
-  location: {
-    address: string
-    city: string
-  }
+  dateStart: string
+  location: string
   price: number
-  maxParticipants: number
-  currentParticipants: number
+  totalSpots: number
+  availableSpots: number
   category: string
   images: string[]
   host: {
@@ -67,21 +63,17 @@ interface FavoriteEvent {
   views?: number
   likes?: number
   rating?: number
-  totalReviews?: number
+  reviewCount?: number
 }
 
 const categoryIcons: Record<string, string> = {
-  festa: "🎉",
-  compleanno: "🎂",
-  matrimonio: "💒",
-  aziendale: "🏢",
-  musica: "🎵",
-  sport: "⚽",
-  arte: "🎨",
-  cibo: "🍽️",
+  casa: "🏠",
+  viaggio: "✈️",
+  evento: "🎉",
+  esperienza: "🌟",
 }
 
-const categories = ["Tutti", "festa", "compleanno", "matrimonio", "aziendale", "musica", "sport", "arte", "cibo"]
+const categories = ["Tutti", "casa", "viaggio", "evento", "esperienza"]
 
 const sortOptions = [
   { value: "date", label: "Data" },
@@ -121,7 +113,7 @@ export default function PreferitiPage() {
       if (!response.ok) throw new Error("Errore nel caricamento dei preferiti")
 
       const data = await response.json()
-      setFavorites(data.favorites || [])
+      setFavorites(data || [])
     } catch (error) {
       console.error("Error fetching favorites:", error)
       toast.error("Errore nel caricamento dei preferiti")
@@ -139,7 +131,7 @@ export default function PreferitiPage() {
         (event) =>
           event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.location.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
           event.host.name.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     }
@@ -153,7 +145,7 @@ export default function PreferitiPage() {
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "date":
-          return new Date(a.date).getTime() - new Date(b.date).getTime()
+          return new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime()
         case "price":
           return a.price - b.price
         case "rating":
@@ -174,7 +166,7 @@ export default function PreferitiPage() {
   const removeFavorite = async (eventId: string) => {
     try {
       const response = await fetch("/api/favorites", {
-        method: "DELETE",
+        method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId }),
       })
@@ -227,10 +219,15 @@ export default function PreferitiPage() {
     setSortBy("recent")
   }
 
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return format(date, "d MMM yyyy", { locale: it })
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center pb-20">
-        <Loader2 className="h-8 w-8 animate-spin" />
+        <Loader2 className="h-8 w-8 animate-spin text-pink-500" />
       </div>
     )
   }
@@ -238,11 +235,11 @@ export default function PreferitiPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 pb-20">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
+      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200/50 px-4 py-3 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <Button variant="ghost" size="icon">
+              <Button variant="ghost" size="icon" className="hover:bg-pink-100">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
@@ -251,7 +248,7 @@ export default function PreferitiPage() {
               <h1 className="text-xl font-semibold bg-gradient-to-r from-pink-500 to-red-500 bg-clip-text text-transparent">
                 I Miei Preferiti
               </h1>
-              <Badge className="bg-red-500 text-white">{favorites.length}</Badge>
+              <Badge className="bg-gradient-to-r from-pink-500 to-red-500 text-white">{favorites.length}</Badge>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -259,6 +256,9 @@ export default function PreferitiPage() {
               variant={viewMode === "grid" ? "default" : "outline"}
               size="icon"
               onClick={() => setViewMode("grid")}
+              className={
+                viewMode === "grid" ? "bg-gradient-to-r from-pink-500 to-red-500 text-white" : "hover:bg-pink-100"
+              }
             >
               <Grid3X3 className="h-4 w-4" />
             </Button>
@@ -266,6 +266,9 @@ export default function PreferitiPage() {
               variant={viewMode === "list" ? "default" : "outline"}
               size="icon"
               onClick={() => setViewMode("list")}
+              className={
+                viewMode === "list" ? "bg-gradient-to-r from-pink-500 to-red-500 text-white" : "hover:bg-pink-100"
+              }
             >
               <List className="h-4 w-4" />
             </Button>
@@ -281,14 +284,14 @@ export default function PreferitiPage() {
               placeholder="Cerca nei preferiti..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
+              className="pl-9 border-pink-200 focus:border-pink-400 focus:ring-pink-400"
             />
           </div>
 
           {/* Filtri avanzati */}
           <div className="flex flex-wrap gap-2">
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
               <SelectContent>
@@ -304,7 +307,7 @@ export default function PreferitiPage() {
             </Select>
 
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-40">
+              <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400">
                 <SelectValue placeholder="Ordina per" />
               </SelectTrigger>
               <SelectContent>
@@ -317,7 +320,12 @@ export default function PreferitiPage() {
             </Select>
 
             {(searchQuery || selectedCategory !== "Tutti" || sortBy !== "recent") && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={clearFilters}
+                className="border-pink-200 hover:bg-pink-100 bg-transparent"
+              >
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 Cancella filtri
               </Button>
@@ -330,8 +338,10 @@ export default function PreferitiPage() {
       <div className="p-4">
         {filteredFavorites.length === 0 ? (
           <div className="text-center py-12">
-            <Heart className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-            <h2 className="text-2xl font-bold mb-2">
+            <div className="w-20 h-20 bg-gradient-to-r from-pink-100 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Heart className="h-10 w-10 text-pink-500" />
+            </div>
+            <h2 className="text-2xl font-bold mb-2 text-gray-800">
               {favorites.length === 0 ? "Nessun preferito ancora" : "Nessun risultato"}
             </h2>
             <p className="text-muted-foreground mb-6">
@@ -340,11 +350,18 @@ export default function PreferitiPage() {
                 : "Prova a modificare i filtri di ricerca"}
             </p>
             {favorites.length === 0 ? (
-              <Button asChild className="bg-gradient-to-r from-pink-500 to-red-500 text-white">
+              <Button
+                asChild
+                className="bg-gradient-to-r from-pink-500 to-red-500 text-white hover:from-pink-600 hover:to-red-600"
+              >
                 <Link href="/">Esplora Eventi</Link>
               </Button>
             ) : (
-              <Button variant="outline" onClick={clearFilters}>
+              <Button
+                variant="outline"
+                onClick={clearFilters}
+                className="border-pink-200 hover:bg-pink-100 bg-transparent"
+              >
                 Cancella filtri
               </Button>
             )}
@@ -369,7 +386,7 @@ export default function PreferitiPage() {
                     <Card className="group overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
                       <div className="relative h-48">
                         <Image
-                          src={event.images?.[0] || "/placeholder.svg?height=200&width=400"}
+                          src={getEventImageUrl(event.images?.[0], 400, 200) || "/placeholder.svg?height=200&width=400"}
                           alt={event.title}
                           fill
                           className="object-cover transition-transform duration-300 group-hover:scale-110"
@@ -427,15 +444,15 @@ export default function PreferitiPage() {
                           <div className="space-y-2 mb-4">
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Calendar className="h-4 w-4" />
-                              {format(new Date(event.date), "d MMM yyyy", { locale: it })} • {event.time}
+                              {formatDate(event.dateStart)}
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <MapPin className="h-4 w-4" />
-                              {event.location.city}
+                              {event.location}
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Users className="h-4 w-4" />
-                              {event.currentParticipants}/{event.maxParticipants} partecipanti
+                              {event.availableSpots}/{event.totalSpots} posti disponibili
                             </div>
                           </div>
 
@@ -474,12 +491,12 @@ export default function PreferitiPage() {
                           {event.amenities && event.amenities.length > 0 && (
                             <div className="mt-3 flex flex-wrap gap-1">
                               {event.amenities.slice(0, 3).map((amenity, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
+                                <Badge key={idx} variant="outline" className="text-xs border-pink-200">
                                   {amenity}
                                 </Badge>
                               ))}
                               {event.amenities.length > 3 && (
-                                <Badge variant="outline" className="text-xs">
+                                <Badge variant="outline" className="text-xs border-pink-200">
                                   +{event.amenities.length - 3}
                                 </Badge>
                               )}
@@ -494,7 +511,9 @@ export default function PreferitiPage() {
                         <div className="flex gap-4 p-4">
                           <div className="relative w-32 h-24 flex-shrink-0">
                             <Image
-                              src={event.images?.[0] || "/placeholder.svg?height=100&width=150"}
+                              src={
+                                getEventImageUrl(event.images?.[0], 150, 100) || "/placeholder.svg?height=100&width=150"
+                              }
                               alt={event.title}
                               fill
                               className="object-cover rounded-lg"
@@ -540,19 +559,15 @@ export default function PreferitiPage() {
                             <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
                               <div className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
-                                {format(new Date(event.date), "d MMM", { locale: it })}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {event.time}
+                                {formatDate(event.dateStart)}
                               </div>
                               <div className="flex items-center gap-1">
                                 <MapPin className="h-3 w-3" />
-                                {event.location.city}
+                                {event.location}
                               </div>
                               <div className="flex items-center gap-1">
                                 <Users className="h-3 w-3" />
-                                {event.currentParticipants}/{event.maxParticipants}
+                                {event.availableSpots}/{event.totalSpots}
                               </div>
                             </div>
 
@@ -602,16 +617,16 @@ export default function PreferitiPage() {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border-pink-200">
           <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovi dai preferiti</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-gray-800">Rimuovi dai preferiti</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-600">
               Sei sicuro di voler rimuovere questo evento dai tuoi preferiti?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRemove} className="bg-red-600 hover:bg-red-700">
+            <AlertDialogCancel className="border-pink-200 hover:bg-pink-50">Annulla</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmRemove} className="bg-red-600 hover:bg-red-700 text-white">
               Rimuovi
             </AlertDialogAction>
           </AlertDialogFooter>
