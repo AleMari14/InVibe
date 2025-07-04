@@ -227,28 +227,35 @@ export default function PreferitiPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center pb-20">
-        <Loader2 className="h-8 w-8 animate-spin text-pink-500" />
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-pink-500 mx-auto mb-4" />
+          <p className="text-pink-600 font-medium">Caricamento preferiti...</p>
+        </div>
       </div>
     )
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 pb-20">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200/50 px-4 py-3 sticky top-0 z-10">
+      {/* Header con gradiente */}
+      <div className="bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-blue-500/10 backdrop-blur-md border-b border-pink-200/50 px-4 py-4 sticky top-0 z-10">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <Button variant="ghost" size="icon" className="hover:bg-pink-100">
+              <Button variant="ghost" size="icon" className="hover:bg-pink-100/50 text-pink-600">
                 <ArrowLeft className="h-4 w-4" />
               </Button>
             </Link>
             <div className="flex items-center gap-2">
-              <Heart className="h-5 w-5 text-red-500" />
-              <h1 className="text-xl font-semibold bg-gradient-to-r from-pink-500 to-red-500 bg-clip-text text-transparent">
+              <div className="p-2 bg-gradient-to-r from-pink-500 to-red-500 rounded-full">
+                <Heart className="h-4 w-4 text-white" />
+              </div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-pink-500 to-red-500 bg-clip-text text-transparent">
                 I Miei Preferiti
               </h1>
-              <Badge className="bg-gradient-to-r from-pink-500 to-red-500 text-white">{favorites.length}</Badge>
+              <Badge className="bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg">
+                {favorites.length}
+              </Badge>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -257,7 +264,9 @@ export default function PreferitiPage() {
               size="icon"
               onClick={() => setViewMode("grid")}
               className={
-                viewMode === "grid" ? "bg-gradient-to-r from-pink-500 to-red-500 text-white" : "hover:bg-pink-100"
+                viewMode === "grid"
+                  ? "bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg hover:from-pink-600 hover:to-red-600"
+                  : "hover:bg-pink-100/50 border-pink-200"
               }
             >
               <Grid3X3 className="h-4 w-4" />
@@ -267,7 +276,9 @@ export default function PreferitiPage() {
               size="icon"
               onClick={() => setViewMode("list")}
               className={
-                viewMode === "list" ? "bg-gradient-to-r from-pink-500 to-red-500 text-white" : "hover:bg-pink-100"
+                viewMode === "list"
+                  ? "bg-gradient-to-r from-pink-500 to-red-500 text-white shadow-lg hover:from-pink-600 hover:to-red-600"
+                  : "hover:bg-pink-100/50 border-pink-200"
               }
             >
               <List className="h-4 w-4" />
@@ -275,28 +286,28 @@ export default function PreferitiPage() {
           </div>
         </div>
 
-        {/* Filtri */}
+        {/* Filtri con stile gradiente */}
         <div className="space-y-3">
           {/* Ricerca */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-pink-400" />
             <Input
               placeholder="Cerca nei preferiti..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 border-pink-200 focus:border-pink-400 focus:ring-pink-400"
+              className="pl-9 border-pink-200 focus:border-pink-400 focus:ring-pink-400 bg-white/70 backdrop-blur-sm"
             />
           </div>
 
           {/* Filtri avanzati */}
           <div className="flex flex-wrap gap-2">
             <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400">
+              <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400 bg-white/70 backdrop-blur-sm">
                 <SelectValue placeholder="Categoria" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white/95 backdrop-blur-sm border-pink-200">
                 {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
+                  <SelectItem key={category} value={category} className="hover:bg-pink-50">
                     <div className="flex items-center gap-2">
                       {category !== "Tutti" && <span>{categoryIcons[category] || "🎉"}</span>}
                       {category}
@@ -307,12 +318,12 @@ export default function PreferitiPage() {
             </Select>
 
             <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400">
+              <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400 bg-white/70 backdrop-blur-sm">
                 <SelectValue placeholder="Ordina per" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white/95 backdrop-blur-sm border-pink-200">
                 {sortOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
+                  <SelectItem key={option.value} value={option.value} className="hover:bg-pink-50">
                     {option.label}
                   </SelectItem>
                 ))}
@@ -324,7 +335,7 @@ export default function PreferitiPage() {
                 variant="outline"
                 size="sm"
                 onClick={clearFilters}
-                className="border-pink-200 hover:bg-pink-100 bg-transparent"
+                className="border-pink-200 hover:bg-pink-100/50 bg-white/70 backdrop-blur-sm text-pink-600"
               >
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 Cancella filtri
@@ -337,35 +348,38 @@ export default function PreferitiPage() {
       {/* Content */}
       <div className="p-4">
         {filteredFavorites.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-20 h-20 bg-gradient-to-r from-pink-100 to-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Heart className="h-10 w-10 text-pink-500" />
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
+            <div className="w-24 h-24 bg-gradient-to-r from-pink-100 to-red-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <Heart className="h-12 w-12 text-pink-500" />
             </div>
-            <h2 className="text-2xl font-bold mb-2 text-gray-800">
+            <h2 className="text-2xl font-bold mb-3 bg-gradient-to-r from-pink-600 to-red-600 bg-clip-text text-transparent">
               {favorites.length === 0 ? "Nessun preferito ancora" : "Nessun risultato"}
             </h2>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-gray-600 mb-8 max-w-md mx-auto">
               {favorites.length === 0
-                ? "Inizia ad aggiungere eventi ai tuoi preferiti per vederli qui"
-                : "Prova a modificare i filtri di ricerca"}
+                ? "Inizia ad aggiungere eventi ai tuoi preferiti per vederli qui. Tocca il cuore sugli eventi che ti interessano!"
+                : "Prova a modificare i filtri di ricerca per trovare quello che stai cercando"}
             </p>
             {favorites.length === 0 ? (
               <Button
                 asChild
-                className="bg-gradient-to-r from-pink-500 to-red-500 text-white hover:from-pink-600 hover:to-red-600"
+                className="bg-gradient-to-r from-pink-500 to-red-500 text-white hover:from-pink-600 hover:to-red-600 shadow-lg px-8 py-3"
               >
-                <Link href="/">Esplora Eventi</Link>
+                <Link href="/">
+                  <Heart className="h-4 w-4 mr-2" />
+                  Esplora Eventi
+                </Link>
               </Button>
             ) : (
               <Button
                 variant="outline"
                 onClick={clearFilters}
-                className="border-pink-200 hover:bg-pink-100 bg-transparent"
+                className="border-pink-200 hover:bg-pink-100/50 bg-white/70 backdrop-blur-sm text-pink-600"
               >
                 Cancella filtri
               </Button>
             )}
-          </div>
+          </motion.div>
         ) : (
           <motion.div
             className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}
@@ -383,30 +397,34 @@ export default function PreferitiPage() {
                   transition={{ duration: 0.3, delay: index * 0.1 }}
                 >
                   {viewMode === "grid" ? (
-                    <Card className="group overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                      <div className="relative h-48">
+                    <Card className="group overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] hover:-translate-y-1">
+                      <div className="relative h-48 overflow-hidden">
                         <Image
                           src={getEventImageUrl(event.images?.[0], 400, 200) || "/placeholder.svg?height=200&width=400"}
                           alt={event.title}
                           fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-110"
+                          className="object-cover transition-transform duration-500 group-hover:scale-110"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
 
                         {/* Badges */}
                         <div className="absolute top-3 left-3 flex gap-2">
-                          <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                          <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-lg">
                             {categoryIcons[event.category]} {event.category}
                           </Badge>
-                          {event.host.verified && <Badge className="bg-green-500 text-white">Verificato</Badge>}
+                          {event.host.verified && (
+                            <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg">
+                              ✓ Verificato
+                            </Badge>
+                          )}
                         </div>
 
                         {/* Actions */}
-                        <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-all duration-300">
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="bg-white/20 hover:bg-white/40 text-white"
+                            className="bg-white/20 hover:bg-white/40 text-white backdrop-blur-sm rounded-full shadow-lg"
                             onClick={(e) => {
                               e.preventDefault()
                               shareEvent(event)
@@ -417,7 +435,7 @@ export default function PreferitiPage() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="bg-white/20 hover:bg-white/40 text-white"
+                            className="bg-white/20 hover:bg-red-500/80 text-white backdrop-blur-sm rounded-full shadow-lg transition-colors"
                             onClick={(e) => {
                               e.preventDefault()
                               handleRemoveClick(event._id)
@@ -429,53 +447,58 @@ export default function PreferitiPage() {
 
                         {/* Price */}
                         <div className="absolute bottom-3 right-3">
-                          <Badge className="bg-green-500 text-white font-bold">
+                          <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold shadow-lg">
                             {event.price === 0 ? "Gratuito" : `€${event.price}`}
                           </Badge>
                         </div>
                       </div>
 
                       <Link href={`/evento/${event._id}`}>
-                        <CardContent className="p-4">
-                          <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                        <CardContent className="p-5">
+                          <h3 className="font-bold text-lg mb-3 line-clamp-2 group-hover:text-pink-600 transition-colors">
                             {event.title}
                           </h3>
 
                           <div className="space-y-2 mb-4">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Calendar className="h-4 w-4" />
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Calendar className="h-4 w-4 text-pink-500" />
                               {formatDate(event.dateStart)}
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <MapPin className="h-4 w-4" />
-                              {event.location}
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <MapPin className="h-4 w-4 text-pink-500" />
+                              <span className="truncate">{event.location}</span>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Users className="h-4 w-4" />
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Users className="h-4 w-4 text-pink-500" />
                               {event.availableSpots}/{event.totalSpots} posti disponibili
                             </div>
                           </div>
 
                           {/* Host */}
-                          <div className="flex items-center gap-2 mb-3">
-                            <Avatar className="h-6 w-6">
+                          <div className="flex items-center gap-2 mb-4">
+                            <Avatar className="h-7 w-7 ring-2 ring-pink-200">
                               <AvatarImage src={event.host.image || "/placeholder.svg"} />
-                              <AvatarFallback className="text-xs">
+                              <AvatarFallback className="text-xs bg-gradient-to-r from-pink-100 to-purple-100 text-pink-600">
                                 {event.host.name?.charAt(0)?.toUpperCase() || "?"}
                               </AvatarFallback>
                             </Avatar>
-                            <span className="text-sm text-muted-foreground">{event.host.name}</span>
+                            <span className="text-sm font-medium text-gray-700">{event.host.name}</span>
+                            {event.host.verified && (
+                              <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                ✓
+                              </Badge>
+                            )}
                           </div>
 
                           {/* Stats */}
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-between text-xs text-gray-500 mb-3">
+                            <div className="flex items-center gap-4">
                               <div className="flex items-center gap-1">
                                 <Eye className="h-3 w-3" />
                                 {event.views || 0}
                               </div>
                               <div className="flex items-center gap-1">
-                                <Heart className="h-3 w-3" />
+                                <Heart className="h-3 w-3 text-pink-500" />
                                 {event.likes || 0}
                               </div>
                               {event.rating && (
@@ -489,14 +512,14 @@ export default function PreferitiPage() {
 
                           {/* Amenities Preview */}
                           {event.amenities && event.amenities.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-1">
                               {event.amenities.slice(0, 3).map((amenity, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs border-pink-200">
+                                <Badge key={idx} variant="outline" className="text-xs border-pink-200 text-pink-600">
                                   {amenity}
                                 </Badge>
                               ))}
                               {event.amenities.length > 3 && (
-                                <Badge variant="outline" className="text-xs border-pink-200">
+                                <Badge variant="outline" className="text-xs border-pink-200 text-pink-600">
                                   +{event.amenities.length - 3}
                                 </Badge>
                               )}
@@ -506,33 +529,33 @@ export default function PreferitiPage() {
                       </Link>
                     </Card>
                   ) : (
-                    <Card className="group overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
+                    <Card className="group overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
                       <Link href={`/evento/${event._id}`}>
                         <div className="flex gap-4 p-4">
-                          <div className="relative w-32 h-24 flex-shrink-0">
+                          <div className="relative w-32 h-24 flex-shrink-0 rounded-lg overflow-hidden">
                             <Image
                               src={
                                 getEventImageUrl(event.images?.[0], 150, 100) || "/placeholder.svg?height=100&width=150"
                               }
                               alt={event.title}
                               fill
-                              className="object-cover rounded-lg"
+                              className="object-cover"
                             />
-                            <Badge className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs">
+                            <Badge className="absolute -top-1 -right-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs shadow-lg">
                               {categoryIcons[event.category]}
                             </Badge>
                           </div>
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-bold text-lg line-clamp-1 group-hover:text-blue-600 transition-colors">
+                              <h3 className="font-bold text-lg line-clamp-1 group-hover:text-pink-600 transition-colors">
                                 {event.title}
                               </h3>
                               <div className="flex gap-1 ml-2">
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-pink-100"
                                   onClick={(e) => {
                                     e.preventDefault()
                                     shareEvent(event)
@@ -543,7 +566,7 @@ export default function PreferitiPage() {
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-red-500"
+                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:bg-red-50"
                                   onClick={(e) => {
                                     e.preventDefault()
                                     handleRemoveClick(event._id)
@@ -554,19 +577,19 @@ export default function PreferitiPage() {
                               </div>
                             </div>
 
-                            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{event.description}</p>
+                            <p className="text-sm text-gray-600 line-clamp-2 mb-3">{event.description}</p>
 
-                            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
+                            <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mb-3">
                               <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
+                                <Calendar className="h-3 w-3 text-pink-500" />
                                 {formatDate(event.dateStart)}
                               </div>
                               <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {event.location}
+                                <MapPin className="h-3 w-3 text-pink-500" />
+                                <span className="truncate">{event.location}</span>
                               </div>
                               <div className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
+                                <Users className="h-3 w-3 text-pink-500" />
                                 {event.availableSpots}/{event.totalSpots}
                               </div>
                             </div>
@@ -575,19 +598,19 @@ export default function PreferitiPage() {
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-6 w-6">
                                   <AvatarImage src={event.host.image || "/placeholder.svg"} />
-                                  <AvatarFallback className="text-xs">
+                                  <AvatarFallback className="text-xs bg-gradient-to-r from-pink-100 to-purple-100 text-pink-600">
                                     {event.host.name?.charAt(0)?.toUpperCase() || "?"}
                                   </AvatarFallback>
                                 </Avatar>
-                                <span className="text-sm text-muted-foreground">{event.host.name}</span>
+                                <span className="text-sm text-gray-700">{event.host.name}</span>
                                 {event.host.verified && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    Verificato
+                                  <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
+                                    ✓
                                   </Badge>
                                 )}
                               </div>
 
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-3 text-xs text-gray-500">
                                 <div className="flex items-center gap-1">
                                   <Eye className="h-3 w-3" />
                                   {event.views || 0}
@@ -598,7 +621,7 @@ export default function PreferitiPage() {
                                     {event.rating.toFixed(1)}
                                   </div>
                                 )}
-                                <Badge className="bg-green-500 text-white text-xs">
+                                <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white text-xs shadow-lg">
                                   {event.price === 0 ? "Gratuito" : `€${event.price}`}
                                 </Badge>
                               </div>
@@ -617,16 +640,24 @@ export default function PreferitiPage() {
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border-pink-200">
+        <AlertDialogContent className="bg-white/95 backdrop-blur-sm border-pink-200 shadow-2xl">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-gray-800">Rimuovi dai preferiti</AlertDialogTitle>
+            <AlertDialogTitle className="text-gray-800 flex items-center gap-2">
+              <Heart className="h-5 w-5 text-red-500" />
+              Rimuovi dai preferiti
+            </AlertDialogTitle>
             <AlertDialogDescription className="text-gray-600">
-              Sei sicuro di voler rimuovere questo evento dai tuoi preferiti?
+              Sei sicuro di voler rimuovere questo evento dai tuoi preferiti? Potrai sempre aggiungerlo di nuovo in
+              seguito.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="border-pink-200 hover:bg-pink-50">Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRemove} className="bg-red-600 hover:bg-red-700 text-white">
+            <AlertDialogAction
+              onClick={confirmRemove}
+              className="bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white shadow-lg"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
               Rimuovi
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { cleanupExpiredEvents } from "@/lib/cleanup"
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    console.log("🧹 Manual cleanup triggered")
+    console.log("🧹 Manual cleanup requested")
 
     const result = await cleanupExpiredEvents()
 
@@ -12,12 +12,14 @@ export async function POST() {
       message: "Cleanup completed successfully",
       result,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Cleanup API error:", error)
+
     return NextResponse.json(
       {
         success: false,
-        error: "Failed to cleanup expired events",
+        error: "Errore durante la pulizia degli eventi scaduti",
+        details: error.message,
       },
       { status: 500 },
     )
@@ -25,24 +27,8 @@ export async function POST() {
 }
 
 export async function GET() {
-  try {
-    console.log("🧹 Automatic cleanup triggered")
-
-    const result = await cleanupExpiredEvents()
-
-    return NextResponse.json({
-      success: true,
-      message: "Automatic cleanup completed",
-      result,
-    })
-  } catch (error) {
-    console.error("💥 Cleanup API error:", error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: "Failed to cleanup expired events",
-      },
-      { status: 500 },
-    )
-  }
+  return NextResponse.json({
+    message: "Use POST method to trigger cleanup",
+    endpoint: "/api/cleanup",
+  })
 }

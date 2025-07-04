@@ -1,35 +1,48 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
+import { Database } from "@/lib/database"
+import clientPromise from "@/lib/mongodb"
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    console.log("💖 Fetching user favorites...")
+
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.email) {
+      console.log("❌ No session found")
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    console.log("💖 Fetching favorites for user:", session.user.email)
+    console.log("👤 User email:", session.user.email)
 
-    const { db } = await connectToDatabase()
-    const users = db.collection("users")
-    const events = db.collection("events")
+    // Get user from database
+    const user = await Database.getUserByEmail(session.user.email)
 
-    // Get user
-    const user = await users.findOne({ email: session.user.email })
     if (!user) {
-      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+      console.log("❌ User not found")
+      return NextResponse.json([])
+    }
+
+    console.log("✅ User found:", user._id.toString())
+    console.log("💖 User favorites:", user.favorites?.length || 0)
+
+    if (!user.favorites || user.favorites.length === 0) {
+      console.log("📭 No favorites found")
+      return NextResponse.json([])
     }
 
     // Get favorite events with host information
-    const favoriteEvents = await events
+    const client = await clientPromise
+    const db = client.db("invibe")
+
+    const favoriteEvents = await db
+      .collection("events")
       .aggregate([
         {
           $match: {
-            _id: { $in: user.favorites || [] },
+            _id: { $in: user.favorites },
             dateStart: { $gte: new Date() }, // Only future events
           },
         },
@@ -55,21 +68,28 @@ export async function GET() {
                 else: {
                   name: "Host sconosciuto",
                   email: "",
+                  image: null,
                   verified: false,
                 },
               },
             },
           },
         },
-        { $project: { hostInfo: 0 } },
-        { $sort: { createdAt: -1 } },
+        {
+          $project: {
+            hostInfo: 0, // Remove the temporary hostInfo field
+          },
+        },
+        {
+          $sort: { createdAt: -1 },
+        },
       ])
       .toArray()
 
-    console.log(`✅ Found ${favoriteEvents.length} favorite events`)
+    console.log(`📊 Found ${favoriteEvents.length} favorite events`)
 
-    // Transform for frontend
-    const transformedEvents = favoriteEvents.map((event) => ({
+    // Transform events for frontend
+    const transformedEvents = favoriteEvents.map((event: any) => ({
       ...event,
       _id: event._id.toString(),
       hostId: event.hostId?.toString(),
@@ -79,66 +99,71 @@ export async function GET() {
       updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
     }))
 
+    console.log("✅ Returning transformed favorite events")
+
     return NextResponse.json(transformedEvents)
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Error fetching favorites:", error)
-    return NextResponse.json({ error: "Errore nel caricamento dei preferiti" }, { status: 500 })
+
+    return NextResponse.json(
+      {
+        error: "Errore nel caricamento dei preferiti",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("💖 Toggle favorite request...")
+
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.email) {
+      console.log("❌ No session found")
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { eventId } = await request.json()
-    console.log("💖 Toggle favorite for event:", eventId)
 
     if (!eventId) {
       return NextResponse.json({ error: "Event ID richiesto" }, { status: 400 })
     }
 
-    const { db } = await connectToDatabase()
-    const users = db.collection("users")
+    console.log("👤 User email:", session.user.email)
+    console.log("🎉 Event ID:", eventId)
 
-    // Get user
-    const user = await users.findOne({ email: session.user.email })
+    // Get user from database
+    const user = await Database.getUserByEmail(session.user.email)
+
     if (!user) {
+      console.log("❌ User not found")
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    const eventObjectId = new ObjectId(eventId)
-    const favorites = user.favorites || []
-    const isFavorited = favorites.some((fav: ObjectId) => fav.equals(eventObjectId))
+    console.log("✅ User found:", user._id.toString())
 
-    if (isFavorited) {
-      // Remove from favorites
-      await users.updateOne(
-        { email: session.user.email },
-        {
-          $pull: { favorites: eventObjectId },
-          $set: { updatedAt: new Date() },
-        },
-      )
-      console.log("💔 Removed from favorites")
-      return NextResponse.json({ isFavorited: false })
-    } else {
-      // Add to favorites
-      await users.updateOne(
-        { email: session.user.email },
-        {
-          $addToSet: { favorites: eventObjectId },
-          $set: { updatedAt: new Date() },
-        },
-      )
-      console.log("💖 Added to favorites")
-      return NextResponse.json({ isFavorited: true })
-    }
-  } catch (error) {
+    // Toggle favorite
+    const isFavorited = await Database.toggleFavorite(user._id.toString(), eventId)
+
+    console.log("💖 Favorite toggled:", isFavorited ? "Added" : "Removed")
+
+    return NextResponse.json({
+      success: true,
+      isFavorited,
+      message: isFavorited ? "Aggiunto ai preferiti" : "Rimosso dai preferiti",
+    })
+  } catch (error: any) {
     console.error("💥 Error toggling favorite:", error)
-    return NextResponse.json({ error: "Errore nell'aggiornamento dei preferiti" }, { status: 500 })
+
+    return NextResponse.json(
+      {
+        error: "Errore nell'aggiornamento dei preferiti",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
