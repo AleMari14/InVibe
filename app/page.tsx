@@ -74,7 +74,7 @@ export default function HomePage() {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [error, setError] = useState("")
   const [refreshing, setRefreshing] = useState(false)
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
 
   useEffect(() => {
@@ -149,6 +149,7 @@ export default function HomePage() {
   const toggleFavorite = async (eventId: string) => {
     if (!session?.user?.email) {
       toast.error("Devi essere loggato per aggiungere ai preferiti")
+      router.push("/auth/login")
       return
     }
 
@@ -357,7 +358,78 @@ export default function HomePage() {
 
       {/* Main Content */}
       <div className="px-4 py-4 pb-20">
-        {/* Create Event CTA - Migliorato */}
+        {/* Welcome Banner for Non-Logged Users */}
+        {!session && status !== "loading" && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-6"
+          >
+            <Card className="relative overflow-hidden border-0 shadow-xl bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600">
+              <div className="absolute inset-0 opacity-20">
+                <motion.div
+                  className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full"
+                  animate={{
+                    x: [-64, -48, -64],
+                    y: [-64, -48, -64],
+                  }}
+                  transition={{
+                    duration: 4,
+                    repeat: Number.POSITIVE_INFINITY,
+                    ease: "easeInOut",
+                  }}
+                />
+                <motion.div
+                  className="absolute bottom-0 right-0 w-24 h-24 bg-white rounded-full"
+                  animate={{
+                    x: [48, 32, 48],
+                    y: [48, 32, 48],
+                  }}
+                  transition={{
+                    duration: 3,
+                    repeat: Number.POSITIVE_INFINITY,
+                    ease: "easeInOut",
+                    delay: 1,
+                  }}
+                />
+              </div>
+
+              <CardContent className="relative p-6 text-white">
+                <div className="text-center">
+                  <motion.div
+                    animate={{ rotate: [0, 10, -10, 0] }}
+                    transition={{ duration: 2, repeat: Number.POSITIVE_INFINITY, ease: "easeInOut" }}
+                    className="inline-block mb-3"
+                  >
+                    <Sparkles className="h-8 w-8 text-yellow-300" />
+                  </motion.div>
+                  <h2 className="text-2xl font-bold mb-2">Benvenuto su InVibe!</h2>
+                  <p className="text-white/90 text-sm mb-4 max-w-md mx-auto">
+                    Scopri eventi incredibili, incontra persone fantastiche e vivi esperienze uniche nella tua città
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Link href="/auth/login">
+                      <Button className="bg-white text-blue-600 hover:bg-white/90 font-semibold px-6">
+                        Accedi Ora
+                      </Button>
+                    </Link>
+                    <Link href="/auth/registrati">
+                      <Button
+                        variant="outline"
+                        className="border-white text-white hover:bg-white/10 px-6 bg-transparent"
+                      >
+                        Registrati Gratis
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {/* Create Event CTA - Solo per utenti loggati */}
         {session && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -367,10 +439,8 @@ export default function HomePage() {
           >
             <Link href="/crea-evento">
               <Card className="relative overflow-hidden border-0 shadow-xl hover:shadow-2xl transition-all duration-500 cursor-pointer group">
-                {/* Background gradient animato */}
                 <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 opacity-90 group-hover:opacity-100 transition-opacity" />
 
-                {/* Pattern decorativo animato */}
                 <div className="absolute inset-0 opacity-10">
                   <motion.div
                     className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full"
@@ -395,19 +465,6 @@ export default function HomePage() {
                       repeat: Number.POSITIVE_INFINITY,
                       ease: "easeInOut",
                       delay: 1,
-                    }}
-                  />
-                  <motion.div
-                    className="absolute top-1/2 left-1/2 w-16 h-16 bg-white rounded-full"
-                    animate={{
-                      scale: [1, 1.2, 1],
-                      opacity: [0.3, 0.6, 0.3],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Number.POSITIVE_INFINITY,
-                      ease: "easeInOut",
-                      delay: 0.5,
                     }}
                   />
                 </div>
