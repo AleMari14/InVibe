@@ -1,52 +1,43 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
+import { connectToDatabase } from "@/lib/mongodb"
 import { getServerSession } from "next-auth"
-import clientPromise from "@/lib/mongodb"
 import { authOptions } from "@/lib/auth"
+import { ObjectId } from "mongodb"
 
-export async function GET(request: Request, { params }: { params: { roomId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { roomId } = params
-    console.log("Fetching messages for room:", roomId)
+    if (!ObjectId.isValid(roomId)) {
+      return NextResponse.json({ error: "ID stanza non valido" }, { status: 400 })
+    }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
-    // Verifica che la chat room esista e l'utente abbia accesso
-    const chatRoom = await db.collection("chatRooms").findOne({ roomId })
+    // Verifica che l'utente faccia parte della chat
+    const chatRoom = await db.collection("chatRooms").findOne({
+      _id: new ObjectId(roomId),
+      "participants.id": session.user.id,
+    })
+
     if (!chatRoom) {
-      console.log("Chat room not found:", roomId)
-      return NextResponse.json({ error: "Chat room not found" }, { status: 404 })
+      return NextResponse.json({ error: "Chat non trovata o accesso negato" }, { status: 404 })
     }
 
-    const userEmails = chatRoom.participants.map((p: any) => p.email)
-    if (!userEmails.includes(session.user.email)) {
-      console.log("User not authorized for this chat room")
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
-    }
+    const messages = await db
+      .collection("messages")
+      .find({ roomId: new ObjectId(roomId) })
+      .sort({ createdAt: 1 })
+      .toArray()
 
-    // Ottieni i messaggi per questa room
-    const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
-
-    // Marca i messaggi come letti dall'utente corrente
-    await db.collection("messages").updateMany(
-      {
-        roomId,
-        senderId: { $ne: session.user.email },
-        readBy: { $ne: session.user.email },
-      },
-      { $addToSet: { readBy: session.user.email } },
-    )
-
-    console.log(`Found ${messages.length} messages for room ${roomId}`)
     return NextResponse.json({ messages })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching messages:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+    return NextResponse.json({ error: "Errore nel recupero dei messaggi", details: error.message }, { status: 500 })
   }
 }
 
@@ -66,11 +57,10 @@ export async function POST(request: Request, { params }: { params: { roomId: str
 
     console.log("Sending message to room:", roomId, "Content:", content)
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
     // Verifica che la chat room esista e l'utente abbia accesso
-    const chatRoom = await db.collection("chatRooms").findOne({ roomId })
+    const chatRoom = await db.collection("chatRooms").findOne({ _id: new ObjectId(roomId) })
     if (!chatRoom) {
       return NextResponse.json({ error: "Chat room not found" }, { status: 404 })
     }
@@ -86,7 +76,7 @@ export async function POST(request: Request, { params }: { params: { roomId: str
 
     // Crea il messaggio
     const message = {
-      roomId,
+      roomId: new ObjectId(roomId),
       content: content.trim(),
       senderId: session.user.email,
       senderName: sender?.name || session.user.name,
@@ -100,7 +90,7 @@ export async function POST(request: Request, { params }: { params: { roomId: str
 
     // Aggiorna la chat room con l'ultimo messaggio
     await db.collection("chatRooms").updateOne(
-      { roomId },
+      { _id: new ObjectId(roomId) },
       {
         $set: {
           lastMessage: {
@@ -122,7 +112,7 @@ export async function POST(request: Request, { params }: { params: { roomId: str
         message: `${sender?.name || session.user.name} ti ha inviato un messaggio: "${content.substring(0, 50)}${content.length > 50 ? "..." : ""}"`,
         eventId: chatRoom.eventId,
         eventTitle: chatRoom.eventTitle,
-        roomId: roomId,
+        roomId: new ObjectId(roomId),
         fromUserId: session.user.email,
         fromUserName: sender?.name || session.user.name,
         fromUserImage: sender?.image || session.user.image,

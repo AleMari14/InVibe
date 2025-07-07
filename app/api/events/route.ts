@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       try {
         query.hostId = { $ne: new ObjectId(session.user.id) }
       } catch (error) {
-        console.warn("Invalid user ID format, cannot filter user's own events:", session.user.id, error)
+        console.warn("Invalid user ID format, cannot filter user's own events:", session.user.id)
       }
     }
 
@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
         { location: { $regex: searchQuery, $options: "i" } },
       ]
     }
+
+    let sort: any = { dateStart: 1 }
 
     if (lat && lng && radius) {
       const latitude = Number.parseFloat(lat)
@@ -55,15 +57,12 @@ export async function GET(request: NextRequest) {
             $maxDistance: radiusInMeters,
           },
         }
+        // MongoDB automatically sorts by distance when using $nearSphere
+        sort = {}
       }
     }
 
-    const events = await db
-      .collection("events")
-      .find(query)
-      .sort(lat && lng && radius ? {} : { dateStart: 1 })
-      .limit(20)
-      .toArray()
+    const events = await db.collection("events").find(query).sort(sort).limit(20).toArray()
 
     return NextResponse.json({ events })
   } catch (error: any) {

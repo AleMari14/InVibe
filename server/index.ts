@@ -5,41 +5,27 @@ import { Server } from "socket.io"
 import { setupSocketIO } from "./websocket"
 
 const dev = process.env.NODE_ENV !== "production"
-const hostname = "localhost"
-const port = process.env.PORT || 3001
+const port = Number.parseInt(process.env.PORT || "3001", 10)
 
-const app = next({ dev, hostname, port })
+const app = next({ dev })
 const handle = app.getRequestHandler()
 
 app.prepare().then(() => {
   const httpServer = createServer((req, res) => {
-    try {
-      const parsedUrl = parse(req.url!, true)
-      handle(req, res, parsedUrl)
-    } catch (err) {
-      console.error("Error handling request:", err)
-      res.statusCode = 500
-      res.end("internal server error")
-    }
+    const parsedUrl = parse(req.url!, true)
+    handle(req, res, parsedUrl)
   })
 
-  // Inizializza Socket.IO
   const io = new Server(httpServer, {
     cors: {
-      origin: "*", // In produzione, dovresti limitarlo al tuo dominio
+      origin: "*", // Per produzione, limita al tuo dominio es: "https://in-vibe.vercel.app"
       methods: ["GET", "POST"],
     },
   })
 
-  // Configura la logica di Socket.IO
   setupSocketIO(io)
 
-  httpServer
-    .listen(port, () => {
-      console.log(`> Ready on http://${hostname}:${port}`)
-    })
-    .on("error", (err) => {
-      console.error("Server error:", err)
-      process.exit(1)
-    })
+  httpServer.listen(port, () => {
+    console.log(`> Server listening at http://localhost:${port}`)
+  })
 })

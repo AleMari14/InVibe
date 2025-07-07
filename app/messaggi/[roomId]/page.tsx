@@ -73,13 +73,14 @@ export default function ChatRoomPage() {
     try {
       const response = await fetch(`/api/messages/room/${roomId}`)
       if (!response.ok) {
-        throw new Error("Chat room non trovata")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Chat room non trovata")
       }
       const data = await response.json()
       setChatRoom(data)
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching chat room details:", error)
-      toast.error("Impossibile caricare i dettagli della chat.")
+      toast.error(error.message)
       router.push("/messaggi")
     }
   }, [roomId, router])
@@ -90,13 +91,14 @@ export default function ChatRoomPage() {
     try {
       const response = await fetch(`/api/messages/${roomId}`)
       if (!response.ok) {
-        throw new Error("Errore nel caricamento dei messaggi")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nel caricamento dei messaggi")
       }
       const data = await response.json()
       setMessages(data.messages || [])
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching messages:", error)
-      toast.error("Impossibile caricare i messaggi.")
+      toast.error(error.message)
     } finally {
       setLoading(false)
     }
@@ -110,19 +112,18 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (!session || !roomId) return
 
-    // Usa la variabile d'ambiente per l'URL del server WebSocket
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
     const socket = io(socketUrl)
     socketRef.current = socket
 
     socket.on("connect", () => {
-      console.log("Socket connected:", socket.id)
+      console.log("Socket.IO connected successfully:", socket.id)
       socket.emit("joinRoom", roomId)
     })
 
     socket.on("connect_error", (err) => {
-      console.error("Socket connection error:", err)
-      toast.error("Errore di connessione alla chat.")
+      console.error("Socket.IO connection error:", err.message)
+      toast.error("Impossibile connettersi alla chat in tempo reale.")
     })
 
     socket.on("receiveMessage", (message: Message) => {
@@ -135,7 +136,7 @@ export default function ChatRoomPage() {
 
     return () => {
       if (socketRef.current) {
-        socketRef.current.emit("leaveRoom", roomId)
+        console.log("Disconnecting Socket.IO")
         socketRef.current.disconnect()
       }
     }
@@ -145,14 +146,13 @@ export default function ChatRoomPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || !session?.user || !socketRef.current?.connected || isSending) {
-      toast.warning("Impossibile inviare il messaggio. Controlla la connessione.")
+    if (!newMessage.trim() || !session?.user || !socketRef.current?.connected) {
+      toast.warning("Messaggio vuoto o connessione assente.")
       return
     }
 
-    setIsSending(true)
     const messageData = {
       roomId,
       senderId: session.user.id,
@@ -161,10 +161,8 @@ export default function ChatRoomPage() {
       content: newMessage.trim(),
     }
 
-    // L'invio avviene tramite WebSocket, che poi salva su DB
     socketRef.current.emit("sendMessage", messageData)
     setNewMessage("")
-    setIsSending(false)
   }
 
   const handleDeleteChat = async () => {
@@ -247,21 +245,23 @@ export default function ChatRoomPage() {
                   : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg"
               }`}
             >
-              {msg.content}
+              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
             </div>
           </div>
         ))}
+        <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-4 border-t bg-white dark:bg-gray-800 dark:border-gray-700">
+      <footer className="p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 sticky bottom-0">
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Scrivi un messaggio..."
-            className="flex-1"
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none focus-visible:ring-0"
+            autoComplete="off"
           />
-          <Button type="submit" disabled={isSending}>
+          <Button type="submit" size="icon" disabled={isSending || !socketRef.current?.connected}>
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>
