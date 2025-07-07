@@ -8,72 +8,79 @@ export async function GET(request: NextRequest) {
     const session = await getServerSession(authOptions)
 
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
+      return NextResponse.json({ success: false, error: "Non autorizzato" }, { status: 401 })
     }
 
     const { db } = await connectToDatabase()
-
-    // Find user
-    const user = await db.collection("users").findOne({
-      email: session.user.email.toLowerCase(),
-    })
+    const user = await db.collection("users").findOne({ email: session.user.email.toLowerCase() })
 
     if (!user) {
-      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+      return NextResponse.json({ success: false, error: "Utente non trovato" }, { status: 404 })
     }
 
-    // Get user stats
-    const eventsCreated = await db.collection("events").countDocuments({
-      $or: [
-        { hostId: user._id },
-        { hostId: user._id.toString() },
-        { createdBy: user._id },
-        { createdBy: user._id.toString() },
-        { "host.email": session.user.email.toLowerCase() },
-      ],
-    })
+    const userObjectId = user._id
 
-    const bookingsMade = await db.collection("bookings").countDocuments({
-      userId: user._id,
-    })
+    const [eventsCreated, eventsParticipated, totalBookings, totalReviews, userEvents] = await Promise.all([
+      db.collection("events").countDocuments({ hostId: userObjectId }),
+      db.collection("bookings").countDocuments({ userId: userObjectId, status: "confirmed" }),
+      db.collection("bookings").countDocuments({ userId: userObjectId }),
+      db.collection("reviews").countDocuments({ userId: userObjectId }),
+      db.collection("events").find({ hostId: userObjectId }).toArray(),
+    ])
 
-    const favoriteEvents = await db.collection("users").findOne(
-      { _id: user._id },
-      { projection: { favorites: 1 } }
+    const totalViews = userEvents.reduce((sum, event) => sum + (event.views || 0), 0)
+    const totalParticipants = userEvents.reduce(
+      (sum, event) => sum + ((event.totalSpots || 0) - (event.availableSpots || 0)),
+      0,
     )
 
-    const favoritesCount = favoriteEvents?.favorites?.length || 0
+    const hostReviews = await db.collection("reviews").find({ hostId: userObjectId }).toArray()
+    const averageRating =
+      hostReviews.length > 0 ? hostReviews.reduce((sum, review) => sum + review.rating, 0) / hostReviews.length : 0
 
-    // Transform user data
-    const userData = {
+    const userProfile = {
       _id: user._id.toString(),
-      name: user.name || "Utente",
-      email: user.email,
-      image: user.image || null,
+      name: user.name || "",
+      email: user.email || "",
+      image: user.image || "",
       bio: user.bio || "",
       phone: user.phone || "",
-      verified: Boolean(user.verified),
-      rating: Number(user.rating) || 0,
-      reviewCount: Number(user.reviewCount) || 0,
-      joinDate: user.createdAt || user.joinDate || new Date(),
-      stats: {
-        eventsCreated,
-        bookingsMade,
-        favoritesCount,
-      },
+      location: user.location || "",
+      verified: user.verified || false,
+      rating: averageRating,
+      reviewCount: hostReviews.length,
+      joinDate: user.createdAt || new Date(),
+      favorites: user.favorites || [],
       createdAt: user.createdAt || new Date(),
       updatedAt: user.updatedAt || new Date(),
     }
 
-    return NextResponse.json(userData)
+    const stats = {
+      totalEvents: eventsCreated,
+      totalBookings,
+      totalViews,
+      totalParticipants,
+      averageRating,
+      completionRate: 100,
+      eventsOrganized: eventsCreated,
+      eventsParticipated,
+      totalReviews,
+    }
+
+    return NextResponse.json({
+      success: true,
+      user: userProfile,
+      stats: stats,
+    })
   } catch (error: any) {
     console.error("💥 Error fetching profile:", error)
     return NextResponse.json(
       {
+        success: false,
         error: "Errore nel caricamento del profilo",
         details: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -89,7 +96,6 @@ export async function PUT(request: NextRequest) {
     const body = await request.json()
     const { db } = await connectToDatabase()
 
-    // Find user
     const user = await db.collection("users").findOne({
       email: session.user.email.toLowerCase(),
     })
@@ -98,22 +104,19 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    // Update user data
-    const updateData = {
-      name: body.name || user.name,
-      bio: body.bio || user.bio,
-      phone: body.phone || user.phone,
-      image: body.image || user.image,
+    const updateData: any = {
       updatedAt: new Date(),
     }
+    if (body.name) updateData.name = body.name
+    if (body.bio) updateData.bio = body.bio
+    if (body.phone) updateData.phone = body.phone
+    if (body.location) updateData.location = body.location
+    if (body.image) updateData.image = body.image
 
-    const result = await db.collection("users").updateOne(
-      { _id: user._id },
-      { $set: updateData }
-    )
+    const result = await db.collection("users").updateOne({ _id: user._id }, { $set: updateData })
 
     if (result.matchedCount === 0) {
-      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+      return NextResponse.json({ error: "Errore nell'aggiornamento" }, { status: 400 })
     }
 
     return NextResponse.json({ message: "Profilo aggiornato con successo" })
@@ -124,7 +127,7 @@ export async function PUT(request: NextRequest) {
         error: "Errore nell'aggiornamento del profilo",
         details: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }

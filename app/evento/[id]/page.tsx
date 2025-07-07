@@ -3,55 +3,190 @@
 import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
-import Image from "next/image"
 import Link from "next/link"
-import { ArrowLeft, MapPin, Calendar, Clock, Users, Star, Heart, Share2, MessageCircle, Shield, Eye, Loader2, AlertCircle, CheckCircle, Camera, Tag, Euro } from 'lucide-react'
+import Image from "next/image"
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Star,
+  Heart,
+  Share2,
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  X,
+  Play,
+  Pause,
+  User,
+  Shield,
+  Award,
+  Camera,
+  Wifi,
+  Car,
+  Music,
+  Utensils,
+  Gamepad2,
+  Sparkles,
+  TrendingUp,
+  Eye,
+  Send,
+  Loader2,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Card, CardContent } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Progress } from "@/components/ui/progress"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
-import { motion } from "framer-motion"
+import { MessageHostButton } from "@/components/event/message-host-button"
 import { getEventImageUrl } from "@/lib/image-utils"
+
+// Safe utility functions
+const getInitials = (name?: string): string => {
+  if (!name || typeof name !== "string") return "?"
+  return name.charAt(0).toUpperCase()
+}
+
+const getSafeName = (name?: string): string => {
+  if (!name || typeof name !== "string") return "Utente"
+  return name
+}
+
+const getSafeArray = <T,>(arr: T[] | undefined | null): T[] => {
+  return Array.isArray(arr) ? arr : []
+}
+
+// Completely safe date formatting without date-fns
+const formatSafeDate = (dateInput: any): string => {
+  try {
+    if (!dateInput) return "Data non disponibile"
+
+    let date: Date
+
+    // Handle different input types
+    if (dateInput instanceof Date) {
+      date = dateInput
+    } else if (typeof dateInput === "string") {
+      // If it's already a formatted string, return it
+      if (!dateInput.includes("T") && !dateInput.includes("-") && dateInput.length > 10) {
+        return dateInput
+      }
+      date = new Date(dateInput)
+    } else {
+      return "Data non disponibile"
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.warn("Invalid date detected:", dateInput)
+      return "Data non valida"
+    }
+
+    // Format using native JavaScript
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }
+
+    return date.toLocaleDateString("it-IT", options)
+  } catch (error) {
+    console.error("Date formatting error:", error)
+    return "Data non disponibile"
+  }
+}
+
+const formatSafeTime = (timeInput: any): string => {
+  try {
+    if (!timeInput) return "Orario da definire"
+
+    // If it's already in HH:MM format
+    if (typeof timeInput === "string" && /^\d{1,2}:\d{2}$/.test(timeInput)) {
+      return timeInput
+    }
+
+    // Try to parse as date
+    const date = new Date(timeInput)
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    }
+
+    return "Orario da definire"
+  } catch (error) {
+    console.error("Time formatting error:", error)
+    return "Orario da definire"
+  }
+}
 
 interface Event {
   _id: string
   title: string
   description: string
-  category: string
-  location: string
-  coordinates?: { lat: number; lng: number }
+  date: string
+  time: string
+  location: {
+    address: string
+    city: string
+    coordinates?: [number, number]
+  }
   price: number
-  dateStart: string
-  dateEnd?: string
-  totalSpots: number
-  availableSpots: number
-  amenities: string[]
+  maxParticipants: number
+  currentParticipants: number
+  category: string
+  tags: string[]
   images: string[]
-  bookingLink: string
-  verified: boolean
-  hostId: string
-  views: number
-  rating: number
-  reviewCount: number
-  createdAt: string
-  updatedAt: string
-  host?: {
-    _id?: string
+  host: {
+    _id: string
     name: string
     email: string
     image?: string
-    rating?: number
     verified?: boolean
+    rating?: number
+    totalReviews?: number
   }
+  requirements?: string[]
+  amenities?: string[]
+  cancellationPolicy?: string
+  externalBookingUrl?: string
+  views?: number
+  likes?: number
+  rating?: number
+  totalReviews?: number
+  dateStart?: string
+  dateEnd?: string
 }
 
-const categoryIcons: Record<string, string> = {
-  casa: "🏠",
-  viaggio: "✈️",
-  evento: "🎉",
-  esperienza: "🌟",
+interface Review {
+  _id: string
+  userId: string
+  userName: string
+  userImage?: string
+  rating: number
+  comment: string
+  createdAt: string
+  verified?: boolean
+}
+
+const categoryIcons: Record<string, any> = {
   festa: "🎉",
   compleanno: "🎂",
   matrimonio: "💒",
@@ -60,142 +195,89 @@ const categoryIcons: Record<string, string> = {
   sport: "⚽",
   arte: "🎨",
   cibo: "🍽️",
+  casa: "🏠",
+  viaggio: "✈️",
+  evento: "🎉",
+  esperienza: "🌟",
 }
 
-// Safe date formatting functions
-const formatSafeDate = (dateString: string): string => {
-  if (!dateString) return "Data non disponibile"
-  
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return "Data non valida"
-    
-    return date.toLocaleDateString("it-IT", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
-  } catch (error) {
-    console.error("Error formatting date:", error)
-    return "Data non disponibile"
-  }
+const amenityIcons: Record<string, any> = {
+  wifi: Wifi,
+  parcheggio: Car,
+  musica: Music,
+  catering: Utensils,
+  giochi: Gamepad2,
+  fotografia: Camera,
 }
 
-const formatSafeTime = (dateString: string): string => {
-  if (!dateString) return "00:00"
-  
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return "00:00"
-    
-    return date.toLocaleTimeString("it-IT", {
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  } catch (error) {
-    console.error("Error formatting time:", error)
-    return "00:00"
-  }
-}
-
-const formatSafeDateTime = (dateString: string): string => {
-  if (!dateString) return "Data e ora non disponibili"
-  
-  try {
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) return "Data e ora non valide"
-    
-    return date.toLocaleString("it-IT", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    })
-  } catch (error) {
-    console.error("Error formatting datetime:", error)
-    return "Data e ora non disponibili"
-  }
-}
-
-export default function EventDetailPage() {
+export default function EventoPage() {
   const params = useParams()
   const router = useRouter()
   const { data: session } = useSession()
   const [event, setEvent] = useState<Event | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [isFavorite, setIsFavorite] = useState(false)
-  const [selectedImageIndex, setSelectedImageIndex] = useState(0)
+  const [reviews, setReviews] = useState<Review[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLiked, setIsLiked] = useState(false)
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const [isImageModalOpen, setIsImageModalOpen] = useState(false)
+  const [isAutoplay, setIsAutoplay] = useState(true)
+  const [reviewDialogOpen, setReviewDialogOpen] = useState(false)
+  const [newReview, setNewReview] = useState({ rating: 5, comment: "" })
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false)
+
+  const eventId = params.id as string
 
   useEffect(() => {
-    if (params.id) {
+    if (eventId) {
       fetchEvent()
+      fetchReviews()
     }
-  }, [params.id])
+  }, [eventId])
+
+  // Autoplay per le immagini
+  useEffect(() => {
+    if (isAutoplay && event?.images && getSafeArray(event.images).length > 1) {
+      const interval = setInterval(() => {
+        setCurrentImageIndex((prev) => (prev + 1) % getSafeArray(event.images).length)
+      }, 4000)
+      return () => clearInterval(interval)
+    }
+  }, [isAutoplay, event?.images])
 
   const fetchEvent = async () => {
     try {
-      setLoading(true)
-      setError("")
-
-      console.log("🔍 Fetching event:", params.id)
-
-      const response = await fetch(`/api/events/${params.id}`)
-      
-      if (!response.ok) {
-        if (response.status === 404) {
-          setError("Evento non trovato")
-        } else {
-          setError("Errore nel caricamento dell'evento")
-        }
-        return
-      }
-
+      const response = await fetch(`/api/events/${eventId}`)
+      if (!response.ok) throw new Error("Evento non trovato")
       const data = await response.json()
-      console.log("📊 Event data received:", data)
-
+      console.log("📅 Event data received:", data)
       setEvent(data)
-
-      // Increment view count
-      try {
-        await fetch(`/api/events/${params.id}/view`, { method: "POST" })
-      } catch (viewError) {
-        console.warn("Could not increment view count:", viewError)
-      }
     } catch (error) {
-      console.error("💥 Error fetching event:", error)
-      setError("Errore nel caricamento dell'evento")
+      console.error("Error fetching event:", error)
+      toast.error("Errore nel caricamento dell'evento")
     } finally {
-      setLoading(false)
+      setIsLoading(false)
     }
   }
 
-  const toggleFavorite = async () => {
-    if (!session?.user?.email) {
-      toast.error("Devi essere loggato per aggiungere ai preferiti")
-      router.push("/auth/login")
-      return
-    }
-
+  const fetchReviews = async () => {
     try {
-      const response = await fetch("/api/favorites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: params.id }),
-      })
-
+      const response = await fetch(`/api/reviews?eventId=${eventId}`)
       if (response.ok) {
         const data = await response.json()
-        setIsFavorite(data.isFavorited)
-        toast.success(data.isFavorited ? "Aggiunto ai preferiti" : "Rimosso dai preferiti")
+        setReviews(getSafeArray(data.reviews))
       }
     } catch (error) {
-      console.error("Error toggling favorite:", error)
-      toast.error("Errore nell'aggiornamento dei preferiti")
+      console.error("Error fetching reviews:", error)
     }
+  }
+
+  const handleLike = async () => {
+    if (!session) {
+      toast.error("Devi essere loggato per mettere mi piace")
+      return
+    }
+    setIsLiked(!isLiked)
+    toast.success(isLiked ? "Rimosso dai preferiti" : "Aggiunto ai preferiti")
   }
 
   const handleShare = async () => {
@@ -207,380 +289,648 @@ export default function EventDetailPage() {
           url: window.location.href,
         })
       } catch (error) {
-        console.log("Error sharing:", error)
+        console.log("Condivisione annullata")
       }
     } else {
-      // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href)
       toast.success("Link copiato negli appunti!")
     }
   }
 
-  if (loading) {
+  const nextImage = () => {
+    if (event?.images) {
+      setCurrentImageIndex((prev) => (prev + 1) % getSafeArray(event.images).length)
+    }
+  }
+
+  const prevImage = () => {
+    if (event?.images) {
+      setCurrentImageIndex((prev) => (prev - 1 + getSafeArray(event.images).length) % getSafeArray(event.images).length)
+    }
+  }
+
+  const submitReview = async () => {
+    if (!session) {
+      toast.error("Devi essere loggato per lasciare una recensione")
+      return
+    }
+
+    if (!newReview.comment.trim()) {
+      toast.error("Inserisci un commento")
+      return
+    }
+
+    setIsSubmittingReview(true)
+    try {
+      const response = await fetch("/api/reviews", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          eventId,
+          rating: newReview.rating,
+          comment: newReview.comment,
+        }),
+      })
+
+      if (!response.ok) throw new Error("Errore nell'invio della recensione")
+
+      toast.success("Recensione inviata con successo!")
+      setReviewDialogOpen(false)
+      setNewReview({ rating: 5, comment: "" })
+      fetchReviews()
+    } catch (error) {
+      toast.error("Errore nell'invio della recensione")
+    } finally {
+      setIsSubmittingReview(false)
+    }
+  }
+
+  const getRatingDistribution = () => {
+    const distribution = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+    getSafeArray(reviews).forEach((review) => {
+      distribution[review.rating as keyof typeof distribution]++
+    })
+    return distribution
+  }
+
+  const getAverageRating = () => {
+    if (getSafeArray(reviews).length === 0) return 0
+    const sum = getSafeArray(reviews).reduce((acc, review) => acc + review.rating, 0)
+    return sum / getSafeArray(reviews).length
+  }
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-600" />
-          <p className="text-muted-foreground">Caricamento evento...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-purple-600 font-medium">Caricamento evento...</p>
         </div>
       </div>
     )
   }
 
-  if (error || !event) {
+  if (!event) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
-        <Card className="max-w-md mx-auto bg-white/80 backdrop-blur-sm border-0 shadow-xl">
-          <CardContent className="p-8 text-center">
-            <AlertCircle className="h-16 w-16 mx-auto mb-4 text-red-500" />
-            <h3 className="text-xl font-semibold mb-2">Evento non trovato</h3>
-            <p className="text-muted-foreground mb-6">{error || "L'evento che stai cercando non esiste."}</p>
-            <Button onClick={() => router.push("/")} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Torna alla home
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-4 text-purple-800">Evento non trovato</h1>
+          <Button onClick={() => router.back()} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
+            Torna indietro
+          </Button>
+        </div>
       </div>
     )
   }
 
+  const averageRating = getAverageRating()
+  const ratingDistribution = getRatingDistribution()
+  const safeImages = getSafeArray(event.images)
+  const safeTags = getSafeArray(event.tags)
+  const safeRequirements = getSafeArray(event.requirements)
+  const safeAmenities = getSafeArray(event.amenities)
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 pb-20">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200 sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              onClick={() => router.back()}
-              className="hover:bg-pink-100 text-pink-700"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Indietro
+      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200 px-4 py-3 sticky top-0 z-40">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="icon" onClick={handleLike}>
+              <Heart className={`h-4 w-4 ${isLiked ? "fill-red-500 text-red-500" : ""}`} />
             </Button>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleFavorite}
-                className="hover:bg-pink-100"
-              >
-                <Heart
-                  className={`h-5 w-5 transition-colors ${
-                    isFavorite ? "fill-red-500 text-red-500" : "text-gray-600"
-                  }`}
-                />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleShare}
-                className="hover:bg-pink-100"
-              >
-                <Share2 className="h-5 w-5 text-gray-600" />
-              </Button>
-            </div>
+            <Button variant="ghost" size="icon" onClick={handleShare}>
+              <Share2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto p-4">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Image Gallery */}
-            <Card className="overflow-hidden border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-              <div className="relative">
-                {event.images && event.images.length > 0 ? (
-                  <div className="relative aspect-[16/10] overflow-hidden">
-                    <Image
-                      src={getEventImageUrl(event.images[selectedImageIndex], 800, 500) || "/placeholder.svg?height=500&width=800"}
-                      alt={event.title}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 1024px) 100vw, 66vw"
-                      priority
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                    
-                    {/* Image Counter */}
-                    {event.images.length > 1 && (
-                      <div className="absolute top-4 right-4 bg-black/50 backdrop-blur-sm text-white px-3 py-1 rounded-full text-sm">
-                        <Camera className="h-3 w-3 inline mr-1" />
-                        {selectedImageIndex + 1} / {event.images.length}
-                      </div>
+      <div className="max-w-4xl mx-auto p-4 space-y-6">
+        {/* Galleria Immagini */}
+        {safeImages.length > 0 && (
+          <Card className="overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+            <div className="relative h-80 md:h-96">
+              <Image
+                src={
+                  getEventImageUrl(safeImages[currentImageIndex], 800, 400) || "/placeholder.svg?height=400&width=800"
+                }
+                alt={event.title}
+                fill
+                className="object-cover"
+                priority
+                sizes="(max-width: 768px) 100vw, 800px"
+              />
+
+              {/* Controlli Galleria */}
+              {safeImages.length > 1 && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white"
+                    onClick={prevImage}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white"
+                    onClick={nextImage}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+
+                  {/* Autoplay Control */}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute bottom-4 right-4 bg-black/20 hover:bg-black/40 text-white"
+                    onClick={() => setIsAutoplay(!isAutoplay)}
+                  >
+                    {isAutoplay ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                  </Button>
+
+                  {/* Indicatori */}
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                    {safeImages.map((_, index) => (
+                      <button
+                        key={index}
+                        className={`w-2 h-2 rounded-full transition-all ${
+                          index === currentImageIndex ? "bg-white" : "bg-white/50"
+                        }`}
+                        onClick={() => setCurrentImageIndex(index)}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {/* Badge HD */}
+              <Badge className="absolute top-4 left-4 bg-black/20 text-white border-0">
+                HD {currentImageIndex + 1}/{safeImages.length}
+              </Badge>
+
+              {/* Fullscreen Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="absolute top-4 right-4 bg-black/20 hover:bg-black/40 text-white"
+                onClick={() => setIsImageModalOpen(true)}
+              >
+                <Camera className="h-4 w-4" />
+              </Button>
+            </div>
+          </Card>
+        )}
+
+        {/* Informazioni Principali */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+          <CardContent className="p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">{categoryIcons[event.category] || "🎉"}</span>
+                  <Badge variant="secondary" className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
+                    {event.category}
+                  </Badge>
+                  {averageRating > 0 && (
+                    <div className="flex items-center gap-1">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="text-sm font-medium">{averageRating.toFixed(1)}</span>
+                      <span className="text-sm text-muted-foreground">({getSafeArray(reviews).length})</span>
+                    </div>
+                  )}
+                </div>
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                  {event.title}
+                </h1>
+                <p className="text-muted-foreground mb-4">{event.description}</p>
+              </div>
+            </div>
+
+            {/* Tags */}
+            {safeTags.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {safeTags.map((tag, index) => (
+                  <Badge
+                    key={index}
+                    variant="outline"
+                    className="bg-gradient-to-r from-pink-100 to-purple-100 border-pink-200"
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
+
+            {/* Statistiche */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="text-center p-3 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100">
+                <Eye className="h-5 w-5 mx-auto mb-1 text-blue-600" />
+                <div className="text-lg font-bold text-blue-600">{event.views || 0}</div>
+                <div className="text-xs text-blue-600/70">Visualizzazioni</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-gradient-to-br from-red-50 to-red-100">
+                <Heart className="h-5 w-5 mx-auto mb-1 text-red-600" />
+                <div className="text-lg font-bold text-red-600">{event.likes || 0}</div>
+                <div className="text-xs text-red-600/70">Mi piace</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-gradient-to-br from-green-50 to-green-100">
+                <Users className="h-5 w-5 mx-auto mb-1 text-green-600" />
+                <div className="text-lg font-bold text-green-600">{event.currentParticipants}</div>
+                <div className="text-xs text-green-600/70">Partecipanti</div>
+              </div>
+              <div className="text-center p-3 rounded-lg bg-gradient-to-br from-purple-50 to-purple-100">
+                <TrendingUp className="h-5 w-5 mx-auto mb-1 text-purple-600" />
+                <div className="text-lg font-bold text-purple-600">{averageRating.toFixed(1)}</div>
+                <div className="text-xs text-purple-600/70">Rating</div>
+              </div>
+            </div>
+
+            {/* Dettagli Evento */}
+            <div className="grid md:grid-cols-2 gap-4 mb-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Calendar className="h-5 w-5 text-pink-500" />
+                  <span className="font-medium">{formatSafeDate(event.dateStart || event.date)}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-purple-500" />
+                  <span className="font-medium">{formatSafeTime(event.time)}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <MapPin className="h-5 w-5 text-blue-500" />
+                  <div>
+                    <div className="font-medium">{event.location.address}</div>
+                    <div className="text-sm text-muted-foreground">{event.location.city}</div>
+                  </div>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <Users className="h-5 w-5 text-purple-500" />
+                  <span className="font-medium">
+                    {event.currentParticipants}/{event.maxParticipants} partecipanti
+                  </span>
+                </div>
+                <Progress value={(event.currentParticipants / event.maxParticipants) * 100} className="h-2" />
+                <div className="text-2xl font-bold bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent">
+                  {event.price === 0 ? "Gratuito" : `€${event.price}`}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Host Information */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5 text-pink-500" />
+              Organizzatore
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={event.host.image || "/placeholder.svg"} />
+                  <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-500 text-white text-lg">
+                    {getInitials(event.host.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold text-lg">{getSafeName(event.host.name)}</h3>
+                    {event.host.verified && (
+                      <Badge className="bg-blue-500 text-white">
+                        <Shield className="h-3 w-3 mr-1" />
+                        Verificato
+                      </Badge>
                     )}
                   </div>
-                ) : (
-                  <div className="aspect-[16/10] bg-gradient-to-br from-pink-100 to-purple-100 flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="text-6xl mb-4">{categoryIcons[event.category] || "🎉"}</div>
-                      <p className="text-muted-foreground">Nessuna immagine disponibile</p>
+                  {event.host.rating && (
+                    <div className="flex items-center gap-1 mt-1">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                      <span className="text-sm font-medium">{event.host.rating.toFixed(1)}</span>
+                      <span className="text-sm text-muted-foreground">({event.host.totalReviews || 0} recensioni)</span>
                     </div>
-                  </div>
-                )}
-
-                {/* Image Thumbnails */}
-                {event.images && event.images.length > 1 && (
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                      {event.images.map((image, index) => (
-                        <button
-                          key={index}
-                          onClick={() => setSelectedImageIndex(index)}
-                          className={`relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all ${
-                            selectedImageIndex === index
-                              ? "border-white shadow-lg"
-                              : "border-white/50 hover:border-white/80"
-                          }`}
-                        >
-                          <Image
-                            src={getEventImageUrl(image, 64, 48) || "/placeholder.svg?height=48&width=64"}
-                            alt={`${event.title} - ${index + 1}`}
-                            fill
-                            className="object-cover"
-                            sizes="64px"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </Card>
+              <MessageHostButton
+                hostId={event.host._id}
+                hostName={getSafeName(event.host.name)}
+                eventId={eventId}
+                eventTitle={event.title}
+              />
+            </div>
+          </CardContent>
+        </Card>
 
-            {/* Event Info */}
-            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
-                        {categoryIcons[event.category]} {event.category}
-                      </Badge>
-                      {event.verified && (
-                        <Badge className="bg-green-500 text-white">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Verificato
-                        </Badge>
-                      )}
+        {/* Amenities */}
+        {safeAmenities.length > 0 && (
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-purple-500" />
+                Servizi Inclusi
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                {safeAmenities.map((amenity, index) => {
+                  const IconComponent = amenityIcons[amenity.toLowerCase()] || Sparkles
+                  return (
+                    <div
+                      key={index}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-gradient-to-br from-purple-50 to-pink-50"
+                    >
+                      <IconComponent className="h-5 w-5 text-purple-600" />
+                      <span className="font-medium">{amenity}</span>
                     </div>
-                    <h1 className="text-3xl font-bold mb-2 bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
-                      {event.title}
-                    </h1>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Eye className="h-4 w-4" />
-                        <span>{event.views} visualizzazioni</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Star className="h-4 w-4 text-yellow-500" />
-                        <span>{event.rating.toFixed(1)} ({event.reviewCount} recensioni)</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-3xl font-bold text-green-600">
-                      {event.price === 0 ? "Gratuito" : `€${event.price}`}
-                    </div>
-                    <div className="text-sm text-muted-foreground">per persona</div>
-                  </div>
-                </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
-                <Separator className="my-6" />
+        {/* Requirements */}
+        {safeRequirements.length > 0 && (
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Award className="h-5 w-5 text-orange-500" />
+                Requisiti
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {safeRequirements.map((requirement, index) => (
+                  <li key={index} className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-orange-500 rounded-full" />
+                    <span>{requirement}</span>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
 
-                {/* Event Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Recensioni */}
+        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Star className="h-5 w-5 text-yellow-500" />
+                Recensioni ({getSafeArray(reviews).length})
+              </CardTitle>
+              <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="border-pink-200 hover:bg-pink-50 bg-transparent">
+                    <Send className="h-4 w-4 mr-2" />
+                    Scrivi recensione
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Scrivi una recensione</DialogTitle>
+                    <DialogDescription>Condividi la tua esperienza con questo evento</DialogDescription>
+                  </DialogHeader>
                   <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <Calendar className="h-5 w-5 text-blue-500 mt-0.5" />
-                      <div>
-                        <div className="font-medium">Data e ora</div>
-                        <div className="text-sm text-muted-foreground">
-                          {formatSafeDateTime(event.dateStart)}
-                        </div>
-                        {event.dateEnd && (
-                          <div className="text-sm text-muted-foreground">
-                            Fino a: {formatSafeDateTime(event.dateEnd)}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <MapPin className="h-5 w-5 text-red-500 mt-0.5" />
-                      <div>
-                        <div className="font-medium">Posizione</div>
-                        <div className="text-sm text-muted-foreground">{event.location}</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <Users className="h-5 w-5 text-purple-500 mt-0.5" />
-                      <div>
-                        <div className="font-medium">Partecipanti</div>
-                        <div className="text-sm text-muted-foreground">
-                          {event.totalSpots - event.availableSpots} / {event.totalSpots} posti occupati
-                        </div>
-                        <div className="text-sm text-green-600">
-                          {event.availableSpots} posti disponibili
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-3">
-                      <Euro className="h-5 w-5 text-green-500 mt-0.5" />
-                      <div>
-                        <div className="font-medium">Prezzo</div>
-                        <div className="text-sm text-muted-foreground">
-                          {event.price === 0 ? "Evento gratuito" : `€${event.price} per persona`}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <Separator className="my-6" />
-
-                {/* Description */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-semibold mb-3">Descrizione</h3>
-                  <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
-                    {event.description}
-                  </p>
-                </div>
-
-                {/* Amenities */}
-                {event.amenities && event.amenities.length > 0 && (
-                  <>
-                    <Separator className="my-6" />
                     <div>
-                      <h3 className="text-lg font-semibold mb-3">Cosa è incluso</h3>
-                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                        {event.amenities.map((amenity, index) => (
-                          <div key={index} className="flex items-center gap-2 text-sm">
-                            <CheckCircle className="h-4 w-4 text-green-500" />
-                            <span>{amenity}</span>
-                          </div>
+                      <label className="text-sm font-medium mb-2 block">Valutazione</label>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onClick={() => setNewReview({ ...newReview, rating: star })}
+                            className="p-1"
+                          >
+                            <Star
+                              className={`h-6 w-6 ${
+                                star <= newReview.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                              }`}
+                            />
+                          </button>
                         ))}
                       </div>
                     </div>
-                  </>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Sidebar */}
-          <div className="space-y-6">
-            {/* Host Info */}
-            {event.host && (
-              <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-                <CardContent className="p-6">
-                  <h3 className="text-lg font-semibold mb-4">Organizzatore</h3>
-                  <div className="flex items-center gap-3 mb-4">
-                    <Avatar className="h-12 w-12">
-                      <AvatarImage src={event.host.image || "/placeholder.svg"} alt={event.host.name} />
-                      <AvatarFallback className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
-                        {event.host.name.charAt(0).toUpperCase()}
-                      </AvatarFallback>
-                    </Avatar>
                     <div>
-                      <div className="font-medium flex items-center gap-2">
-                        {event.host.name}
-                        {event.host.verified && (
-                          <Shield className="h-4 w-4 text-green-500" />
-                        )}
-                      </div>
-                      {event.host.rating && (
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Star className="h-3 w-3 text-yellow-500" />
-                          <span>{event.host.rating.toFixed(1)}</span>
-                        </div>
-                      )}
+                      <label className="text-sm font-medium mb-2 block">Commento</label>
+                      <Textarea
+                        placeholder="Descrivi la tua esperienza..."
+                        value={newReview.comment}
+                        onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                        rows={4}
+                      />
                     </div>
                   </div>
-                  
-                  {session?.user?.email !== event.host.email && (
-                    <Button className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white">
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      Contatta l'organizzatore
+                  <DialogFooter>
+                    <Button
+                      onClick={submitReview}
+                      disabled={isSubmittingReview}
+                      className="bg-gradient-to-r from-pink-500 to-purple-500 text-white"
+                    >
+                      {isSubmittingReview ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Invio...
+                        </>
+                      ) : (
+                        "Invia recensione"
+                      )}
                     </Button>
-                  )}
-                </CardContent>
-              </Card>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {averageRating > 0 && (
+              <div className="mb-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="text-center">
+                    <div className="text-3xl font-bold">{averageRating.toFixed(1)}</div>
+                    <div className="flex items-center justify-center gap-1 mb-1">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          className={`h-4 w-4 ${
+                            star <= Math.round(averageRating) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <div className="text-sm text-muted-foreground">{getSafeArray(reviews).length} recensioni</div>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    {[5, 4, 3, 2, 1].map((rating) => (
+                      <div key={rating} className="flex items-center gap-2">
+                        <span className="text-sm w-3">{rating}</span>
+                        <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                        <Progress
+                          value={
+                            getSafeArray(reviews).length > 0
+                              ? (ratingDistribution[rating as keyof typeof ratingDistribution] /
+                                  getSafeArray(reviews).length) *
+                                100
+                              : 0
+                          }
+                          className="flex-1 h-2"
+                        />
+                        <span className="text-sm text-muted-foreground w-8">
+                          {ratingDistribution[rating as keyof typeof ratingDistribution]}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
             )}
 
-            {/* Booking Card */}
-            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="text-center mb-4">
-                  <div className="text-2xl font-bold text-green-600 mb-1">
-                    {event.price === 0 ? "Gratuito" : `€${event.price}`}
+            <ScrollArea className="h-64">
+              <div className="space-y-4">
+                {getSafeArray(reviews).map((review) => (
+                  <div key={review._id} className="border-b border-border pb-4 last:border-b-0">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarImage src={review.userImage || "/placeholder.svg"} />
+                        <AvatarFallback>{getInitials(review.userName)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium">{getSafeName(review.userName)}</span>
+                          {review.verified && (
+                            <Badge variant="secondary" className="text-xs">
+                              <Shield className="h-3 w-3 mr-1" />
+                              Verificato
+                            </Badge>
+                          )}
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`h-3 w-3 ${
+                                  star <= review.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                                }`}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{review.comment}</p>
+                        <span className="text-xs text-muted-foreground">{formatSafeDate(review.createdAt)}</span>
+                      </div>
+                    </div>
                   </div>
-                  {event.price > 0 && (
-                    <div className="text-sm text-muted-foreground">per persona</div>
-                  )}
-                </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
 
-                <div className="space-y-3 mb-6">
-                  <div className="flex justify-between text-sm">
-                    <span>Posti disponibili:</span>
-                    <span className="font-medium text-green-600">{event.availableSpots}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Posti totali:</span>
-                    <span className="font-medium">{event.totalSpots}</span>
-                  </div>
-                </div>
+        {/* Politiche */}
+        {event.cancellationPolicy && (
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-green-500" />
+                Politiche di Cancellazione
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">{event.cancellationPolicy}</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
-                {event.availableSpots > 0 ? (
-                  <Button 
-                    asChild 
-                    className="w-full bg-gradient-to-r from-pink-500 to-purple-500 text-white hover:from-pink-600 hover:to-purple-600"
-                  >
-                    <Link href={`/prenota/${event._id}`}>
-                      Prenota ora
-                    </Link>
-                  </Button>
-                ) : (
-                  <Button disabled className="w-full">
-                    Evento al completo
-                  </Button>
-                )}
-
-                <div className="text-xs text-center text-muted-foreground mt-3">
-                  Prenotazione gratuita • Cancellazione flessibile
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Quick Info */}
-            <Card className="border-0 shadow-xl bg-white/80 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <h3 className="text-lg font-semibold mb-4">Informazioni rapide</h3>
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span>Categoria:</span>
-                    <span className="font-medium">{event.category}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Creato il:</span>
-                    <span className="font-medium">{formatSafeDate(event.createdAt)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Ultimo aggiornamento:</span>
-                    <span className="font-medium">{formatSafeDate(event.updatedAt)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+      {/* Bottom Action Bar */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-pink-200 p-4 z-30">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+          <div className="flex-1">
+            <div className="text-2xl font-bold bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent">
+              {event.price === 0 ? "Gratuito" : `€${event.price}`}
+            </div>
+            <div className="text-sm text-muted-foreground">
+              {event.maxParticipants - event.currentParticipants} posti disponibili
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {event.externalBookingUrl && (
+              <Button variant="outline" asChild className="border-pink-200 hover:bg-pink-50 bg-transparent">
+                <Link href={event.externalBookingUrl} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="h-4 w-4 mr-2" />
+                  Link Esterno
+                </Link>
+              </Button>
+            )}
+            <Button size="lg" className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8" asChild>
+              <Link href={`/prenota/${eventId}`}>Prenota Ora</Link>
+            </Button>
           </div>
         </div>
       </div>
+
+      {/* Modal Immagini */}
+      <Dialog open={isImageModalOpen} onOpenChange={setIsImageModalOpen}>
+        <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
+          <div className="relative w-full h-full">
+            <Image
+              src={getEventImageUrl(safeImages[currentImageIndex], 800, 600) || "/placeholder.svg?height=600&width=800"}
+              alt={event.title}
+              fill
+              className="object-contain"
+              sizes="800px"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute top-4 right-4 bg-black/20 hover:bg-black/40 text-white"
+              onClick={() => setIsImageModalOpen(false)}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+            {safeImages.length > 1 && (
+              <>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white"
+                  onClick={prevImage}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/20 hover:bg-black/40 text-white"
+                  onClick={nextImage}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+                  {safeImages.map((_, index) => (
+                    <button
+                      key={index}
+                      className={`w-3 h-3 rounded-full transition-all ${
+                        index === currentImageIndex ? "bg-white" : "bg-white/50"
+                      }`}
+                      onClick={() => setCurrentImageIndex(index)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
