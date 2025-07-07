@@ -19,7 +19,6 @@ import {
   MessageSquare,
   Menu,
   Zap,
-  Loader2,
   Compass,
   X,
 } from "lucide-react"
@@ -99,7 +98,7 @@ export default function HomePage() {
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        throw new Error(errorData.details || `HTTP error! status: ${response.status}`)
       }
 
       const responseData = await response.json()
@@ -403,7 +402,7 @@ export default function HomePage() {
       </div>
 
       {/* Main Content */}
-      <div className="px-4 py-4 pb-20">
+      <div className="px-4 py-4 pb-24">
         {/* Location Search */}
         <Card className="mb-6 bg-gray-800/50 border-gray-700">
           <CardContent className="p-4 flex items-center justify-between">
@@ -663,13 +662,13 @@ export default function HomePage() {
                   initial={{ opacity: 0, x: 50 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3, delay: index * 0.1 }}
-                  className="min-w-[300px] cursor-pointer"
+                  className="min-w-[280px] sm:min-w-[300px] cursor-pointer"
                   onClick={() => handleEventClick(event._id)}
                 >
                   <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-                    <div className="relative aspect-[16/10] overflow-hidden">
+                    <div className="relative aspect-[4/3] overflow-hidden">
                       <Image
-                        src={getEventImageUrl(event.images?.[0], event.category, 300, 200) || "/placeholder.svg"}
+                        src={getEventImageUrl(event.images?.[0], event.category, 300, 225) || "/placeholder.svg"}
                         alt={event.title}
                         fill
                         className="object-cover transition-transform duration-300 hover:scale-105"
@@ -705,8 +704,16 @@ export default function HomePage() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Eventi Disponibili</h2>
           {loading ? (
-            <div className="flex justify-center items-center h-64">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <Card key={i} className="border-0 shadow-md">
+                  <div className="relative aspect-[4/3] bg-gray-200 dark:bg-gray-800 animate-pulse" />
+                  <CardContent className="p-4">
+                    <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-3/4 mb-2 animate-pulse" />
+                    <div className="h-4 bg-gray-200 dark:bg-gray-800 rounded w-1/2 animate-pulse" />
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           ) : events.length === 0 ? (
             <div className="text-center py-16">
@@ -716,7 +723,7 @@ export default function HomePage() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               <AnimatePresence>
                 {filteredEvents.map((event, index) => (
                   <motion.div
@@ -728,7 +735,7 @@ export default function HomePage() {
                     whileHover={{ y: -4 }}
                   >
                     <Card
-                      className="overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group"
+                      className="overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group h-full flex flex-col"
                       onClick={() => handleEventClick(event._id)}
                     >
                       <div className="relative aspect-[4/3] overflow-hidden">
@@ -737,7 +744,7 @@ export default function HomePage() {
                           alt={event.title}
                           fill
                           className="object-cover transition-transform duration-300 group-hover:scale-105"
-                          sizes="(max-width: 768px) 100vw, 50vw"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                         />
                         <div className="absolute top-3 right-3">
                           <Button
@@ -755,24 +762,24 @@ export default function HomePage() {
                         </div>
                         <Badge className="absolute top-3 left-3 bg-black/50 text-white">{event.category}</Badge>
                       </div>
-                      <CardContent className="p-4">
-                        <h3 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
-                          {event.title}
-                        </h3>
-                        <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
-                          <div className="flex items-center gap-2">
-                            <MapPin className="h-4 w-4 text-blue-400" />
+                      <CardContent className="p-4 flex-grow flex flex-col justify-between">
+                        <div>
+                          <h3 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
+                            {event.title}
+                          </h3>
+                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-2">
+                            <MapPin className="h-3 w-3 text-blue-400" />
                             <span>{event.location.split(",")[0]}</span>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Users className="h-4 w-4 text-purple-400" />
+                        </div>
+                        <div className="flex justify-between items-end mt-2">
+                          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <Users className="h-3 w-3 text-purple-400" />
                             <span>
                               {event.availableSpots}/{event.totalSpots}
                             </span>
                           </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xl font-bold text-green-400">
+                          <span className="text-lg font-bold text-green-400">
                             {event.price > 0 ? `€${event.price}` : "Gratis"}
                           </span>
                         </div>

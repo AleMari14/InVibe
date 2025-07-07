@@ -1,147 +1,280 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useParams, useSearchParams, useRouter } from "next/navigation"
+import type React from "react"
+
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
-import Link from "next/link"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { useRouter, useParams, useSearchParams } from "next/navigation"
+import { Send, ArrowLeft, Loader2, Paperclip, Smile, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { ChatWindow } from "@/components/chat/chat-window"
+import { Input } from "@/components/ui/input"
+import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { io, type Socket } from "socket.io-client"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
+interface Message {
+  _id: string
+  roomId: string
+  senderId: string
+  senderName: string
+  senderImage?: string
+  content: string
+  createdAt: string
+  isRead: boolean
+}
+
+interface Participant {
+  _id: string
+  name: string
+  image?: string
+}
 
 interface ChatRoom {
   _id: string
   roomId: string
-  participants: Array<{
-    email: string
-    name: string
-    image?: string
-  }>
-  initialEvent?: {
-    eventId: string
-    eventTitle: string
-  }
-  otherUser: {
-    email: string
-    name: string
-    image?: string
+  participants: Participant[]
+  event: {
+    _id: string
+    title: string
   }
 }
 
 export default function ChatRoomPage() {
+  const { data: session } = useSession()
+  const router = useRouter()
   const params = useParams()
   const searchParams = useSearchParams()
-  const router = useRouter()
-  const { data: session, status } = useSession()
-  const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
   const roomId = params.roomId as string
+
+  const [messages, setMessages] = useState<Message[]>([])
+  const [newMessage, setNewMessage] = useState("")
+  const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [isSending, setIsSending] = useState(false)
+  const socketRef = useRef<Socket | null>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
   const initialMessage = searchParams.get("initialMessage")
 
   useEffect(() => {
-    if (status === "loading") return
-
-    if (status === "unauthenticated") {
-      router.push("/auth/login")
-      return
+    if (initialMessage) {
+      setNewMessage(decodeURIComponent(initialMessage))
+      // Rimuovi il parametro dall'URL per non mostrarlo
+      router.replace(`/messaggi/${roomId}`, { scroll: false })
     }
+  }, [initialMessage, roomId, router])
 
-    if (roomId && session?.user?.email) {
-      fetchChatRoom()
-    }
-  }, [roomId, session, status])
-
-  const fetchChatRoom = async () => {
+  const fetchChatRoomDetails = useCallback(async () => {
+    if (!roomId) return
     try {
-      setIsLoading(true)
-      setError(null)
-      console.log("Fetching chat room:", roomId)
-
+      // CORREZIONE: L'URL corretto per ottenere i dettagli della stanza
       const response = await fetch(`/api/messages/room/${roomId}`)
-
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "Errore sconosciuto" }))
-        console.error("API Error:", response.status, errorData)
-        throw new Error(errorData.error || `Errore ${response.status}`)
+        throw new Error("Chat room non trovata")
       }
-
       const data = await response.json()
-      console.log("Chat room data received:", data)
-
       setChatRoom(data)
     } catch (error) {
-      console.error("Error fetching chat room:", error)
-      const errorMessage = error instanceof Error ? error.message : "Errore nel caricamento della chat"
-      setError(errorMessage)
-      toast.error(errorMessage)
+      console.error("Error fetching chat room details:", error)
+      toast.error("Impossibile caricare i dettagli della chat.")
+      router.push("/messaggi")
+    }
+  }, [roomId, router])
+
+  const fetchMessages = useCallback(async () => {
+    if (!roomId) return
+    setLoading(true)
+    try {
+      // CORREZIONE: L'URL corretto per ottenere i messaggi
+      const response = await fetch(`/api/messages/${roomId}`)
+      if (!response.ok) {
+        throw new Error("Errore nel caricamento dei messaggi")
+      }
+      const data = await response.json()
+      setMessages(data)
+    } catch (error) {
+      console.error("Error fetching messages:", error)
+      toast.error("Impossibile caricare i messaggi.")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
+    }
+  }, [roomId])
+
+  useEffect(() => {
+    fetchChatRoomDetails()
+    fetchMessages()
+  }, [fetchChatRoomDetails, fetchMessages])
+
+  useEffect(() => {
+    if (!session || !roomId) return
+
+    // Inizializza il socket
+    const socket = io(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001", {
+      query: { userId: session.user.id },
+    })
+    socketRef.current = socket
+
+    socket.emit("joinRoom", roomId)
+
+    socket.on("receiveMessage", (message: Message) => {
+      setMessages((prevMessages) => [...prevMessages, message])
+    })
+
+    return () => {
+      socket.emit("leaveRoom", roomId)
+      socket.disconnect()
+    }
+  }, [session, roomId])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !session?.user || !socketRef.current || isSending) return
+
+    setIsSending(true)
+    const messageData = {
+      roomId,
+      senderId: session.user.id,
+      senderName: session.user.name || "Utente",
+      senderImage: session.user.image,
+      content: newMessage,
+    }
+
+    try {
+      socketRef.current.emit("sendMessage", messageData)
+      setNewMessage("")
+    } catch (error) {
+      console.error("Error sending message:", error)
+      toast.error("Errore nell'invio del messaggio.")
+    } finally {
+      setIsSending(false)
     }
   }
 
-  if (status === "loading" || isLoading) {
+  const handleDeleteChat = async () => {
+    try {
+      const response = await fetch(`/api/messages/room/${roomId}`, {
+        method: "DELETE",
+      })
+      if (!response.ok) {
+        throw new Error("Errore durante l'eliminazione della chat")
+      }
+      toast.success("Chat eliminata con successo")
+      router.push("/messaggi")
+    } catch (error) {
+      console.error("Error deleting chat:", error)
+      toast.error("Impossibile eliminare la chat.")
+    }
+  }
+
+  if (loading || !chatRoom) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Caricamento chat...</p>
-        </div>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
 
-  if (error || !chatRoom) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
-        <div className="text-center max-w-md mx-auto p-4">
-          <p className="text-lg font-medium mb-2">Errore nel caricamento</p>
-          <p className="text-muted-foreground mb-4">
-            {error || "La chat che stai cercando non esiste o è stata eliminata."}
-          </p>
-          <div className="flex gap-2 justify-center">
-            <Button onClick={fetchChatRoom} variant="outline">
-              Riprova
-            </Button>
-            <Link href="/messaggi">
-              <Button>Torna ai Messaggi</Button>
-            </Link>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  const otherParticipant = chatRoom.participants.find((p) => p._id !== session?.user?.id)
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <Link href="/messaggi">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-          </Link>
-          <div className="flex items-center gap-3">
-            <div>
-              <h1 className="font-semibold">{chatRoom.otherUser.name}</h1>
-              {chatRoom.initialEvent && (
-                <p className="text-sm text-muted-foreground">Evento: {chatRoom.initialEvent.eventTitle}</p>
-              )}
-            </div>
+      <header className="flex items-center p-3 border-b bg-white dark:bg-gray-800 dark:border-gray-700 sticky top-0 z-10">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex items-center gap-3 ml-2">
+          <OptimizedAvatar src={otherParticipant?.image} alt={otherParticipant?.name || ""} size={40} />
+          <div className="flex-1">
+            <h2 className="font-bold text-sm">{otherParticipant?.name}</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Riguardo: {chatRoom.event.title}</p>
           </div>
         </div>
-      </div>
+        <div className="ml-auto">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Questa azione non può essere annullata. Questo eliminerà permanentemente la cronologia di questa chat.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteChat} className="bg-red-600 hover:bg-red-700">
+                  Elimina
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </header>
 
-      {/* Chat Window - con padding bottom per navbar */}
-      <div className="flex-1 pb-20">
-        <ChatWindow
-          roomId={roomId}
-          otherUser={chatRoom.otherUser}
-          initialMessage={initialMessage ? decodeURIComponent(initialMessage) : undefined}
-        />
-      </div>
+      {/* Messages Area */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((msg) => (
+          <div
+            key={msg._id}
+            className={`flex items-end gap-2 ${msg.senderId === session?.user?.id ? "justify-end" : "justify-start"}`}
+          >
+            {msg.senderId !== session?.user?.id && (
+              <OptimizedAvatar src={msg.senderImage} alt={msg.senderName} size={32} />
+            )}
+            <div
+              className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
+                msg.senderId === session?.user?.id
+                  ? "bg-blue-500 text-white rounded-br-lg"
+                  : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg"
+              }`}
+            >
+              <p className="text-sm">{msg.content}</p>
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
+      </main>
+
+      {/* Input Area */}
+      <footer className="p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 sticky bottom-0">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+          <Button variant="ghost" size="icon" type="button">
+            <Smile className="h-5 w-5 text-gray-500" />
+          </Button>
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Scrivi un messaggio..."
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none focus-visible:ring-0"
+            autoComplete="off"
+          />
+          <Button variant="ghost" size="icon" type="button">
+            <Paperclip className="h-5 w-5 text-gray-500" />
+          </Button>
+          <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
+            {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+          </Button>
+        </form>
+      </footer>
     </div>
   )
 }
