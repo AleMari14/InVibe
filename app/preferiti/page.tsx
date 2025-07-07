@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
+import useSWR from "swr"
 import {
-  ArrowLeft,
   Heart,
   MapPin,
   Calendar,
@@ -43,11 +43,8 @@ interface Event {
   category: string
   dateStart: string
   dateEnd?: string
-  totalSpots: number
-  availableSpots: number
   views: number
   verified: boolean
-  hostName?: string
   createdAt: string
 }
 
@@ -78,10 +75,12 @@ const getCategoryColor = (category: string) => {
   return colors[category] || "bg-gray-900/50 text-gray-300 border-gray-700"
 }
 
+const fetcher = (url: string) => fetch(url).then((r) => r.json())
+
 export default function PreferitiPage() {
-  const [events, setEvents] = useState<Event[]>([])
+  const { data, isLoading } = useSWR<{ favorites: any[] }>("/api/favorites", fetcher)
+
   const [filteredEvents, setFilteredEvents] = useState<Event[]>([])
-  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [sortBy, setSortBy] = useState("newest")
@@ -98,32 +97,15 @@ export default function PreferitiPage() {
     }
 
     if (status === "authenticated") {
-      fetchFavorites()
+      filterAndSortEvents()
     }
   }, [status, router])
 
   useEffect(() => {
     filterAndSortEvents()
-  }, [events, searchQuery, selectedCategory, sortBy])
+  }, [data, searchQuery, selectedCategory, sortBy])
 
-  const fetchFavorites = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch("/api/favorites")
-
-      if (!response.ok) {
-        throw new Error("Errore nel caricamento dei preferiti")
-      }
-
-      const data = await response.json()
-      setEvents(data.favorites || [])
-    } catch (error: any) {
-      console.error("Error fetching favorites:", error)
-      toast.error(error.message || "Errore nel caricamento dei preferiti")
-    } finally {
-      setLoading(false)
-    }
-  }
+  const events = data?.favorites ?? []
 
   const filterAndSortEvents = () => {
     let filtered = [...events]
@@ -174,7 +156,7 @@ export default function PreferitiPage() {
         body: JSON.stringify({ eventId }),
       })
       if (!response.ok) throw new Error("Errore nella rimozione dai preferiti")
-      setEvents((prev) => prev.filter((event) => event._id !== eventId))
+      setFilteredEvents((prev) => prev.filter((event) => event._id !== eventId))
       toast.success("Rimosso dai preferiti")
     } catch (error: any) {
       toast.error(error.message || "Errore nella rimozione dai preferiti")
@@ -194,22 +176,21 @@ export default function PreferitiPage() {
 
   const getUniqueCategories = () => [...new Set(events.map((event) => event.category))]
 
-  if (status === "loading" || loading) {
+  if (status === "loading" || isLoading) {
     return (
-      <div className="min-h-screen bg-gray-900 text-white">
-        <div className="px-4 py-6">
+      <div className="min-h-screen bg-background text-foreground p-4">
+        <div className="max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Skeleton className="w-10 h-10 rounded-full bg-gray-700" />
-            <Skeleton className="h-8 w-48 bg-gray-700" />
+            <Skeleton className="h-8 w-48 bg-muted" />
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
-              <Card key={i} className="overflow-hidden bg-gray-800/50 border-gray-700">
-                <Skeleton className="w-full h-48 bg-gray-700" />
+              <Card key={i} className="overflow-hidden bg-card border-border">
+                <Skeleton className="w-full h-48 bg-muted" />
                 <div className="p-4 space-y-3">
-                  <Skeleton className="h-4 w-3/4 bg-gray-700" />
-                  <Skeleton className="h-3 w-full bg-gray-700" />
-                  <Skeleton className="h-3 w-1/2 bg-gray-700" />
+                  <Skeleton className="h-4 w-3/4 bg-muted" />
+                  <Skeleton className="h-3 w-full bg-muted" />
+                  <Skeleton className="h-3 w-1/2 bg-muted" />
                 </div>
               </Card>
             ))}
@@ -222,20 +203,15 @@ export default function PreferitiPage() {
   if (status === "unauthenticated") return null
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-200 pb-20">
-      <div className="bg-gray-900/80 backdrop-blur-md border-b border-gray-700/50 sticky top-0 z-40">
+    <div className="min-h-screen bg-background text-foreground pb-20">
+      <div className="bg-card/80 backdrop-blur-md border-b border-border sticky top-16 z-40">
         <div className="px-4 py-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
-            <Link href="/profile">
-              <Button variant="ghost" size="icon" className="text-blue-400 hover:bg-gray-800">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
                 I Miei Preferiti
               </h1>
-              <p className="text-gray-400">
+              <p className="text-muted-foreground">
                 {events.length} {events.length === 1 ? "evento salvato" : "eventi salvati"}
               </p>
             </div>
@@ -244,18 +220,18 @@ export default function PreferitiPage() {
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Cerca nei tuoi preferiti..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 border-gray-700 focus:border-blue-500 focus:ring-blue-500/20 bg-gray-800/70 text-white"
+                  className="pl-10"
                 />
               </div>
               <div className="flex gap-2">
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-40 border-gray-700 focus:border-blue-500 bg-gray-800/70 text-white">
-                    <Filter className="h-4 w-4 mr-2 text-blue-400" />
+                  <SelectTrigger className="w-40">
+                    <Filter className="h-4 w-4 mr-2 text-primary" />
                     <SelectValue placeholder="Categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -270,8 +246,8 @@ export default function PreferitiPage() {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="border-gray-700 hover:bg-gray-800 bg-gray-800/70 text-white">
-                      <SortAsc className="h-4 w-4 mr-2 text-blue-400" />
+                    <Button variant="outline">
+                      <SortAsc className="h-4 w-4 mr-2 text-primary" />
                       Ordina
                     </Button>
                   </DropdownMenuTrigger>
@@ -290,12 +266,11 @@ export default function PreferitiPage() {
                   variant="outline"
                   size="icon"
                   onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-                  className="border-gray-700 hover:bg-gray-800 bg-gray-800/70"
                 >
                   {viewMode === "grid" ? (
-                    <List className="h-4 w-4 text-blue-400" />
+                    <List className="h-4 w-4 text-primary" />
                   ) : (
-                    <Grid3X3 className="h-4 w-4 text-blue-400" />
+                    <Grid3X3 className="h-4 w-4 text-primary" />
                   )}
                 </Button>
               </div>
@@ -307,15 +282,15 @@ export default function PreferitiPage() {
       <div className="px-4 py-6 max-w-7xl mx-auto">
         {filteredEvents.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
-            <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
-              <HeartOff className="h-10 w-10 text-blue-500" />
+            <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+              <HeartOff className="h-10 w-10 text-primary" />
             </div>
-            <h3 className="text-xl font-semibold mb-2 text-white">Nessun evento nei preferiti</h3>
-            <p className="text-gray-400 mb-6 max-w-md mx-auto">
+            <h3 className="text-xl font-semibold mb-2">Nessun evento nei preferiti</h3>
+            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
               Inizia ad esplorare e salva gli eventi che ti interessano!
             </p>
             <Link href="/">
-              <Button className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-8">
+              <Button className="bg-gradient-to-r from-primary to-purple-600 text-primary-foreground px-8">
                 <Sparkles className="h-4 w-4 mr-2" />
                 Esplora Eventi
               </Button>
@@ -333,7 +308,7 @@ export default function PreferitiPage() {
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                 >
                   <Card
-                    className={`overflow-hidden bg-gray-800/50 backdrop-blur-md border border-gray-700 shadow-lg hover:shadow-blue-500/10 hover:border-blue-700 transition-all duration-300 group ${
+                    className={`overflow-hidden bg-card border border-border shadow-lg hover:shadow-primary/10 hover:border-primary/50 transition-all duration-300 group ${
                       viewMode === "list" ? "flex" : ""
                     }`}
                   >
@@ -360,7 +335,7 @@ export default function PreferitiPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute top-3 right-3 bg-gray-900/50 hover:bg-gray-900/80 text-pink-400 hover:text-pink-300 backdrop-blur-sm rounded-full"
+                        className="absolute top-3 right-3 bg-background/50 hover:bg-background/80 text-pink-400 hover:text-pink-300 backdrop-blur-sm rounded-full"
                         onClick={() => handleRemoveFromFavorites(event._id)}
                         disabled={removingId === event._id}
                       >
@@ -372,25 +347,27 @@ export default function PreferitiPage() {
                       </Button>
                       {event.verified && (
                         <div className="absolute bottom-3 left-3">
-                          <Badge className="bg-green-600 text-white text-xs">✓ Verificato</Badge>
+                          <Badge variant="secondary" className="bg-green-600 text-white text-xs">
+                            ✓ Verificato
+                          </Badge>
                         </div>
                       )}
                     </div>
                     <CardContent className={`p-4 flex flex-col justify-between ${viewMode === "list" ? "flex-1" : ""}`}>
                       <div>
                         <Link href={`/evento/${event._id}`}>
-                          <h3 className="font-semibold text-lg line-clamp-2 text-white hover:text-blue-400 transition-colors">
+                          <h3 className="font-semibold text-lg line-clamp-2 text-foreground hover:text-primary transition-colors">
                             {event.title}
                           </h3>
                         </Link>
-                        <p className="text-sm text-gray-400 line-clamp-2 mt-1">{event.description}</p>
+                        <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{event.description}</p>
                       </div>
                       <div className="mt-3 space-y-2">
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                          <MapPin className="h-4 w-4 text-blue-400" />
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <MapPin className="h-4 w-4 text-primary" />
                           <span className="line-clamp-1">{event.location}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Calendar className="h-4 w-4 text-purple-400" />
                           <span>{formatDateRange(event.dateStart, event.dateEnd)}</span>
                         </div>
@@ -398,10 +375,10 @@ export default function PreferitiPage() {
                       <div className="flex items-center justify-between pt-3 mt-auto">
                         <div className="flex items-center gap-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="text-sm font-medium text-white">{event.rating.toFixed(1)}</span>
-                          <span className="text-xs text-gray-500">({event.reviewCount})</span>
+                          <span className="text-sm font-medium">{event.rating.toFixed(1)}</span>
+                          <span className="text-xs text-muted-foreground">({event.reviewCount})</span>
                         </div>
-                        <div className="text-lg font-bold text-blue-400">
+                        <div className="text-lg font-bold text-primary">
                           {event.price === 0 ? "Gratuito" : `€${event.price}`}
                         </div>
                       </div>

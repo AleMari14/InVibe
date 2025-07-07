@@ -1,31 +1,29 @@
 import type React from "react"
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
 import "./globals.css"
-import { Providers } from "./providers"
-import { Navigation } from "@/components/navigation"
-import { Toaster } from "@/components/ui/sonner"
+import { Inter } from "next/font/google"
+import Header from "@/components/header"
+import { Providers } from "@/app/providers"
+import Navigation from "@/components/navigation"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "InVibe - Trova e crea eventi",
-  description: "L'app per scoprire e organizzare feste ed eventi vicino a te.",
+export const metadata = {
+  title: "InVibe",
     generator: 'v0.dev'
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="it" suppressHydrationWarning>
+    <html lang="it">
       <body className={inter.className}>
         <Providers>
-          <main className="pb-20">{children}</main>
+          <Header />
+          <main className="pb-16">{children}</main>
           <Navigation />
-          <Toaster richColors position="top-center" />
         </Providers>
       </body>
     </html>

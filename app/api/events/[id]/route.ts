@@ -1,103 +1,21 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
+import connectDB from "@/lib/mongodb"
+import Event from "@/models/Event"
+import User from "@/models/User"
 import { ObjectId } from "mongodb"
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
+  await connectDB()
   try {
-    const { id } = params
-
-    if (!ObjectId.isValid(id)) {
-      return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
-    }
-
-    const { db } = await connectToDatabase()
-
-    const event = await db.collection("events").findOne({ _id: new ObjectId(id) })
-
+    const event = await Event.findById(params.id).lean()
     if (!event) {
-      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
+      return NextResponse.json({ error: "Not Found" }, { status: 404 })
     }
-
-    // Safe date handling function
-    const safeDate = (dateValue: any): string => {
-      if (!dateValue) return new Date().toISOString()
-
-      try {
-        if (dateValue instanceof Date) {
-          return dateValue.toISOString()
-        }
-        if (typeof dateValue === "string") {
-          const parsed = new Date(dateValue)
-          if (isNaN(parsed.getTime())) {
-            return new Date().toISOString()
-          }
-          return parsed.toISOString()
-        }
-        return new Date().toISOString()
-      } catch (error) {
-        console.warn("Date parsing error:", error)
-        return new Date().toISOString()
-      }
-    }
-
-    // Get host information if available
-    let host = null
-    if (event.hostId) {
-      try {
-        const hostUser = await db.collection("users").findOne({ _id: new ObjectId(event.hostId) })
-        if (hostUser) {
-          host = {
-            _id: hostUser._id.toString(),
-            name: hostUser.name || "Organizzatore",
-            email: hostUser.email,
-            image: hostUser.image || null,
-            rating: Number(hostUser.rating) || 0,
-            verified: Boolean(hostUser.verified),
-          }
-        }
-      } catch (hostError) {
-        console.warn("Error fetching host:", hostError)
-      }
-    }
-
-    // Transform event for frontend
-    const transformedEvent = {
-      _id: event._id.toString(),
-      title: event.title || "Evento senza titolo",
-      description: event.description || "",
-      category: event.category || "evento",
-      location: event.location || "Posizione non specificata",
-      coordinates: event.coordinates || { lat: 0, lng: 0 },
-      price: Number(event.price) || 0,
-      dateStart: safeDate(event.dateStart),
-      dateEnd: event.dateEnd ? safeDate(event.dateEnd) : null,
-      totalSpots: Number(event.totalSpots) || 10,
-      availableSpots: Number(event.availableSpots) || Number(event.totalSpots) || 10,
-      amenities: Array.isArray(event.amenities) ? event.amenities : [],
-      images: Array.isArray(event.images) ? event.images : [],
-      bookingLink: event.bookingLink || "",
-      verified: Boolean(event.verified),
-      hostId: event.hostId?.toString(),
-      views: Number(event.views) || 0,
-      rating: Number(event.rating) || 0,
-      reviewCount: Number(event.reviewCount) || 0,
-      createdAt: safeDate(event.createdAt),
-      updatedAt: safeDate(event.updatedAt),
-      host: host,
-    }
-
-    return NextResponse.json(transformedEvent)
-  } catch (error: any) {
-    console.error("💥 Error fetching event:", error)
-    return NextResponse.json(
-      {
-        error: "Errore nel caricamento dell'evento",
-        details: error.message,
-      },
-      { status: 500 },
-    )
+    return NextResponse.json(event)
+  } catch (e) {
+    return NextResponse.json({ error: "Bad Request" }, { status: 400 })
   }
 }
 
@@ -111,15 +29,15 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const { id } = params
 
-    if (!ObjectId.isValid(id)) {
+    if (!id || !ObjectId.isValid(id)) {
       return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
     }
 
     const body = await request.json()
-    const { db } = await connectToDatabase()
+    await connectDB()
 
     // Find user
-    const user = await db.collection("users").findOne({
+    const user = await User.findOne({
       email: session.user.email.toLowerCase(),
     })
 
@@ -128,13 +46,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Check if event exists and user is the owner
-    const event = await db.collection("events").findOne({ _id: new ObjectId(id) })
+    const event = await Event.findById(id)
 
     if (!event) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
-    if (event.hostId?.toString() !== user._id.toString()) {
+    if (event.host?._id?.toString() !== user._id.toString()) {
       return NextResponse.json({ error: "Non autorizzato a modificare questo evento" }, { status: 403 })
     }
 
@@ -156,12 +74,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       updatedAt: new Date(),
     }
 
-    const result = await db.collection("events").updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updateData }
-    )
+    const result = await Event.findByIdAndUpdate(id, updateData, { new: true })
 
-    if (result.matchedCount === 0) {
+    if (!result) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
@@ -173,7 +88,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         error: "Errore nell'aggiornamento dell'evento",
         details: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
@@ -188,14 +103,14 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
 
     const { id } = params
 
-    if (!ObjectId.isValid(id)) {
+    if (!id || !ObjectId.isValid(id)) {
       return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
     }
 
-    const { db } = await connectToDatabase()
+    await connectDB()
 
     // Find user
-    const user = await db.collection("users").findOne({
+    const user = await User.findOne({
       email: session.user.email.toLowerCase(),
     })
 
@@ -204,20 +119,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Check if event exists and user is the owner
-    const event = await db.collection("events").findOne({ _id: new ObjectId(id) })
+    const event = await Event.findById(id)
 
     if (!event) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
-    if (event.hostId?.toString() !== user._id.toString()) {
+    if (event.host?._id?.toString() !== user._id.toString()) {
       return NextResponse.json({ error: "Non autorizzato a eliminare questo evento" }, { status: 403 })
     }
 
     // Delete event
-    const result = await db.collection("events").deleteOne({ _id: new ObjectId(id) })
+    const result = await Event.findByIdAndDelete(id)
 
-    if (result.deletedCount === 0) {
+    if (!result) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
@@ -229,7 +144,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
         error: "Errore nell'eliminazione dell'evento",
         details: error.message,
       },
-      { status: 500 }
+      { status: 500 },
     )
   }
 }
