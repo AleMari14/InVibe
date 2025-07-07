@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
-import { Send, ArrowLeft, Loader2, Paperclip, Smile, Trash2 } from "lucide-react"
+import { Send, ArrowLeft, Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
@@ -110,20 +110,34 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (!session || !roomId) return
 
-    const socket = io(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001", {
-      query: { userId: session.user.id },
-    })
+    // Usa la variabile d'ambiente per l'URL del server WebSocket
+    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+    const socket = io(socketUrl)
     socketRef.current = socket
 
-    socket.emit("joinRoom", roomId)
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id)
+      socket.emit("joinRoom", roomId)
+    })
+
+    socket.on("connect_error", (err) => {
+      console.error("Socket connection error:", err)
+      toast.error("Errore di connessione alla chat.")
+    })
 
     socket.on("receiveMessage", (message: Message) => {
       setMessages((prevMessages) => [...prevMessages, message])
     })
 
+    socket.on("messageError", (data) => {
+      toast.error(data.error)
+    })
+
     return () => {
-      socket.emit("leaveRoom", roomId)
-      socket.disconnect()
+      if (socketRef.current) {
+        socketRef.current.emit("leaveRoom", roomId)
+        socketRef.current.disconnect()
+      }
     }
   }, [session, roomId])
 
@@ -133,49 +147,24 @@ export default function ChatRoomPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || !session?.user || isSending) return
+    if (!newMessage.trim() || !session?.user || !socketRef.current?.connected || isSending) {
+      toast.warning("Impossibile inviare il messaggio. Controlla la connessione.")
+      return
+    }
 
     setIsSending(true)
-    const tempMessageId = `temp-${Date.now()}`
-    const messageContent = newMessage.trim()
-
-    // Optimistic UI update
-    const optimisticMessage: Message = {
-      _id: tempMessageId,
+    const messageData = {
       roomId,
       senderId: session.user.id,
-      senderName: session.user.name || "Tu",
+      senderName: session.user.name || "Utente",
       senderImage: session.user.image,
-      content: messageContent,
-      createdAt: new Date().toISOString(),
+      content: newMessage.trim(),
     }
-    setMessages((prev) => [...prev, optimisticMessage])
+
+    // L'invio avviene tramite WebSocket, che poi salva su DB
+    socketRef.current.emit("sendMessage", messageData)
     setNewMessage("")
-
-    try {
-      const response = await fetch(`/api/messages/${roomId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: messageContent }),
-      })
-
-      const savedMessage = await response.json()
-
-      if (!response.ok) {
-        throw new Error(savedMessage.error || "Errore nell'invio del messaggio")
-      }
-
-      // Replace optimistic message with real one from server
-      setMessages((prev) => prev.map((msg) => (msg._id === tempMessageId ? savedMessage : msg)))
-    } catch (error: any) {
-      console.error("Error sending message:", error)
-      toast.error(error.message)
-      // Revert optimistic update on failure
-      setMessages((prev) => prev.filter((msg) => msg._id !== tempMessageId))
-      setNewMessage(messageContent) // Restore message in input
-    } finally {
-      setIsSending(false)
-    }
+    setIsSending(false)
   }
 
   const handleDeleteChat = async () => {
@@ -258,29 +247,21 @@ export default function ChatRoomPage() {
                   : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg"
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+              {msg.content}
             </div>
           </div>
         ))}
-        <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 sticky bottom-0">
+      <footer className="p-4 border-t bg-white dark:bg-gray-800 dark:border-gray-700">
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" type="button">
-            <Smile className="h-5 w-5 text-gray-500" />
-          </Button>
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Scrivi un messaggio..."
-            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none focus-visible:ring-0"
-            autoComplete="off"
+            className="flex-1"
           />
-          <Button variant="ghost" size="icon" type="button">
-            <Paperclip className="h-5 w-5 text-gray-500" />
-          </Button>
-          <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
+          <Button type="submit" disabled={isSending}>
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>

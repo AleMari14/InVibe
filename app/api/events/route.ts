@@ -45,9 +45,9 @@ export async function GET(request: NextRequest) {
       const longitude = Number.parseFloat(lng)
       const radiusInMeters = Number.parseInt(radius, 10) * 1000
 
-      if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && !Number.isNaN(radiusInMeters) && radiusInMeters > 0) {
+      if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && radiusInMeters > 0) {
         query.locationCoords = {
-          $near: {
+          $nearSphere: {
             $geometry: {
               type: "Point",
               coordinates: [longitude, latitude],
