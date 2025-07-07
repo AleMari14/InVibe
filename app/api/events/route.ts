@@ -16,9 +16,8 @@ export async function GET(request: NextRequest) {
     const lng = searchParams.get("lng")
     const radius = searchParams.get("radius") // in km
 
-    const query: any = {
-      dateStart: { $gte: new Date().toISOString() },
-    }
+    // Inizializza la query senza filtri restrittivi di default
+    const query: any = {}
 
     // Applica il filtro per escludere gli eventi dell'utente SOLO se è loggato
     if (session?.user?.id) {
@@ -41,7 +40,7 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    let sort: any = { dateStart: 1 }
+    let sort: any = { createdAt: -1 } // Ordina per i più recenti di default
 
     if (lat && lng && radius) {
       const latitude = Number.parseFloat(lat)
@@ -65,7 +64,7 @@ export async function GET(request: NextRequest) {
 
     console.log("Executing event query:", JSON.stringify(query, null, 2))
 
-    const events = await db.collection("events").find(query).sort(sort).limit(20).toArray()
+    const events = await db.collection("events").find(query).sort(sort).limit(50).toArray()
 
     console.log(`Found ${events.length} events.`)
 

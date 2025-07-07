@@ -128,7 +128,6 @@ export default function ProfilePage() {
   const [mounted, setMounted] = useState(false)
   const [isEditingProfile, setIsEditingProfile] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
-  const [imageKey, setImageKey] = useState(0)
   const [showSettings, setShowSettings] = useState(false)
   const [showReviews, setShowReviews] = useState(false)
   const [profileError, setProfileError] = useState<string | null>(null)
@@ -328,13 +327,9 @@ export default function ProfilePage() {
             },
           })
 
-          // Force refresh of avatars
-          setImageKey((prev) => prev + 1)
-
-          // Refresh profile
-          fetchProfile()
-
-          toast.success("Immagine profilo aggiornata con successo!")
+          toast.success("Immagine profilo aggiornata! L'interfaccia si aggiornerà a breve.")
+          // Force a refresh of the page to ensure all components get the new session data
+          router.refresh()
         } else {
           throw new Error(updateResult.error || "Errore durante l'aggiornamento del profilo")
         }
@@ -389,10 +384,9 @@ export default function ProfilePage() {
           })
         }
 
-        setImageKey((prev) => prev + 1)
         setIsEditingProfile(false)
         toast.success("Profilo aggiornato con successo!")
-        fetchProfile()
+        router.refresh()
       } else {
         toast.error(result.error || "Errore durante l'aggiornamento del profilo")
       }
@@ -691,7 +685,6 @@ export default function ProfilePage() {
               className="relative"
             >
               <OptimizedAvatar
-                key={`profile-header-${imageKey}-${currentImage}`}
                 src={currentImage}
                 alt={profile?.name || session?.user?.name || ""}
                 size={96}
@@ -1006,7 +999,6 @@ export default function ProfilePage() {
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <OptimizedAvatar
-                  key={`profile-edit-${imageKey}-${profileData.image}`}
                   src={profileData.image}
                   alt={profileData.name}
                   size={96}

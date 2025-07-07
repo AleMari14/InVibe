@@ -4,28 +4,30 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { Providers } from "./providers"
 import { Navigation } from "@/components/navigation"
-import { Toaster } from "sonner"
+import { Toaster } from "@/components/ui/sonner"
+import { Header } from "@/components/header"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "InVibe - Condividi Esperienze Uniche",
-  description: "Scopri e crea eventi, viaggi e esperienze da condividere con altre persone",
+  title: "InVibe - Trova e crea eventi",
+  description: "L'app per scoprire e organizzare feste ed eventi vicino a te.",
     generator: 'v0.dev'
 }
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode
-}) {
+}>) {
   return (
-    <html lang="it">
+    <html lang="it" suppressHydrationWarning>
       <body className={inter.className}>
         <Providers>
-          <main className="min-h-screen bg-background">{children}</main>
+          <Header />
+          <main className="pb-20 pt-16">{children}</main>
           <Navigation />
-          <Toaster position="top-center" richColors />
+          <Toaster richColors position="top-center" />
         </Providers>
       </body>
     </html>
