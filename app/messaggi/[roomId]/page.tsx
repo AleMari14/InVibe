@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter, useParams, useSearchParams } from "next/navigation"
@@ -31,23 +30,18 @@ interface Message {
   senderImage?: string
   content: string
   createdAt: string
-  isRead: boolean
 }
 
 interface Participant {
-  _id: string
+  id: string
   name: string
   image?: string
 }
 
 interface ChatRoom {
   _id: string
-  roomId: string
   participants: Participant[]
-  event: {
-    _id: string
-    title: string
-  }
+  eventTitle: string
 }
 
 export default function ChatRoomPage() {
@@ -70,7 +64,6 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (initialMessage) {
       setNewMessage(decodeURIComponent(initialMessage))
-      // Rimuovi il parametro dall'URL per non mostrarlo
       router.replace(`/messaggi/${roomId}`, { scroll: false })
     }
   }, [initialMessage, roomId, router])
@@ -78,7 +71,6 @@ export default function ChatRoomPage() {
   const fetchChatRoomDetails = useCallback(async () => {
     if (!roomId) return
     try {
-      // CORREZIONE: L'URL corretto per ottenere i dettagli della stanza
       const response = await fetch(`/api/messages/room/${roomId}`)
       if (!response.ok) {
         throw new Error("Chat room non trovata")
@@ -96,13 +88,12 @@ export default function ChatRoomPage() {
     if (!roomId) return
     setLoading(true)
     try {
-      // CORREZIONE: L'URL corretto per ottenere i messaggi
       const response = await fetch(`/api/messages/${roomId}`)
       if (!response.ok) {
         throw new Error("Errore nel caricamento dei messaggi")
       }
       const data = await response.json()
-      setMessages(data)
+      setMessages(data.messages || [])
     } catch (error) {
       console.error("Error fetching messages:", error)
       toast.error("Impossibile caricare i messaggi.")
@@ -119,7 +110,6 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (!session || !roomId) return
 
-    // Inizializza il socket
     const socket = io(process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001", {
       query: { userId: session.user.id },
     })
@@ -143,23 +133,46 @@ export default function ChatRoomPage() {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || !session?.user || !socketRef.current || isSending) return
+    if (!newMessage.trim() || !session?.user || isSending) return
 
     setIsSending(true)
-    const messageData = {
+    const tempMessageId = `temp-${Date.now()}`
+    const messageContent = newMessage.trim()
+
+    // Optimistic UI update
+    const optimisticMessage: Message = {
+      _id: tempMessageId,
       roomId,
       senderId: session.user.id,
-      senderName: session.user.name || "Utente",
+      senderName: session.user.name || "Tu",
       senderImage: session.user.image,
-      content: newMessage,
+      content: messageContent,
+      createdAt: new Date().toISOString(),
     }
+    setMessages((prev) => [...prev, optimisticMessage])
+    setNewMessage("")
 
     try {
-      socketRef.current.emit("sendMessage", messageData)
-      setNewMessage("")
-    } catch (error) {
+      const response = await fetch(`/api/messages/${roomId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: messageContent }),
+      })
+
+      const savedMessage = await response.json()
+
+      if (!response.ok) {
+        throw new Error(savedMessage.error || "Errore nell'invio del messaggio")
+      }
+
+      // Replace optimistic message with real one from server
+      setMessages((prev) => prev.map((msg) => (msg._id === tempMessageId ? savedMessage : msg)))
+    } catch (error: any) {
       console.error("Error sending message:", error)
-      toast.error("Errore nell'invio del messaggio.")
+      toast.error(error.message)
+      // Revert optimistic update on failure
+      setMessages((prev) => prev.filter((msg) => msg._id !== tempMessageId))
+      setNewMessage(messageContent) // Restore message in input
     } finally {
       setIsSending(false)
     }
@@ -189,11 +202,10 @@ export default function ChatRoomPage() {
     )
   }
 
-  const otherParticipant = chatRoom.participants.find((p) => p._id !== session?.user?.id)
+  const otherParticipant = chatRoom.participants.find((p) => p.id !== session?.user?.id)
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
-      {/* Header */}
       <header className="flex items-center p-3 border-b bg-white dark:bg-gray-800 dark:border-gray-700 sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-5 w-5" />
@@ -202,7 +214,7 @@ export default function ChatRoomPage() {
           <OptimizedAvatar src={otherParticipant?.image} alt={otherParticipant?.name || ""} size={40} />
           <div className="flex-1">
             <h2 className="font-bold text-sm">{otherParticipant?.name}</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Riguardo: {chatRoom.event.title}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Riguardo: {chatRoom.eventTitle}</p>
           </div>
         </div>
         <div className="ml-auto">
@@ -230,7 +242,6 @@ export default function ChatRoomPage() {
         </div>
       </header>
 
-      {/* Messages Area */}
       <main className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((msg) => (
           <div
@@ -247,14 +258,13 @@ export default function ChatRoomPage() {
                   : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg"
               }`}
             >
-              <p className="text-sm">{msg.content}</p>
+              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
             </div>
           </div>
         ))}
         <div ref={messagesEndRef} />
       </main>
 
-      {/* Input Area */}
       <footer className="p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 sticky bottom-0">
         <form onSubmit={handleSendMessage} className="flex items-center gap-2">
           <Button variant="ghost" size="icon" type="button">

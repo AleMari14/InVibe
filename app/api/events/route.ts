@@ -18,15 +18,20 @@ export async function GET(request: NextRequest) {
 
     const query: any = {
       dateStart: { $gte: new Date().toISOString() },
-      verified: true, // Mostra solo eventi verificati
+      verified: true,
     }
 
-    // Escludi gli eventi dell'utente loggato
+    // Escludi gli eventi dell'utente loggato, gestendo possibili errori nell'ID
     if (session?.user?.id) {
-      query.hostId = { $ne: new ObjectId(session.user.id) }
+      try {
+        query.hostId = { $ne: new ObjectId(session.user.id) }
+      } catch (error) {
+        console.warn("Invalid user ID format, cannot filter user's own events:", session.user.id, error)
+        // Prosegui senza il filtro se l'ID non è valido, piuttosto che non mostrare nulla
+      }
     }
 
-    if (category) {
+    if (category && category !== "all") {
       query.category = category
     }
 
@@ -41,7 +46,7 @@ export async function GET(request: NextRequest) {
     if (lat && lng && radius) {
       const latitude = Number.parseFloat(lat)
       const longitude = Number.parseFloat(lng)
-      const radiusInMeters = Number.parseInt(radius, 10) * 1000 // Convert km to meters
+      const radiusInMeters = Number.parseInt(radius, 10) * 1000
 
       if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && !Number.isNaN(radiusInMeters)) {
         query.locationCoords = {
@@ -83,7 +88,6 @@ export async function POST(request: NextRequest) {
 
     const { title, description, category, location, locationCoords, dateStart, price, totalSpots, images } = body
 
-    // Basic validation
     if (!title || !description || !location || !dateStart) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
     }
@@ -93,7 +97,7 @@ export async function POST(request: NextRequest) {
       description,
       category,
       location,
-      locationCoords, // GeoJSON point
+      locationCoords,
       dateStart: new Date(dateStart),
       price: Number(price) || 0,
       totalSpots: Number(totalSpots) || 1,
@@ -101,7 +105,7 @@ export async function POST(request: NextRequest) {
       images: images || [],
       hostId: new ObjectId(session.user.id),
       participants: [],
-      verified: true, // O false se vuoi un processo di approvazione
+      verified: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     }

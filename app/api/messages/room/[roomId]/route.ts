@@ -1,83 +1,90 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
+import { connectToDatabase } from "@/lib/mongodb"
 import { authOptions } from "@/lib/auth"
-import clientPromise from "@/lib/mongodb"
+import { ObjectId } from "mongodb"
 
-export async function GET(request: NextRequest, { params }: { params: { roomId: string } }) {
+// GET handler to fetch details of a specific chat room
+export async function GET(request: Request, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { roomId } = params
-    console.log("🔍 Fetching messages for room:", roomId)
+    if (!ObjectId.isValid(roomId)) {
+      return NextResponse.json({ error: "ID della chat non valido" }, { status: 400 })
+    }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
-    // Verifica che l'utente faccia parte della chat room
-    const chatRoom = await db.collection("chatRooms").findOne({ roomId })
-    if (!chatRoom) {
+    const room = await db.collection("chatRooms").findOne({
+      _id: new ObjectId(roomId),
+    })
+
+    if (!room) {
       return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
     }
 
-    const userEmails = chatRoom.participants.map((p: any) => p.email)
-    if (!userEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: "Non autorizzato per questa chat" }, { status: 403 })
+    // Verify user is a participant
+    const isParticipant = room.participants.some((p: any) => p.id.toString() === session.user.id)
+    if (!isParticipant) {
+      return NextResponse.json({ error: "Accesso non consentito" }, { status: 403 })
     }
 
-    // Recupera i messaggi
-    const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
-
-    console.log("✅ Messages fetched:", messages.length)
-
-    return NextResponse.json(messages)
-  } catch (error) {
-    console.error("💥 Error fetching messages:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+    return NextResponse.json(room)
+  } catch (error: any) {
+    console.error("💥 Error fetching chat room details:", error)
+    return NextResponse.json(
+      {
+        error: "Errore interno del server",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { roomId: string } }) {
+// DELETE handler to archive or delete a chat room
+export async function DELETE(request: Request, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { roomId } = params
-    console.log("🗑️ Deleting chat room:", roomId)
-
-    const client = await clientPromise
-    const db = client.db("invibe")
-
-    // Verifica che l'utente faccia parte della chat room
-    const chatRoom = await db.collection("chatRooms").findOne({ roomId })
-    if (!chatRoom) {
-      return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
+    if (!ObjectId.isValid(roomId)) {
+      return NextResponse.json({ error: "ID della chat non valido" }, { status: 400 })
     }
 
-    const userEmails = chatRoom.participants.map((p: any) => p.email)
-    if (!userEmails.includes(session.user.email)) {
-      return NextResponse.json({ error: "Non autorizzato per questa chat" }, { status: 403 })
-    }
+    const { db } = await connectToDatabase()
 
-    // Elimina tutti i messaggi della chat room
-    const deleteMessagesResult = await db.collection("messages").deleteMany({ roomId })
-    console.log("🗑️ Messages deleted:", deleteMessagesResult.deletedCount)
-
-    // Elimina la chat room
-    const deleteChatRoomResult = await db.collection("chatRooms").deleteOne({ roomId })
-    console.log("🗑️ Chat room deleted:", deleteChatRoomResult.deletedCount)
-
-    return NextResponse.json({
-      success: true,
-      messagesDeleted: deleteMessagesResult.deletedCount,
-      chatRoomDeleted: deleteChatRoomResult.deletedCount > 0,
+    // For now, we just delete it. A soft delete (archiving) would be better.
+    const result = await db.collection("chatRooms").deleteOne({
+      _id: new ObjectId(roomId),
+      "participants.id": new ObjectId(session.user.id), // Ensure user is in the chat they're trying to delete
     })
-  } catch (error) {
+
+    if (result.deletedCount === 0) {
+      return NextResponse.json({ error: "Chat non trovata o non autorizzato a eliminarla" }, { status: 404 })
+    }
+
+    // Optionally, delete all messages associated with the room
+    await db.collection("messages").deleteMany({
+      roomId: roomId,
+    })
+
+    return NextResponse.json({ message: "Chat eliminata con successo" })
+  } catch (error: any) {
     console.error("💥 Error deleting chat room:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Errore interno del server",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
