@@ -18,16 +18,13 @@ export async function GET(request: NextRequest) {
 
     const query: any = {
       dateStart: { $gte: new Date().toISOString() },
-      // Rimosso 'verified: true' per mostrare tutti gli eventi esistenti
     }
 
-    // Escludi gli eventi dell'utente loggato, gestendo possibili errori nell'ID
     if (session?.user?.id) {
       try {
         query.hostId = { $ne: new ObjectId(session.user.id) }
       } catch (error) {
         console.warn("Invalid user ID format, cannot filter user's own events:", session.user.id, error)
-        // Prosegui senza il filtro se l'ID non è valido, piuttosto che non mostrare nulla
       }
     }
 
@@ -48,7 +45,7 @@ export async function GET(request: NextRequest) {
       const longitude = Number.parseFloat(lng)
       const radiusInMeters = Number.parseInt(radius, 10) * 1000
 
-      if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && !Number.isNaN(radiusInMeters)) {
+      if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && !Number.isNaN(radiusInMeters) && radiusInMeters > 0) {
         query.locationCoords = {
           $near: {
             $geometry: {
@@ -64,7 +61,7 @@ export async function GET(request: NextRequest) {
     const events = await db
       .collection("events")
       .find(query)
-      .sort(lat && lng ? {} : { dateStart: 1 }) // Sort by distance if location is provided, otherwise by date
+      .sort(lat && lng && radius ? {} : { dateStart: 1 })
       .limit(20)
       .toArray()
 
@@ -120,7 +117,7 @@ export async function POST(request: NextRequest) {
         image: user.image,
       },
       participants: [],
-      verified: true, // I nuovi eventi sono verificati, per usi futuri
+      verified: true,
       createdAt: new Date(),
       updatedAt: new Date(),
     }
