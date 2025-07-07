@@ -102,7 +102,8 @@ export default function HomePage() {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await response.json()
+      const responseData = await response.json()
+      const data = responseData.events // Extract events array from the response object
       console.log("📊 Events data received:", data?.length || 0, "events")
 
       if (Array.isArray(data)) {

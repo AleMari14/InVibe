@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
         name: user.name,
         email: user.email,
         image: user.image,
-        verified: user.verified,
+        verified: user.verified || false,
       },
       participants: [],
       views: 0,

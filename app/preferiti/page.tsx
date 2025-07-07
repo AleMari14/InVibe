@@ -11,9 +11,7 @@ import {
   Heart,
   MapPin,
   Calendar,
-  Users,
   Star,
-  Euro,
   Search,
   Filter,
   SortAsc,
@@ -22,9 +20,6 @@ import {
   Loader2,
   HeartOff,
   Sparkles,
-  TrendingUp,
-  Clock,
-  Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -70,17 +65,17 @@ const categoryIcons: Record<string, string> = {
 
 const getCategoryColor = (category: string) => {
   const colors: Record<string, string> = {
-    casa: "bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200",
-    viaggio: "bg-gradient-to-r from-blue-100 to-sky-100 text-blue-700 border-blue-200",
-    evento: "bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 border-purple-200",
-    esperienza: "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border-orange-200",
-    festa: "bg-gradient-to-r from-pink-100 to-rose-100 text-pink-700 border-pink-200",
-    musica: "bg-gradient-to-r from-indigo-100 to-blue-100 text-indigo-700 border-indigo-200",
-    sport: "bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border-red-200",
-    arte: "bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-purple-200",
-    cibo: "bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-700 border-yellow-200",
+    casa: "bg-green-900/50 text-green-300 border-green-700",
+    viaggio: "bg-blue-900/50 text-blue-300 border-blue-700",
+    evento: "bg-purple-900/50 text-purple-300 border-purple-700",
+    esperienza: "bg-orange-900/50 text-orange-300 border-orange-700",
+    festa: "bg-pink-900/50 text-pink-300 border-pink-700",
+    musica: "bg-indigo-900/50 text-indigo-300 border-indigo-700",
+    sport: "bg-red-900/50 text-red-300 border-red-700",
+    arte: "bg-purple-900/50 text-purple-300 border-purple-700",
+    cibo: "bg-yellow-900/50 text-yellow-300 border-yellow-700",
   }
-  return colors[category] || "bg-gradient-to-r from-gray-100 to-slate-100 text-gray-700 border-gray-200"
+  return colors[category] || "bg-gray-900/50 text-gray-300 border-gray-700"
 }
 
 export default function PreferitiPage() {
@@ -133,7 +128,6 @@ export default function PreferitiPage() {
   const filterAndSortEvents = () => {
     let filtered = [...events]
 
-    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(
         (event) =>
@@ -143,12 +137,10 @@ export default function PreferitiPage() {
       )
     }
 
-    // Filter by category
     if (selectedCategory !== "all") {
       filtered = filtered.filter((event) => event.category === selectedCategory)
     }
 
-    // Sort events
     filtered.sort((a, b) => {
       switch (sortBy) {
         case "newest":
@@ -176,78 +168,48 @@ export default function PreferitiPage() {
   const handleRemoveFromFavorites = async (eventId: string) => {
     try {
       setRemovingId(eventId)
-
       const response = await fetch("/api/favorites", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ eventId }),
       })
-
-      if (!response.ok) {
-        throw new Error("Errore nella rimozione dai preferiti")
-      }
-
-      // Remove from local state
+      if (!response.ok) throw new Error("Errore nella rimozione dai preferiti")
       setEvents((prev) => prev.filter((event) => event._id !== eventId))
       toast.success("Rimosso dai preferiti")
     } catch (error: any) {
-      console.error("Error removing from favorites:", error)
       toast.error(error.message || "Errore nella rimozione dai preferiti")
     } finally {
       setRemovingId(null)
     }
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    })
-  }
-
   const formatDateRange = (startDate: string, endDate?: string) => {
     const start = new Date(startDate)
-    const startFormatted = start.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "short",
-    })
-
+    const startFormatted = start.toLocaleDateString("it-IT", { day: "numeric", month: "short" })
     if (!endDate) return startFormatted
-
     const end = new Date(endDate)
-    const endFormatted = end.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "short",
-    })
-
+    const endFormatted = end.toLocaleDateString("it-IT", { day: "numeric", month: "short" })
     return `${startFormatted} - ${endFormatted}`
   }
 
-  const getUniqueCategories = () => {
-    const categories = events.map((event) => event.category)
-    return [...new Set(categories)]
-  }
+  const getUniqueCategories = () => [...new Set(events.map((event) => event.category))]
 
   if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+      <div className="min-h-screen bg-gray-900 text-white">
         <div className="px-4 py-6">
           <div className="flex items-center gap-4 mb-6">
-            <Skeleton className="w-10 h-10 rounded-full" />
-            <Skeleton className="h-8 w-48" />
+            <Skeleton className="w-10 h-10 rounded-full bg-gray-700" />
+            <Skeleton className="h-8 w-48 bg-gray-700" />
           </div>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {[...Array(6)].map((_, i) => (
-              <Card key={i} className="overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-lg">
-                <Skeleton className="w-full h-48" />
+              <Card key={i} className="overflow-hidden bg-gray-800/50 border-gray-700">
+                <Skeleton className="w-full h-48 bg-gray-700" />
                 <div className="p-4 space-y-3">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-full" />
-                  <Skeleton className="h-3 w-1/2" />
+                  <Skeleton className="h-4 w-3/4 bg-gray-700" />
+                  <Skeleton className="h-3 w-full bg-gray-700" />
+                  <Skeleton className="h-3 w-1/2 bg-gray-700" />
                 </div>
               </Card>
             ))}
@@ -257,47 +219,43 @@ export default function PreferitiPage() {
     )
   }
 
-  if (status === "unauthenticated") {
-    return null
-  }
+  if (status === "unauthenticated") return null
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 pb-20">
-      {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200/50">
-        <div className="px-4 py-6">
+    <div className="min-h-screen bg-gray-900 text-gray-200 pb-20">
+      <div className="bg-gray-900/80 backdrop-blur-md border-b border-gray-700/50 sticky top-0 z-40">
+        <div className="px-4 py-6 max-w-7xl mx-auto">
           <div className="flex items-center gap-4 mb-6">
             <Link href="/profile">
-              <Button variant="ghost" size="icon" className="text-pink-600 hover:bg-pink-100">
+              <Button variant="ghost" size="icon" className="text-blue-400 hover:bg-gray-800">
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
                 I Miei Preferiti
               </h1>
-              <p className="text-pink-600/70">
+              <p className="text-gray-400">
                 {events.length} {events.length === 1 ? "evento salvato" : "eventi salvati"}
               </p>
             </div>
           </div>
 
-          {/* Search and Filters */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-4">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-pink-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" />
                 <Input
                   placeholder="Cerca nei tuoi preferiti..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 border-pink-200 focus:border-pink-400 focus:ring-pink-400/20 bg-white/70 backdrop-blur-sm"
+                  className="pl-10 border-gray-700 focus:border-blue-500 focus:ring-blue-500/20 bg-gray-800/70 text-white"
                 />
               </div>
               <div className="flex gap-2">
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400 bg-white/70 backdrop-blur-sm">
-                    <Filter className="h-4 w-4 mr-2 text-pink-500" />
+                  <SelectTrigger className="w-40 border-gray-700 focus:border-blue-500 bg-gray-800/70 text-white">
+                    <Filter className="h-4 w-4 mr-2 text-blue-400" />
                     <SelectValue placeholder="Categoria" />
                   </SelectTrigger>
                   <SelectContent>
@@ -312,40 +270,19 @@ export default function PreferitiPage() {
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" className="border-pink-200 hover:bg-pink-50 bg-white/70 backdrop-blur-sm">
-                      <SortAsc className="h-4 w-4 mr-2 text-pink-500" />
+                    <Button variant="outline" className="border-gray-700 hover:bg-gray-800 bg-gray-800/70 text-white">
+                      <SortAsc className="h-4 w-4 mr-2 text-blue-400" />
                       Ordina
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setSortBy("newest")}>
-                      <Clock className="h-4 w-4 mr-2" />
-                      Più recenti
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("oldest")}>
-                      <Clock className="h-4 w-4 mr-2" />
-                      Meno recenti
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("date")}>
-                      <Calendar className="h-4 w-4 mr-2" />
-                      Data evento
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("price-low")}>
-                      <Euro className="h-4 w-4 mr-2" />
-                      Prezzo crescente
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("price-high")}>
-                      <Euro className="h-4 w-4 mr-2" />
-                      Prezzo decrescente
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("rating")}>
-                      <Star className="h-4 w-4 mr-2" />
-                      Valutazione
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setSortBy("popular")}>
-                      <TrendingUp className="h-4 w-4 mr-2" />
-                      Più popolari
-                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("newest")}>Più recenti</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("oldest")}>Meno recenti</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("date")}>Data evento</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("price-low")}>Prezzo crescente</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("price-high")}>Prezzo decrescente</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("rating")}>Valutazione</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("popular")}>Più popolari</DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
 
@@ -353,78 +290,36 @@ export default function PreferitiPage() {
                   variant="outline"
                   size="icon"
                   onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
-                  className="border-pink-200 hover:bg-pink-50 bg-white/70 backdrop-blur-sm"
+                  className="border-gray-700 hover:bg-gray-800 bg-gray-800/70"
                 >
                   {viewMode === "grid" ? (
-                    <List className="h-4 w-4 text-pink-500" />
+                    <List className="h-4 w-4 text-blue-400" />
                   ) : (
-                    <Grid3X3 className="h-4 w-4 text-pink-500" />
+                    <Grid3X3 className="h-4 w-4 text-blue-400" />
                   )}
                 </Button>
               </div>
             </div>
-
-            {/* Active Filters */}
-            {(searchQuery || selectedCategory !== "all") && (
-              <div className="flex flex-wrap gap-2">
-                {searchQuery && (
-                  <Badge variant="secondary" className="bg-pink-100 text-pink-700 border-pink-200">
-                    Ricerca: "{searchQuery}"
-                    <button onClick={() => setSearchQuery("")} className="ml-2 hover:text-pink-900">
-                      ×
-                    </button>
-                  </Badge>
-                )}
-                {selectedCategory !== "all" && (
-                  <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
-                    {categoryIcons[selectedCategory]} {selectedCategory}
-                    <button onClick={() => setSelectedCategory("all")} className="ml-2 hover:text-purple-900">
-                      ×
-                    </button>
-                  </Badge>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-6">
-        {/* Results Count */}
-        <div className="mb-6">
-          <p className="text-sm text-pink-600/70">
-            {filteredEvents.length === 0
-              ? "Nessun evento trovato"
-              : `${filteredEvents.length} ${filteredEvents.length === 1 ? "evento trovato" : "eventi trovati"}`}
-          </p>
-        </div>
-
-        {/* Events Grid/List */}
+      <div className="px-4 py-6 max-w-7xl mx-auto">
         {filteredEvents.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
-            <div className="w-20 h-20 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              {searchQuery || selectedCategory !== "all" ? (
-                <Search className="h-10 w-10 text-pink-500" />
-              ) : (
-                <HeartOff className="h-10 w-10 text-pink-500" />
-              )}
+            <div className="w-20 h-20 bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-6">
+              <HeartOff className="h-10 w-10 text-blue-500" />
             </div>
-            <h3 className="text-xl font-semibold mb-2 text-pink-800">
-              {searchQuery || selectedCategory !== "all" ? "Nessun risultato trovato" : "Nessun evento nei preferiti"}
-            </h3>
-            <p className="text-pink-600/70 mb-6 max-w-md mx-auto">
-              {searchQuery || selectedCategory !== "all"
-                ? "Prova a modificare i filtri di ricerca per trovare quello che stai cercando."
-                : "Inizia ad esplorare gli eventi e salva quelli che ti interessano di più!"}
+            <h3 className="text-xl font-semibold mb-2 text-white">Nessun evento nei preferiti</h3>
+            <p className="text-gray-400 mb-6 max-w-md mx-auto">
+              Inizia ad esplorare e salva gli eventi che ti interessano!
             </p>
-            {!searchQuery && selectedCategory === "all" && (
-              <Link href="/">
-                <Button className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-8">
-                  <Sparkles className="h-4 w-4 mr-2" />
-                  Esplora Eventi
-                </Button>
-              </Link>
-            )}
+            <Link href="/">
+              <Button className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-8">
+                <Sparkles className="h-4 w-4 mr-2" />
+                Esplora Eventi
+              </Button>
+            </Link>
           </motion.div>
         ) : (
           <div className={viewMode === "grid" ? "grid gap-6 md:grid-cols-2 lg:grid-cols-3" : "space-y-4"}>
@@ -438,7 +333,7 @@ export default function PreferitiPage() {
                   transition={{ duration: 0.3, delay: index * 0.05 }}
                 >
                   <Card
-                    className={`overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 group ${
+                    className={`overflow-hidden bg-gray-800/50 backdrop-blur-md border border-gray-700 shadow-lg hover:shadow-blue-500/10 hover:border-blue-700 transition-all duration-300 group ${
                       viewMode === "list" ? "flex" : ""
                     }`}
                   >
@@ -457,19 +352,15 @@ export default function PreferitiPage() {
                           }
                         />
                       </Link>
-
-                      {/* Category Badge */}
                       <div className="absolute top-3 left-3">
-                        <Badge className={`text-xs font-medium ${getCategoryColor(event.category)}`}>
+                        <Badge className={`text-xs font-medium border ${getCategoryColor(event.category)}`}>
                           {categoryIcons[event.category]} {event.category}
                         </Badge>
                       </div>
-
-                      {/* Favorite Button */}
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="absolute top-3 right-3 bg-white/80 hover:bg-white text-pink-500 hover:text-pink-600 backdrop-blur-sm"
+                        className="absolute top-3 right-3 bg-gray-900/50 hover:bg-gray-900/80 text-pink-400 hover:text-pink-300 backdrop-blur-sm rounded-full"
                         onClick={() => handleRemoveFromFavorites(event._id)}
                         disabled={removingId === event._id}
                       >
@@ -479,63 +370,39 @@ export default function PreferitiPage() {
                           <Heart className="h-4 w-4 fill-current" />
                         )}
                       </Button>
-
-                      {/* Verified Badge */}
                       {event.verified && (
                         <div className="absolute bottom-3 left-3">
-                          <Badge className="bg-green-500 text-white text-xs">✓ Verificato</Badge>
+                          <Badge className="bg-green-600 text-white text-xs">✓ Verificato</Badge>
                         </div>
                       )}
                     </div>
-
-                    <CardContent className={`p-4 ${viewMode === "list" ? "flex-1" : ""}`}>
-                      <div className="space-y-3">
-                        <div>
-                          <Link href={`/evento/${event._id}`}>
-                            <h3 className="font-semibold text-lg line-clamp-2 hover:text-pink-600 transition-colors">
-                              {event.title}
-                            </h3>
-                          </Link>
-                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{event.description}</p>
+                    <CardContent className={`p-4 flex flex-col justify-between ${viewMode === "list" ? "flex-1" : ""}`}>
+                      <div>
+                        <Link href={`/evento/${event._id}`}>
+                          <h3 className="font-semibold text-lg line-clamp-2 text-white hover:text-blue-400 transition-colors">
+                            {event.title}
+                          </h3>
+                        </Link>
+                        <p className="text-sm text-gray-400 line-clamp-2 mt-1">{event.description}</p>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                          <MapPin className="h-4 w-4 text-blue-400" />
+                          <span className="line-clamp-1">{event.location}</span>
                         </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <MapPin className="h-4 w-4 text-pink-500" />
-                            <span className="line-clamp-1">{event.location}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Calendar className="h-4 w-4 text-purple-500" />
-                            <span>{formatDateRange(event.dateStart, event.dateEnd)}</span>
-                          </div>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Users className="h-4 w-4 text-blue-500" />
-                            <span>
-                              {event.availableSpots}/{event.totalSpots} posti disponibili
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-2 text-sm text-gray-400">
+                          <Calendar className="h-4 w-4 text-purple-400" />
+                          <span>{formatDateRange(event.dateStart, event.dateEnd)}</span>
                         </div>
-
-                        <div className="flex items-center justify-between pt-2">
-                          <div className="flex items-center gap-4">
-                            {event.rating > 0 && (
-                              <div className="flex items-center gap-1">
-                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                                <span className="text-sm font-medium">{event.rating.toFixed(1)}</span>
-                                <span className="text-xs text-muted-foreground">({event.reviewCount})</span>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                              <Eye className="h-3 w-3" />
-                              <span>{event.views}</span>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-lg font-bold text-pink-600">
-                              {event.price === 0 ? "Gratuito" : `€${event.price}`}
-                            </div>
-                            {event.price > 0 && <div className="text-xs text-muted-foreground">per persona</div>}
-                          </div>
+                      </div>
+                      <div className="flex items-center justify-between pt-3 mt-auto">
+                        <div className="flex items-center gap-1">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span className="text-sm font-medium text-white">{event.rating.toFixed(1)}</span>
+                          <span className="text-xs text-gray-500">({event.reviewCount})</span>
+                        </div>
+                        <div className="text-lg font-bold text-blue-400">
+                          {event.price === 0 ? "Gratuito" : `€${event.price}`}
                         </div>
                       </div>
                     </CardContent>
