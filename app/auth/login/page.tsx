@@ -107,7 +107,7 @@ export default function LoginPage() {
         email: email.toLowerCase().trim(),
         password,
         redirect: false,
-        callbackUrl: callbackUrl,
+        callbackUrl: "https://in-vibe.vercel.app/",
       })
 
       console.log("📋 Login result:", result)
@@ -131,10 +131,9 @@ export default function LoginPage() {
         const session = await getSession()
         console.log("✅ Session after login:", session)
 
-        // Reindirizza
+        // Reindirizza sempre alla produzione
         setTimeout(() => {
-          router.push(callbackUrl)
-          router.refresh()
+          window.location.href = "https://in-vibe.vercel.app/"
         }, 1000)
       } else {
         setError("Si è verificato un errore durante il login")
@@ -155,7 +154,7 @@ export default function LoginPage() {
       console.log("🌐 Current URL:", window.location.href)
 
       const result = await signIn("google", {
-        callbackUrl: callbackUrl,
+        callbackUrl: "https://in-vibe.vercel.app/",
         redirect: true,
       })
       console.log("📋 Google OAuth result:", result)
@@ -172,7 +171,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4 pb-24">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="flex items-center gap-3 mb-6">
@@ -215,7 +214,7 @@ export default function LoginPage() {
             <Button
               type="button"
               variant="outline"
-              className="w-full border-border hover:bg-accent bg-transparent"
+              className="w-full border-border hover:bg-accent"
               onClick={handleGoogleSignIn}
               disabled={isLoading || googleLoading}
             >
@@ -357,7 +356,7 @@ export default function LoginPage() {
                 variant="outline"
                 size="sm"
                 onClick={fillDemoCredentials}
-                className="mt-3 w-full text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10 bg-transparent"
+                className="mt-3 w-full text-xs border-blue-500/30 text-blue-400 hover:bg-blue-500/10"
                 disabled={isLoading || googleLoading}
               >
                 ⚡ Compila e Accedi Subito

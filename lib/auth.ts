@@ -20,42 +20,25 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.log("❌ Missing credentials")
           return null
         }
 
         try {
-          console.log("🔍 Attempting to authenticate user:", credentials.email)
-
           const client = await clientPromise
           const users = client.db("invibe").collection("users")
 
-          const user = await users.findOne({
-            email: credentials.email.toLowerCase().trim(),
-          })
+          const user = await users.findOne({ email: credentials.email })
 
-          console.log("👤 User found:", user ? "Yes" : "No")
-
-          if (!user) {
-            console.log("❌ User not found")
+          if (!user || !user.password) {
             return null
           }
 
-          if (!user.password) {
-            console.log("❌ User has no password (OAuth user)")
-            return null
-          }
-
-          console.log("🔐 Comparing passwords...")
           const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
-          console.log("🔐 Password valid:", isPasswordValid)
 
           if (!isPasswordValid) {
-            console.log("❌ Invalid password")
             return null
           }
 
-          console.log("✅ Authentication successful")
           return {
             id: user._id.toString(),
             email: user.email,
@@ -63,7 +46,7 @@ export const authOptions: NextAuthOptions = {
             image: user.image,
           }
         } catch (error) {
-          console.error("💥 Auth error:", error)
+          console.error("Auth error:", error)
           return null
         }
       },
@@ -90,5 +73,4 @@ export const authOptions: NextAuthOptions = {
     signIn: "/auth/login",
     signUp: "/auth/registrati",
   },
-  debug: process.env.NODE_ENV === "development",
 }
