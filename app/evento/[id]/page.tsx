@@ -588,50 +588,54 @@ export default function EventoPage() {
         </Card>
 
         {/* Host Information */}
-        <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-pink-500" />
-              Organizzatore
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarImage src={event.host.image || "/placeholder.svg"} />
-                  <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-500 text-white text-lg">
-                    {getInitials(event.host.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg">{getSafeName(event.host.name)}</h3>
-                    {event.host.verified && (
-                      <Badge className="bg-blue-500 text-white">
-                        <Shield className="h-3 w-3 mr-1" />
-                        Verificato
-                      </Badge>
+        {event.host && (
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User className="h-5 w-5 text-pink-500" />
+                Organizzatore
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-16 w-16">
+                    <AvatarImage src={event.host.image || "/placeholder.svg"} />
+                    <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-500 text-white text-lg">
+                      {getInitials(event.host.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-lg">{getSafeName(event.host.name)}</h3>
+                      {event.host.verified && (
+                        <Badge className="bg-blue-500 text-white">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Verificato
+                        </Badge>
+                      )}
+                    </div>
+                    {event.host.rating && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                        <span className="text-sm font-medium">{event.host.rating.toFixed(1)}</span>
+                        <span className="text-sm text-muted-foreground">
+                          ({event.host.totalReviews || 0} recensioni)
+                        </span>
+                      </div>
                     )}
                   </div>
-                  {event.host.rating && (
-                    <div className="flex items-center gap-1 mt-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">{event.host.rating.toFixed(1)}</span>
-                      <span className="text-sm text-muted-foreground">({event.host.totalReviews || 0} recensioni)</span>
-                    </div>
-                  )}
                 </div>
+                <MessageHostButton
+                  hostId={event.host._id}
+                  hostName={getSafeName(event.host.name)}
+                  eventId={eventId}
+                  eventTitle={event.title}
+                />
               </div>
-              <MessageHostButton
-                hostId={event.host._id}
-                hostName={getSafeName(event.host.name)}
-                eventId={eventId}
-                eventTitle={event.title}
-              />
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Amenities */}
         {safeAmenities.length > 0 && (
