@@ -98,7 +98,8 @@ export default function HomePage() {
       const response = await fetch(`/api/events?${params}`)
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+        const errorData = await response.json()
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
       }
 
       const responseData = await response.json()
@@ -116,7 +117,7 @@ export default function HomePage() {
         setError("Formato dati non valido ricevuto dal server")
       }
     } catch (error: any) {
-      setError("Errore nel caricamento degli eventi. Riprova.")
+      setError(error.message || "Errore nel caricamento degli eventi. Riprova.")
       setEvents([])
       setFeaturedEvents([])
     } finally {
