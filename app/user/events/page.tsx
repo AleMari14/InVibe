@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { Calendar, Clock, MapPin, Users, Eye, Edit, Trash2, Plus, Loader2, AlertCircle } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Eye, Edit, Trash2, Plus, Loader2, AlertCircle, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -151,11 +151,21 @@ export default function UserEventsPage() {
       <div className="bg-gray-900/80 backdrop-blur-md border-b border-gray-700/50 px-4 py-6">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                I Miei Eventi
-              </h1>
-              <p className="text-gray-400 mt-1">Gestisci gli eventi che hai creato</p>
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => router.back()}
+                className="text-gray-300 hover:bg-gray-700"
+              >
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+              <div>
+                <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                  I Miei Eventi
+                </h1>
+                <p className="text-gray-400 mt-1">Gestisci gli eventi che hai creato</p>
+              </div>
             </div>
             <Button asChild className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
               <Link href="/crea-evento">

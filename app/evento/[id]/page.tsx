@@ -46,7 +46,7 @@ interface Event {
     image?: string
     verified: boolean
     email: string
-  }
+  } | null
   participants: any[]
   verified: boolean
 }
@@ -154,6 +154,8 @@ export default function EventDetailPage() {
     return null
   }
 
+  const isHost = session?.user?.id === event?.host?._id
+
   const eventDate = new Date(event.dateStart)
   const formattedDate = eventDate.toLocaleDateString("it-IT", {
     weekday: "long",
@@ -215,34 +217,38 @@ export default function EventDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-8">
             {/* Host Info */}
-            <Card className="bg-gray-800/50 border-gray-700">
-              <CardContent className="p-6 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <Avatar className="h-16 w-16 border-2 border-blue-400">
-                    <AvatarImage
-                      src={getProfileImageUrl(event.host.image) || "/placeholder.svg"}
-                      alt={event.host.name}
-                    />
-                    <AvatarFallback>{event.host.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-sm text-gray-400">Organizzato da</p>
-                    <p className="text-xl font-bold flex items-center gap-2">
-                      {event.host.name}
-                      {event.host.verified && <CheckCircle className="h-5 w-5 text-green-400" />}
-                    </p>
+            {event.host && (
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardContent className="p-6 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16 border-2 border-blue-400">
+                      <AvatarImage
+                        src={getProfileImageUrl(event.host.image) || "/placeholder.svg"}
+                        alt={event.host.name}
+                      />
+                      <AvatarFallback>{event.host.name.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="text-sm text-gray-400">Organizzato da</p>
+                      <p className="text-xl font-bold flex items-center gap-2">
+                        {event.host.name}
+                        {event.host.verified && <CheckCircle className="h-5 w-5 text-green-400" />}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <MessageHostButton
-                  hostId={event.host._id}
-                  hostName={event.host.name}
-                  hostEmail={event.host.email}
-                  eventId={event._id}
-                  eventTitle={event.title}
-                  className="border-blue-400 text-blue-400 hover:bg-blue-400/10 hover:text-blue-300 bg-transparent"
-                />
-              </CardContent>
-            </Card>
+                  {!isHost && (
+                    <MessageHostButton
+                      hostId={event.host._id}
+                      hostName={event.host.name}
+                      hostEmail={event.host.email}
+                      eventId={event._id}
+                      eventTitle={event.title}
+                      className="border-blue-400 text-blue-400 hover:bg-blue-400/10 hover:text-blue-300 bg-transparent"
+                    />
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Event Details */}
             <Card className="bg-gray-800/50 border-gray-700">
@@ -302,15 +308,21 @@ export default function EventDetailPage() {
                   <span className="text-4xl font-bold text-green-400">€{event.price}</span>
                   <span className="text-gray-400">/ persona</span>
                 </div>
-                <Link href={`/prenota/${event._id}`} className="w-full">
-                  <Button
-                    size="lg"
-                    className="w-full h-14 text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity"
-                    disabled={event.availableSpots === 0}
-                  >
-                    {event.availableSpots > 0 ? "Prenota il tuo posto" : "Posti esauriti"}
+                {isHost ? (
+                  <Button size="lg" className="w-full h-14 text-lg font-bold bg-gray-600 cursor-not-allowed" disabled>
+                    Questo è il tuo evento
                   </Button>
-                </Link>
+                ) : (
+                  <Link href={`/prenota/${event._id}`} className="w-full">
+                    <Button
+                      size="lg"
+                      className="w-full h-14 text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity"
+                      disabled={event.availableSpots === 0}
+                    >
+                      {event.availableSpots > 0 ? "Prenota il tuo posto" : "Posti esauriti"}
+                    </Button>
+                  </Link>
+                )}
                 <p className="text-center text-xs text-gray-500 mt-4">Pagamento sicuro e protetto</p>
               </CardContent>
             </Card>
