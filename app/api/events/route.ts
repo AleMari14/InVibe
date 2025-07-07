@@ -16,10 +16,8 @@ export async function GET(request: NextRequest) {
     const lng = searchParams.get("lng")
     const radius = searchParams.get("radius") // in km
 
-    // Inizializza la query senza filtri restrittivi di default
     const query: any = {}
 
-    // Applica il filtro per escludere gli eventi dell'utente SOLO se è loggato
     if (session?.user?.id) {
       try {
         query.hostId = { $ne: new ObjectId(session.user.id) }
@@ -40,12 +38,14 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    let sort: any = { createdAt: -1 } // Ordina per i più recenti di default
+    let sort: any = { createdAt: -1 }
 
     if (lat && lng && radius) {
       const latitude = Number.parseFloat(lat)
       const longitude = Number.parseFloat(lng)
       const radiusInMeters = Number.parseInt(radius, 10) * 1000
+
+      console.log(`Geo search params: lat=${latitude}, lng=${longitude}, radius=${radiusInMeters}m`)
 
       if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && radiusInMeters > 0) {
         query.locationCoords = {
@@ -57,16 +57,24 @@ export async function GET(request: NextRequest) {
             $maxDistance: radiusInMeters,
           },
         }
-        // MongoDB sorts by distance automatically when using $nearSphere
         sort = {}
       }
     }
 
-    console.log("Executing event query:", JSON.stringify(query, null, 2))
+    const eventsCollection = db.collection("events")
 
-    const events = await db.collection("events").find(query).sort(sort).limit(50).toArray()
+    // Verifica se l'indice 2dsphere esiste. Questo è solo un avviso, non blocca l'esecuzione.
+    const indexes = await eventsCollection.listIndexes().toArray()
+    const hasGeoIndex = indexes.some((idx) => idx.key?.locationCoords === "2dsphere")
+    if (!hasGeoIndex && query.locationCoords) {
+      console.warn("**********************************************************************************")
+      console.warn("** ATTENZIONE: La query geospaziale potrebbe essere lenta o fallire.            **")
+      console.warn("** Manca un indice '2dsphere' sulla collection 'events' per il campo 'locationCoords'. **")
+      console.warn("** Esegui il comando da SETUP_MONGO_INDEX.md per crearlo.                      **")
+      console.warn("**********************************************************************************")
+    }
 
-    console.log(`Found ${events.length} events.`)
+    const events = await eventsCollection.find(query).sort(sort).limit(50).toArray()
 
     return NextResponse.json({ events })
   } catch (error: any) {
@@ -118,6 +126,7 @@ export async function POST(request: NextRequest) {
         _id: user._id,
         name: user.name,
         image: user.image,
+        email: user.email, // Assicurati che l'email sia salvata qui
       },
       participants: [],
       verified: true,
