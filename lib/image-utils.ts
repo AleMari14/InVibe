@@ -5,6 +5,19 @@
 // Cloudinary base configuration
 const CLOUDINARY_BASE_URL = "https://res.cloudinary.com"
 
+const defaultImageQueries: Record<string, string> = {
+  casa: "modern cozy apartment interior",
+  viaggio: "group of friends traveling in a beautiful landscape",
+  evento: "elegant private party with decorations",
+  esperienza: "unique workshop or outdoor activity",
+  festa: "vibrant party with lights and people dancing",
+  musica: "live music concert with a crowd",
+  sport: "people playing a sport in a field",
+  arte: "art gallery with paintings on the wall",
+  cibo: "gourmet food dish on a table",
+  default: "abstract colorful event background",
+}
+
 export interface ImageOptimizationOptions {
   width?: number
   height?: number
@@ -130,16 +143,24 @@ export function getProfileImageUrl(imageUrl: string | null | undefined, size = 9
 /**
  * Optimizes event image URL
  */
-export function getEventImageUrl(imageUrl: string | null | undefined, width: number, height: number): string {
-  if (!imageUrl) {
-    return generatePlaceholder(width, height, "event")
+export function getEventImageUrl(
+  imageUrl: string | undefined | null,
+  category: string | undefined | null,
+  width = 400,
+  height = 300,
+): string {
+  if (imageUrl && imageUrl.startsWith("http")) {
+    // Se è un'immagine Cloudinary, possiamo ottimizzarla
+    if (imageUrl.includes("res.cloudinary.com")) {
+      return imageUrl.replace("/upload/", `/upload/w_${width},h_${height},c_fill,q_auto,f_auto/`)
+    }
+    return imageUrl
   }
 
-  if (imageUrl.includes("cloudinary.com")) {
-    return getCloudinaryImageUrl(imageUrl, width, height)
-  }
+  const queryCategory = category && defaultImageQueries[category] ? category : "default"
+  const query = defaultImageQueries[queryCategory]
 
-  return imageUrl
+  return `/placeholder.svg?width=${width}&height=${height}&query=${encodeURIComponent(query)}`
 }
 
 /**

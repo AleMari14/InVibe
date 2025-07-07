@@ -1,110 +1,40 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { Database } from "@/lib/database"
-import clientPromise from "@/lib/mongodb"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ObjectId } from "mongodb"
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("💖 Fetching user favorites...")
-
     const session = await getServerSession(authOptions)
-
-    if (!session?.user?.email) {
-      console.log("❌ No session found")
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    console.log("👤 User email:", session.user.email)
+    const { db } = await connectToDatabase()
 
-    // Get user from database
-    const user = await Database.getUserByEmail(session.user.email)
+    const user = await db.collection("users").findOne({ _id: new ObjectId(session.user.id) })
 
     if (!user) {
-      console.log("❌ User not found")
-      return NextResponse.json([])
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    console.log("✅ User found:", user._id.toString())
-    console.log("💖 User favorites:", user.favorites?.length || 0)
+    const favoriteEventIds = user.favorites || []
 
-    if (!user.favorites || user.favorites.length === 0) {
-      console.log("📭 No favorites found")
-      return NextResponse.json([])
+    if (favoriteEventIds.length === 0) {
+      return NextResponse.json({ favorites: [] })
     }
 
-    // Get favorite events with host information
-    const client = await clientPromise
-    const db = client.db("invibe")
-
-    const favoriteEvents = await db
+    const favorites = await db
       .collection("events")
-      .aggregate([
-        {
-          $match: {
-            _id: { $in: user.favorites },
-            dateStart: { $gte: new Date() }, // Only future events
-          },
-        },
-        {
-          $lookup: {
-            from: "users",
-            localField: "hostId",
-            foreignField: "_id",
-            as: "hostInfo",
-          },
-        },
-        {
-          $addFields: {
-            host: {
-              $cond: {
-                if: { $gt: [{ $size: "$hostInfo" }, 0] },
-                then: {
-                  name: { $arrayElemAt: ["$hostInfo.name", 0] },
-                  email: { $arrayElemAt: ["$hostInfo.email", 0] },
-                  image: { $arrayElemAt: ["$hostInfo.image", 0] },
-                  verified: { $arrayElemAt: ["$hostInfo.verified", 0] },
-                },
-                else: {
-                  name: "Host sconosciuto",
-                  email: "",
-                  image: null,
-                  verified: false,
-                },
-              },
-            },
-          },
-        },
-        {
-          $project: {
-            hostInfo: 0, // Remove the temporary hostInfo field
-          },
-        },
-        {
-          $sort: { createdAt: -1 },
-        },
-      ])
+      .find({
+        _id: { $in: favoriteEventIds.map((id: string | ObjectId) => new ObjectId(id)) },
+      })
       .toArray()
 
-    console.log(`📊 Found ${favoriteEvents.length} favorite events`)
-
-    // Transform events for frontend
-    const transformedEvents = favoriteEvents.map((event: any) => ({
-      ...event,
-      _id: event._id.toString(),
-      hostId: event.hostId?.toString(),
-      dateStart: event.dateStart?.toISOString?.() || event.dateStart,
-      dateEnd: event.dateEnd?.toISOString?.() || event.dateEnd,
-      createdAt: event.createdAt?.toISOString?.() || event.createdAt,
-      updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
-    }))
-
-    console.log("✅ Returning transformed favorite events")
-
-    return NextResponse.json(transformedEvents)
+    return NextResponse.json({ favorites })
   } catch (error: any) {
     console.error("💥 Error fetching favorites:", error)
-
     return NextResponse.json(
       {
         error: "Errore nel caricamento dei preferiti",
@@ -117,47 +47,51 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("💖 Toggle favorite request...")
-
     const session = await getServerSession(authOptions)
-
-    if (!session?.user?.email) {
-      console.log("❌ No session found")
+    if (!session?.user?.id) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { eventId } = await request.json()
-
     if (!eventId) {
-      return NextResponse.json({ error: "Event ID richiesto" }, { status: 400 })
+      return NextResponse.json({ error: "ID evento mancante" }, { status: 400 })
     }
 
-    console.log("👤 User email:", session.user.email)
-    console.log("🎉 Event ID:", eventId)
+    const { db } = await connectToDatabase()
+    const userObjectId = new ObjectId(session.user.id)
+    const eventObjectId = new ObjectId(eventId)
 
-    // Get user from database
-    const user = await Database.getUserByEmail(session.user.email)
-
+    const user = await db.collection("users").findOne({ _id: userObjectId })
     if (!user) {
-      console.log("❌ User not found")
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    console.log("✅ User found:", user._id.toString())
+    const isFavorite = (user.favorites || []).some((favId: ObjectId) => favId.equals(eventObjectId))
 
-    // Toggle favorite
-    const isFavorited = await Database.toggleFavorite(user._id.toString(), eventId)
+    let updateResult
+    if (isFavorite) {
+      // Rimuovi dai preferiti
+      updateResult = await db
+        .collection("users")
+        .updateOne({ _id: userObjectId }, { $pull: { favorites: eventObjectId } })
+    } else {
+      // Aggiungi ai preferiti
+      updateResult = await db
+        .collection("users")
+        .updateOne({ _id: userObjectId }, { $addToSet: { favorites: eventObjectId } })
+    }
 
-    console.log("💖 Favorite toggled:", isFavorited ? "Added" : "Removed")
+    if (updateResult.modifiedCount === 0 && !isFavorite) {
+      // Se non ha modificato nulla e non era già preferito, potrebbe esserci un problema
+      // ma addToSet non modifica se l'elemento esiste già, quindi è ok
+    }
 
     return NextResponse.json({
       success: true,
-      isFavorited,
-      message: isFavorited ? "Aggiunto ai preferiti" : "Rimosso dai preferiti",
+      isFavorite: !isFavorite,
     })
   } catch (error: any) {
-    console.error("💥 Error toggling favorite:", error)
-
+    console.error("💥 Error updating favorites:", error)
     return NextResponse.json(
       {
         error: "Errore nell'aggiornamento dei preferiti",

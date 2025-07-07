@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
 
     const { db } = await connectToDatabase()
 
-    const query: any = {}
+    const query: any = {
+      // Filtra solo gli eventi futuri
+      dateStart: { $gte: new Date() },
+    }
 
     if (category && category !== "all") {
       query.category = category

@@ -75,6 +75,7 @@
     "tailwindcss-animate": "^1.0.7",
     "typescript": "^5",
     "url": "latest",
+    "use-debounce": "latest",
     "utf-8-validate": "latest",
     "ws": "latest",
     "zod": "^3.22.4"

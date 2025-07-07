@@ -15,19 +15,19 @@ import {
   MessageSquare,
   Menu,
   Zap,
+  Loader2,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
-import { motion, AnimatePresence } from "framer-motion"
+import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
@@ -249,6 +249,18 @@ export default function HomePage() {
       </SheetContent>
     </Sheet>
   )
+
+  const filteredEvents = events.filter(
+    (event) =>
+      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.category.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  const cardVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0 },
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -637,158 +649,78 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {[...Array(6)].map((_, i) => (
-                <Card key={i} className="overflow-hidden border-0 shadow-md">
-                  <Skeleton className="aspect-[4/3] w-full" />
-                  <CardContent className="p-4">
-                    <Skeleton className="h-4 w-3/4 mb-2" />
-                    <Skeleton className="h-3 w-full mb-2" />
-                    <div className="flex justify-between">
-                      <Skeleton className="h-3 w-1/4" />
-                      <Skeleton className="h-3 w-1/4" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="flex justify-center items-center h-64">
+              <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
             </div>
-          ) : events.length === 0 ? (
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
-              <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Search className="h-10 w-10 text-blue-500" />
-              </div>
-              <h3 className="text-xl font-semibold mb-2">Nessun evento trovato</h3>
-              <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-                {searchQuery
-                  ? "Prova a modificare i termini di ricerca o esplora altre categorie"
-                  : selectedCategory !== "all"
-                    ? "Non ci sono eventi in questa categoria al momento"
-                    : "Non ci sono eventi disponibili al momento"}
-              </p>
-              {session ? (
-                <Link href="/crea-evento">
-                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8">
-                    <Plus className="h-4 w-4 mr-2" />
-                    Crea il primo evento
-                  </Button>
-                </Link>
-              ) : (
-                <Link href="/auth/login">
-                  <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8">
-                    Accedi per creare eventi
-                  </Button>
-                </Link>
-              )}
-            </motion.div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <AnimatePresence>
-                {events.map((event, index) => (
-                  <motion.div
-                    key={event._id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3, delay: index * 0.05 }}
-                    whileHover={{ y: -4 }}
-                  >
-                    <Card
-                      className="overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group"
-                      onClick={() => handleEventClick(event._id)}
-                    >
-                      <div className="relative aspect-[4/3] overflow-hidden">
+            <motion.div
+              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: {
+                  transition: {
+                    staggerChildren: 0.05,
+                  },
+                },
+              }}
+            >
+              {filteredEvents.map((event) => (
+                <motion.div key={event._id} variants={cardVariants}>
+                  <Card className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden group transform hover:-translate-y-1 transition-transform duration-300 shadow-lg hover:shadow-blue-500/20">
+                    <Link href={`/evento/${event._id}`} className="block">
+                      <div className="relative h-48">
                         <Image
-                          src={getEventImageUrl(event.images?.[0], 400, 300) || "/placeholder.svg"}
+                          src={getEventImageUrl(event.images?.[0], event.category, 400, 300) || "/placeholder.svg"}
                           alt={event.title}
                           fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-105"
-                          sizes="(max-width: 768px) 100vw, 50vw"
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                        <div className="absolute top-3 right-3">
-                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 bg-black/30 backdrop-blur-sm hover:bg-black/40 rounded-full"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                toggleFavorite(event._id)
-                              }}
-                            >
-                              <Heart
-                                className={`h-4 w-4 transition-all ${
-                                  favorites.includes(event._id) ? "fill-red-500 text-red-500" : "text-white"
-                                }`}
-                              />
-                            </Button>
-                          </motion.div>
-                        </div>
-                        {event.verified && (
-                          <Badge className="absolute top-3 left-3 bg-green-600 text-white text-xs">✓ Verificato</Badge>
-                        )}
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
+                        <Badge className="absolute top-3 left-3 bg-black/50 text-white">{event.category}</Badge>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-3 right-3 bg-black/50 text-white rounded-full h-8 w-8 hover:bg-red-500"
+                        >
+                          <Heart className="h-4 w-4" />
+                        </Button>
                         <div className="absolute bottom-3 left-3 right-3">
-                          <div className="flex items-center justify-between">
-                            <Badge className="bg-blue-600/90 text-white text-xs">
-                              {event.availableSpots}/{event.totalSpots} posti
-                            </Badge>
-                            <div className="flex items-center gap-1 bg-black/30 backdrop-blur-sm rounded px-2 py-1">
-                              <Star className="h-3 w-3 text-yellow-400 fill-yellow-400" />
-                              <span className="text-white text-xs font-medium">{event.rating.toFixed(1)}</span>
-                            </div>
-                          </div>
+                          <h3 className="text-lg font-bold text-white truncate">{event.title}</h3>
                         </div>
                       </div>
-
                       <CardContent className="p-4">
-                        <h3 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
-                          {event.title}
-                        </h3>
-
-                        <div className="flex items-center gap-1 mb-2">
-                          <MapPin className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                          <p className="text-xs text-muted-foreground truncate">{event.location}</p>
-                        </div>
-
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">{formatDate(event.dateStart)}</span>
+                        <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-blue-400" />
+                            <span>{event.location.split(",")[0]}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Users className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-xs text-muted-foreground">{event.totalSpots} persone</span>
+                          <div className="flex items-center gap-2">
+                            <Users className="h-4 w-4 text-purple-400" />
+                            <span>
+                              {event.availableSpots}/{event.totalSpots}
+                            </span>
                           </div>
                         </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="text-lg font-bold text-blue-600">
-                            €{event.price}
-                            <span className="text-xs font-normal text-muted-foreground ml-1">/ persona</span>
-                          </div>
-                          {event.host && (
-                            <div className="flex items-center gap-1">
-                              <OptimizedAvatar
-                                src={event.host.image}
-                                alt={event.host.name}
-                                size={20}
-                                className="h-5 w-5"
-                              />
-                              <span className="text-xs text-muted-foreground truncate max-w-[80px]">
-                                {event.host.name}
-                              </span>
-                              {event.host.verified && <span className="text-green-500 text-xs">✓</span>}
-                            </div>
-                          )}
+                        <div className="text-right">
+                          <span className="text-xl font-bold text-green-400">
+                            {event.price > 0 ? `€${event.price}` : "Gratis"}
+                          </span>
                         </div>
                       </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </div>
+                    </Link>
+                  </Card>
+                </motion.div>
+              ))}
+            </motion.div>
           )}
         </div>
+        {filteredEvents.length === 0 && !loading && (
+          <div className="text-center py-16">
+            <p className="text-gray-400">Nessun evento trovato. Prova a modificare la ricerca.</p>
+          </div>
+        )}
       </div>
 
       {/* Mobile Navigation */}
