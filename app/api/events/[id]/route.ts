@@ -1,21 +1,38 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import connectDB from "@/lib/mongodb"
-import Event from "@/models/Event"
-import User from "@/models/User"
+import { connectToDatabase } from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 
-export async function GET(_: NextRequest, { params }: { params: { id: string } }) {
-  await connectDB()
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params
+
+  if (!id || !ObjectId.isValid(id)) {
+    return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
+  }
+
   try {
-    const event = await Event.findById(params.id).lean()
+    const { db } = await connectToDatabase()
+
+    const event = await db.collection("events").findOne({ _id: new ObjectId(id) })
+
     if (!event) {
-      return NextResponse.json({ error: "Not Found" }, { status: 404 })
+      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
-    return NextResponse.json(event)
-  } catch (e) {
-    return NextResponse.json({ error: "Bad Request" }, { status: 400 })
+
+    let host = null
+    if (event.hostId && ObjectId.isValid(event.hostId)) {
+      host = await db
+        .collection("users")
+        .findOne({ _id: new ObjectId(event.hostId) }, { projection: { name: 1, image: 1, email: 1, _id: 1 } })
+    }
+
+    const fullEvent = { ...event, host }
+
+    return NextResponse.json(fullEvent)
+  } catch (error: any) {
+    console.error(`Errore nel recupero dell'evento ${id}:`, error)
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
 
@@ -34,10 +51,10 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     const body = await request.json()
-    await connectDB()
+    const { db } = await connectToDatabase()
 
     // Find user
-    const user = await User.findOne({
+    const user = await db.collection("users").findOne({
       email: session.user.email.toLowerCase(),
     })
 
@@ -46,13 +63,13 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     }
 
     // Check if event exists and user is the owner
-    const event = await Event.findById(id)
+    const event = await db.collection("events").findOne({ _id: new ObjectId(id) })
 
     if (!event) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
-    if (event.host?._id?.toString() !== user._id.toString()) {
+    if (event.hostId?.toString() !== user._id.toString()) {
       return NextResponse.json({ error: "Non autorizzato a modificare questo evento" }, { status: 403 })
     }
 
@@ -74,9 +91,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       updatedAt: new Date(),
     }
 
-    const result = await Event.findByIdAndUpdate(id, updateData, { new: true })
+    const result = await db.collection("events").updateOne({ _id: new ObjectId(id) }, { $set: updateData })
 
-    if (!result) {
+    if (result.matchedCount === 0) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
@@ -107,10 +124,10 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
     }
 
-    await connectDB()
+    const { db } = await connectToDatabase()
 
     // Find user
-    const user = await User.findOne({
+    const user = await db.collection("users").findOne({
       email: session.user.email.toLowerCase(),
     })
 
@@ -119,20 +136,20 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     }
 
     // Check if event exists and user is the owner
-    const event = await Event.findById(id)
+    const event = await db.collection("events").findOne({ _id: new ObjectId(id) })
 
     if (!event) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
-    if (event.host?._id?.toString() !== user._id.toString()) {
+    if (event.hostId?.toString() !== user._id.toString()) {
       return NextResponse.json({ error: "Non autorizzato a eliminare questo evento" }, { status: 403 })
     }
 
     // Delete event
-    const result = await Event.findByIdAndDelete(id)
+    const result = await db.collection("events").deleteOne({ _id: new ObjectId(id) })
 
-    if (!result) {
+    if (result.deletedCount === 0) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
