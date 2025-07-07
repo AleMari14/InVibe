@@ -15,7 +15,6 @@ import {
   Loader2,
   AlertTriangle,
   CheckCircle,
-  MessageSquare,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +22,8 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"
 import { getEventImageUrl, getProfileImageUrl } from "@/lib/image-utils"
+import Link from "next/link"
+import { MessageHostButton } from "@/components/event/message-host-button"
 
 interface Event {
   _id: string
@@ -44,6 +45,7 @@ interface Event {
     name: string
     image?: string
     verified: boolean
+    email: string
   }
   participants: any[]
   verified: boolean
@@ -165,7 +167,7 @@ export default function EventDetailPage() {
   })
 
   return (
-    <div className="bg-gray-900 min-h-screen text-white">
+    <div className="bg-gray-900 min-h-screen text-white pb-28">
       <div className="relative h-64 sm:h-80 md:h-96 w-full">
         <Image
           src={getEventImageUrl(event.images?.[0], event.category, 1200, 400) || "/placeholder.svg"}
@@ -231,13 +233,14 @@ export default function EventDetailPage() {
                     </p>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
+                <MessageHostButton
+                  hostId={event.host._id}
+                  hostName={event.host.name}
+                  hostEmail={event.host.email}
+                  eventId={event._id}
+                  eventTitle={event.title}
                   className="border-blue-400 text-blue-400 hover:bg-blue-400/10 hover:text-blue-300 bg-transparent"
-                >
-                  <MessageSquare className="h-4 w-4 mr-2" />
-                  Contatta
-                </Button>
+                />
               </CardContent>
             </Card>
 
@@ -299,12 +302,15 @@ export default function EventDetailPage() {
                   <span className="text-4xl font-bold text-green-400">€{event.price}</span>
                   <span className="text-gray-400">/ persona</span>
                 </div>
-                <Button
-                  size="lg"
-                  className="w-full h-14 text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity"
-                >
-                  Prenota il tuo posto
-                </Button>
+                <Link href={`/prenota/${event._id}`} className="w-full">
+                  <Button
+                    size="lg"
+                    className="w-full h-14 text-lg font-bold bg-gradient-to-r from-blue-500 to-purple-600 hover:opacity-90 transition-opacity"
+                    disabled={event.availableSpots === 0}
+                  >
+                    {event.availableSpots > 0 ? "Prenota il tuo posto" : "Posti esauriti"}
+                  </Button>
+                </Link>
                 <p className="text-center text-xs text-gray-500 mt-4">Pagamento sicuro e protetto</p>
               </CardContent>
             </Card>

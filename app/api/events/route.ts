@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const { db } = await connectToDatabase()
 
     const query: any = {
-      dateStart: { $gte: new Date().toISOString() },
+      dateStart: { $gte: new Date() },
     }
 
     if (category && category !== "all") {
@@ -47,6 +47,7 @@ export async function GET(request: NextRequest) {
 
     if (lat && lng && radius) {
       query.locationCoords = {
+        $exists: true,
         $near: {
           $geometry: {
             type: "Point",
