@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
       dateStart: { $gte: new Date().toISOString() },
     }
 
+    // Applica il filtro per escludere gli eventi dell'utente SOLO se è loggato
     if (session?.user?.id) {
       try {
         query.hostId = { $ne: new ObjectId(session.user.id) }
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
             $maxDistance: radiusInMeters,
           },
         }
-        // MongoDB automatically sorts by distance when using $nearSphere, so we clear our sort
+        // MongoDB sorts by distance automatically when using $nearSphere
         sort = {}
       }
     }

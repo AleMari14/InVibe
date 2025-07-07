@@ -19,10 +19,10 @@ export async function GET(request: NextRequest, { params }: { params: { roomId: 
     const { db } = await connectToDatabase()
 
     // --- CONTROLLO PERMESSI CORRETTO ---
-    // Verifica che l'utente faccia parte della chat usando il suo ID.
+    // Verifica che l'utente faccia parte della chat usando il suo ID stringa.
     const chatRoom = await db.collection("chatRooms").findOne({
       _id: new ObjectId(roomId),
-      "participants.id": session.user.id,
+      "participants.id": session.user.id, // Cerca la stringa dell'ID nell'array
     })
 
     if (!chatRoom) {
@@ -36,7 +36,15 @@ export async function GET(request: NextRequest, { params }: { params: { roomId: 
       .sort({ createdAt: 1 })
       .toArray()
 
-    return NextResponse.json({ messages })
+    // Converte ObjectId in stringhe per il client
+    const formattedMessages = messages.map((msg) => ({
+      ...msg,
+      _id: msg._id.toString(),
+      roomId: msg.roomId.toString(),
+      senderId: msg.senderId.toString(),
+    }))
+
+    return NextResponse.json({ messages: formattedMessages })
   } catch (error: any) {
     console.error("Error fetching messages:", error)
     return NextResponse.json({ error: "Errore nel recupero dei messaggi", details: error.message }, { status: 500 })
