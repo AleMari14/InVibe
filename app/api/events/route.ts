@@ -1,31 +1,32 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { connectToDatabase } from "@/lib/mongodb"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 
 export async function GET(request: NextRequest) {
   try {
+    const { db } = await connectToDatabase()
     const { searchParams } = new URL(request.url)
+    const session = await getServerSession(authOptions)
+
     const category = searchParams.get("category")
     const searchQuery = searchParams.get("search")
     const lat = searchParams.get("lat")
     const lng = searchParams.get("lng")
     const radius = searchParams.get("radius") // in km
-    const page = Number.parseInt(searchParams.get("page") || "1", 10)
-    const limit = Number.parseInt(searchParams.get("limit") || "20", 10)
-    const skip = (page - 1) * limit
-
-    const session = await getServerSession(authOptions)
-    const userId = session?.user?.id
-
-    const { db } = await connectToDatabase()
 
     const query: any = {
       dateStart: { $gte: new Date().toISOString() },
+      verified: true, // Mostra solo eventi verificati
     }
 
-    if (category && category !== "all") {
+    // Escludi gli eventi dell'utente loggato
+    if (session?.user?.id) {
+      query.hostId = { $ne: new ObjectId(session.user.id) }
+    }
+
+    if (category) {
       query.category = category
     }
 
@@ -37,47 +38,29 @@ export async function GET(request: NextRequest) {
       ]
     }
 
-    if (userId) {
-      try {
-        query.hostId = { $ne: new ObjectId(userId) }
-      } catch (e) {
-        console.warn("Invalid ObjectId for userId, skipping user event filter:", userId)
-      }
-    }
-
     if (lat && lng && radius) {
-      query.locationCoords = {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: [Number.parseFloat(lng), Number.parseFloat(lat)],
+      const latitude = Number.parseFloat(lat)
+      const longitude = Number.parseFloat(lng)
+      const radiusInMeters = Number.parseInt(radius, 10) * 1000 // Convert km to meters
+
+      if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && !Number.isNaN(radiusInMeters)) {
+        query.locationCoords = {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [longitude, latitude],
+            },
+            $maxDistance: radiusInMeters,
           },
-          $maxDistance: Number.parseFloat(radius) * 1000, // Convert km to meters
-        },
+        }
       }
     }
 
-    const events = await db
-      .collection("events")
-      .find(query)
-      .sort(lat && lng ? {} : { dateStart: 1 }) // Sort by distance if location is provided, otherwise by date
-      .skip(skip)
-      .limit(limit)
-      .toArray()
+    const events = await db.collection("events").find(query).limit(20).sort({ dateStart: 1 }).toArray()
 
-    const totalEvents = await db.collection("events").countDocuments(query)
-
-    return NextResponse.json({
-      events,
-      pagination: {
-        page,
-        limit,
-        total: totalEvents,
-        pages: Math.ceil(totalEvents / limit),
-      },
-    })
+    return NextResponse.json({ events })
   } catch (error: any) {
-    console.error("💥 Error fetching events:", error)
+    console.error("Error fetching events:", error)
     return NextResponse.json(
       {
         error: "Errore nel caricamento degli eventi",
@@ -91,62 +74,43 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const body = await request.json()
     const { db } = await connectToDatabase()
+    const body = await request.json()
 
-    const user = await db.collection("users").findOne({
-      _id: new ObjectId(session.user.id),
-    })
+    const { title, description, category, location, locationCoords, dateStart, price, totalSpots, images } = body
 
-    if (!user) {
-      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    // Basic validation
+    if (!title || !description || !location || !dateStart) {
+      return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
     }
 
-    const eventData = {
-      ...body,
-      price: Number(body.price) || 0,
-      totalSpots: Number(body.totalSpots) || 10,
-      availableSpots: Number(body.totalSpots) || 10,
-      dateStart: new Date(body.dateStart),
-      dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
-      hostId: user._id,
-      host: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        image: user.image,
-        verified: user.verified || false,
-      },
+    const newEvent = {
+      title,
+      description,
+      category,
+      location,
+      locationCoords, // GeoJSON point
+      dateStart: new Date(dateStart),
+      price: Number(price) || 0,
+      totalSpots: Number(totalSpots) || 1,
+      availableSpots: Number(totalSpots) || 1,
+      images: images || [],
+      hostId: new ObjectId(session.user.id),
       participants: [],
-      views: 0,
-      rating: 0,
-      reviewCount: 0,
+      verified: true, // O false se vuoi un processo di approvazione
       createdAt: new Date(),
       updatedAt: new Date(),
     }
 
-    const result = await db.collection("events").insertOne(eventData)
+    const result = await db.collection("events").insertOne(newEvent)
 
-    return NextResponse.json(
-      {
-        message: "Evento creato con successo",
-        eventId: result.insertedId.toString(),
-      },
-      { status: 201 },
-    )
+    return NextResponse.json({ message: "Evento creato", eventId: result.insertedId }, { status: 201 })
   } catch (error: any) {
-    console.error("💥 Error creating event:", error)
-    return NextResponse.json(
-      {
-        error: "Errore nella creazione dell'evento",
-        details: error.message,
-      },
-      { status: 500 },
-    )
+    console.error("Error creating event:", error)
+    return NextResponse.json({ error: "Errore nella creazione dell'evento", details: error.message }, { status: 500 })
   }
 }

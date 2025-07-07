@@ -180,14 +180,11 @@ export default function EventDetailPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-t from-gray-900 via-gray-900/60 to-transparent" />
         <div className="absolute top-4 left-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => router.back()}
-            className="bg-black/30 backdrop-blur-sm rounded-full"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
+          <Link href="/">
+            <Button variant="ghost" size="icon" className="bg-black/30 backdrop-blur-sm rounded-full">
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          </Link>
         </div>
         <div className="absolute top-4 right-4 flex gap-2">
           <Button

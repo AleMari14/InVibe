@@ -380,11 +380,11 @@ export default function CreateEventPage() {
             </CardContent>
           </Card>
 
-          <div className="flex justify-end pt-4">
+          <div className="pt-6">
             <Button
               type="submit"
               size="lg"
-              className="bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-base px-8 py-6"
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-lg h-14"
               disabled={isSubmitting}
             >
               {isSubmitting ? (

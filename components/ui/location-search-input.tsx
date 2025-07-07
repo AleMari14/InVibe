@@ -31,10 +31,12 @@ export function LocationSearchInput({ onLocationSelect }: LocationSearchInputPro
     }
     setIsLoading(true)
     try {
+      // Bounding box for Italy
+      const viewbox = "6.62,47.09,18.51,36.65"
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           searchQuery,
-        )}&format=json&addressdetails=1&limit=5&countrycodes=it`,
+        )}&format=json&addressdetails=1&limit=5&countrycodes=it&viewbox=${viewbox}&bounded=1`,
       )
       if (!response.ok) {
         throw new Error("Network response was not ok")
