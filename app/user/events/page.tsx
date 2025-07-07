@@ -5,22 +5,7 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
-import { format } from "date-fns"
-import { it } from "date-fns/locale"
-import {
-  Calendar,
-  Clock,
-  MapPin,
-  Users,
-  Star,
-  Eye,
-  Edit,
-  Trash2,
-  Plus,
-  Loader2,
-  AlertCircle,
-  TrendingUp,
-} from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Star, Eye, Edit, Trash2, Plus, Loader2, AlertCircle, TrendingUp } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -80,6 +65,43 @@ const categoryIcons: Record<string, string> = {
   esperienza: "🌟",
 }
 
+// Safe date formatting functions
+const formatSafeDate = (dateString: string): string => {
+  if (!dateString) return "Data non disponibile"
+  
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return "Data non valida"
+    
+    return date.toLocaleDateString("it-IT", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })
+  } catch (error) {
+    console.error("Error formatting date:", error)
+    return "Data non disponibile"
+  }
+}
+
+const formatSafeTime = (dateString: string): string => {
+  if (!dateString) return "00:00"
+  
+  try {
+    const date = new Date(dateString)
+    if (isNaN(date.getTime())) return "00:00"
+    
+    return date.toLocaleTimeString("it-IT", {
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  } catch (error) {
+    console.error("Error formatting time:", error)
+    return "00:00"
+  }
+}
+
 export default function UserEventsPage() {
   const { data: session, status } = useSession()
   const router = useRouter()
@@ -109,11 +131,20 @@ export default function UserEventsPage() {
       }
 
       const data = await response.json()
-      console.log("📊 User events received:", data.length)
-      setEvents(data)
+      console.log("📊 User events received:", data)
+      
+      // Ensure data is an array
+      if (Array.isArray(data)) {
+        setEvents(data)
+        console.log("✅ Events set:", data.length)
+      } else {
+        console.error("❌ Data is not an array:", typeof data)
+        setEvents([])
+      }
     } catch (error) {
       console.error("Error fetching user events:", error)
       toast.error("Errore nel caricamento degli eventi")
+      setEvents([])
     } finally {
       setIsLoading(false)
     }
@@ -140,23 +171,11 @@ export default function UserEventsPage() {
     }
   }
 
-  const safeFormatDate = (dateString: string): string => {
-    try {
-      if (!dateString) return "Data non disponibile"
-      const date = new Date(dateString)
-      if (isNaN(date.getTime())) return "Data non valida"
-      return format(date, "EEEE d MMMM yyyy", { locale: it })
-    } catch (error) {
-      console.error("Error formatting date:", error)
-      return "Data non disponibile"
-    }
-  }
-
   if (status === "loading" || isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-purple-600" />
           <p className="text-muted-foreground">Caricamento eventi...</p>
         </div>
       </div>
@@ -201,7 +220,7 @@ export default function UserEventsPage() {
           <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-green-600">
-                {events.reduce((sum, event) => sum + event.currentParticipants, 0)}
+                {Array.isArray(events) ? events.reduce((sum, event) => sum + (event.currentParticipants || 0), 0) : 0}
               </div>
               <div className="text-sm text-muted-foreground">Partecipanti</div>
             </CardContent>
@@ -209,7 +228,7 @@ export default function UserEventsPage() {
           <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-purple-600">
-                {events.reduce((sum, event) => sum + event.views, 0)}
+                {Array.isArray(events) ? events.reduce((sum, event) => sum + (event.views || 0), 0) : 0}
               </div>
               <div className="text-sm text-muted-foreground">Visualizzazioni</div>
             </CardContent>
@@ -217,8 +236,8 @@ export default function UserEventsPage() {
           <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-orange-600">
-                {events.length > 0
-                  ? (events.reduce((sum, event) => sum + event.rating, 0) / events.length).toFixed(1)
+                {Array.isArray(events) && events.length > 0
+                  ? (events.reduce((sum, event) => sum + (event.rating || 0), 0) / events.length).toFixed(1)
                   : "0.0"}
               </div>
               <div className="text-sm text-muted-foreground">Rating Medio</div>
@@ -227,7 +246,7 @@ export default function UserEventsPage() {
         </div>
 
         {/* Events List */}
-        {events.length === 0 ? (
+        {!Array.isArray(events) || events.length === 0 ? (
           <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
             <CardContent className="p-12 text-center">
               <AlertCircle className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
@@ -289,11 +308,11 @@ export default function UserEventsPage() {
                   <div className="space-y-2 mb-4">
                     <div className="flex items-center gap-2 text-sm">
                       <Calendar className="h-4 w-4 text-blue-500" />
-                      <span>{safeFormatDate(event.dateStart)}</span>
+                      <span>{formatSafeDate(event.dateStart)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <Clock className="h-4 w-4 text-green-500" />
-                      <span>{event.time}</span>
+                      <span>{formatSafeTime(event.dateStart)}</span>
                     </div>
                     <div className="flex items-center gap-2 text-sm">
                       <MapPin className="h-4 w-4 text-red-500" />
@@ -305,7 +324,7 @@ export default function UserEventsPage() {
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-purple-500" />
                       <span className="text-sm font-medium">
-                        {event.currentParticipants}/{event.maxParticipants}
+                        {event.currentParticipants || 0}/{event.maxParticipants || event.totalSpots}
                       </span>
                     </div>
                     <div className="text-lg font-bold text-green-600">
@@ -313,20 +332,23 @@ export default function UserEventsPage() {
                     </div>
                   </div>
 
-                  <Progress value={(event.currentParticipants / event.maxParticipants) * 100} className="h-2 mb-4" />
+                  <Progress 
+                    value={((event.currentParticipants || 0) / (event.maxParticipants || event.totalSpots || 1)) * 100} 
+                    className="h-2 mb-4" 
+                  />
 
                   <div className="grid grid-cols-3 gap-2 mb-4 text-center">
                     <div className="p-2 rounded-lg bg-blue-50">
                       <Eye className="h-4 w-4 mx-auto mb-1 text-blue-600" />
-                      <div className="text-xs font-medium text-blue-600">{event.views}</div>
+                      <div className="text-xs font-medium text-blue-600">{event.views || 0}</div>
                     </div>
                     <div className="p-2 rounded-lg bg-yellow-50">
                       <Star className="h-4 w-4 mx-auto mb-1 text-yellow-600" />
-                      <div className="text-xs font-medium text-yellow-600">{event.rating.toFixed(1)}</div>
+                      <div className="text-xs font-medium text-yellow-600">{(event.rating || 0).toFixed(1)}</div>
                     </div>
                     <div className="p-2 rounded-lg bg-purple-50">
                       <TrendingUp className="h-4 w-4 mx-auto mb-1 text-purple-600" />
-                      <div className="text-xs font-medium text-purple-600">{event.reviewCount}</div>
+                      <div className="text-xs font-medium text-purple-600">{event.reviewCount || 0}</div>
                     </div>
                   </div>
 

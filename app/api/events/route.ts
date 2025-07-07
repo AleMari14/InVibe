@@ -7,59 +7,47 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const category = searchParams.get("category")
-    const search = searchParams.get("search")
     const location = searchParams.get("location")
-    const minPrice = searchParams.get("minPrice")
-    const maxPrice = searchParams.get("maxPrice")
-    const dateFrom = searchParams.get("dateFrom")
-    const dateTo = searchParams.get("dateTo")
-    const limit = Number.parseInt(searchParams.get("limit") || "20")
-    const page = Number.parseInt(searchParams.get("page") || "1")
+    const priceMin = searchParams.get("priceMin")
+    const priceMax = searchParams.get("priceMax")
+    const search = searchParams.get("search")
 
     const { db } = await connectToDatabase()
 
-    // Build filter query
-    const filter: any = {}
-
-    if (category && category !== "all") {
-      filter.category = category
+    // Build query
+    const query: any = {
+      dateStart: { $gte: new Date() }, // Only future events
     }
 
-    if (search) {
-      filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { tags: { $in: [new RegExp(search, "i")] } },
-      ]
+    if (category && category !== "all") {
+      query.category = category
     }
 
     if (location) {
-      filter.$or = [
-        { "location.address": { $regex: location, $options: "i" } },
-        { "location.city": { $regex: location, $options: "i" } },
-        { location: { $regex: location, $options: "i" } },
+      query.location = { $regex: location, $options: "i" }
+    }
+
+    if (priceMin || priceMax) {
+      query.price = {}
+      if (priceMin) query.price.$gte = Number(priceMin)
+      if (priceMax) query.price.$lte = Number(priceMax)
+    }
+
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { location: { $regex: search, $options: "i" } },
       ]
     }
 
-    if (minPrice || maxPrice) {
-      filter.price = {}
-      if (minPrice) filter.price.$gte = Number.parseFloat(minPrice)
-      if (maxPrice) filter.price.$lte = Number.parseFloat(maxPrice)
-    }
+    console.log("🔍 Events query:", JSON.stringify(query, null, 2))
 
-    if (dateFrom || dateTo) {
-      filter.dateStart = {}
-      if (dateFrom) filter.dateStart.$gte = new Date(dateFrom)
-      if (dateTo) filter.dateStart.$lte = new Date(dateTo)
-    }
+    const events = await db.collection("events").find(query).sort({ createdAt: -1 }).toArray()
 
-    // Get events with pagination
-    const skip = (page - 1) * limit
-    const events = await db.collection("events").find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray()
+    console.log(`📊 Found ${events.length} events`)
 
-    const total = await db.collection("events").countDocuments(filter)
-
-    // Safe date handling
+    // Safe date handling function
     const safeDate = (dateValue: any): string => {
       if (!dateValue) return new Date().toISOString()
 
@@ -76,41 +64,55 @@ export async function GET(request: NextRequest) {
         }
         return new Date().toISOString()
       } catch (error) {
+        console.warn("Date parsing error:", error)
         return new Date().toISOString()
       }
     }
 
-    // Transform events for frontend
-    const transformedEvents = events.map((event) => ({
-      _id: event._id.toString(),
-      title: event.title || "Evento senza titolo",
-      description: event.description || "",
-      category: event.category || "evento",
-      location: event.location || "Posizione non specificata",
-      price: Number(event.price) || 0,
-      rating: Number(event.rating) || 0,
-      reviewCount: Number(event.reviewCount) || 0,
-      images: Array.isArray(event.images) ? event.images : [],
-      dateStart: safeDate(event.dateStart),
-      dateEnd: event.dateEnd ? safeDate(event.dateEnd) : null,
-      totalSpots: Number(event.totalSpots) || 10,
-      availableSpots: Number(event.availableSpots) || Number(event.totalSpots) || 10,
-      amenities: Array.isArray(event.amenities) ? event.amenities : [],
-      verified: Boolean(event.verified),
-      views: Number(event.views) || 0,
-      createdAt: safeDate(event.createdAt),
-      updatedAt: safeDate(event.updatedAt),
-    }))
+    // Transform events for frontend - RETURN ARRAY DIRECTLY
+    const transformedEvents = events.map((event) => {
+      const dateStart = safeDate(event.dateStart)
 
-    return NextResponse.json({
-      events: transformedEvents,
-      pagination: {
-        page,
-        limit,
-        total,
-        pages: Math.ceil(total / limit),
-      },
+      return {
+        _id: event._id.toString(),
+        title: event.title || "Evento senza titolo",
+        description: event.description || "",
+        location: typeof event.location === "string" ? event.location : event.location?.address || event.location || "",
+        price: Number(event.price) || 0,
+        rating: Number(event.rating) || 0,
+        reviewCount: Number(event.reviewCount) || 0,
+        images: Array.isArray(event.images) ? event.images : [],
+        category: event.category || "evento",
+        dateStart: dateStart,
+        dateEnd: event.dateEnd ? safeDate(event.dateEnd) : null,
+        date: dateStart.split("T")[0], // Extract date part for compatibility
+        time: (() => {
+          try {
+            const date = new Date(dateStart)
+            return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+          } catch {
+            return "00:00"
+          }
+        })(),
+        totalSpots: Number(event.totalSpots) || 10,
+        availableSpots: Number(event.availableSpots) || Number(event.totalSpots) || 10,
+        maxParticipants: Number(event.totalSpots) || Number(event.maxParticipants) || 10,
+        currentParticipants: Number(event.totalSpots) - Number(event.availableSpots) || 0,
+        amenities: Array.isArray(event.amenities) ? event.amenities : [],
+        bookingLink: event.bookingLink || "",
+        verified: Boolean(event.verified),
+        views: Number(event.views) || 0,
+        hostId: event.hostId?.toString(),
+        participants: Array.isArray(event.participants) ? event.participants.map((p: any) => p.toString()) : [],
+        coordinates: event.coordinates || { lat: 0, lng: 0 },
+        createdAt: safeDate(event.createdAt),
+        updatedAt: safeDate(event.updatedAt),
+        host: event.host || null,
+      }
     })
+
+    // RETURN ARRAY DIRECTLY, NOT OBJECT
+    return NextResponse.json(transformedEvents)
   } catch (error: any) {
     console.error("💥 Error fetching events:", error)
     return NextResponse.json(
@@ -132,6 +134,8 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
+    console.log("📝 Creating event with data:", body)
+
     const { db } = await connectToDatabase()
 
     // Find user
@@ -143,26 +147,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    console.log("🎉 Creating event for user:", user._id.toString())
+    console.log("👤 Creating event for user:", user._id.toString())
 
-    // Create event data
+    // Validate required fields
+    if (!body.title || !body.description || !body.location || !body.dateStart) {
+      return NextResponse.json({ error: "Campi obbligatori mancanti" }, { status: 400 })
+    }
+
+    // Create event object
     const eventData = {
-      title: body.title || "Nuovo Evento",
-      description: body.description || "",
+      title: body.title,
+      description: body.description,
       category: body.category || "evento",
-      location: body.location || "",
+      location: body.location,
       coordinates: body.coordinates || { lat: 0, lng: 0 },
       price: Number(body.price) || 0,
-      dateStart: body.dateStart ? new Date(body.dateStart) : new Date(),
+      dateStart: new Date(body.dateStart),
       dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
       totalSpots: Number(body.totalSpots) || 10,
-      availableSpots: Number(body.availableSpots) || Number(body.totalSpots) || 10,
-      images: Array.isArray(body.images) ? body.images : [],
+      availableSpots: Number(body.totalSpots) || 10,
       amenities: Array.isArray(body.amenities) ? body.amenities : [],
-      tags: Array.isArray(body.tags) ? body.tags : [],
-      requirements: Array.isArray(body.requirements) ? body.requirements : [],
+      images: Array.isArray(body.images) ? body.images : [],
       bookingLink: body.bookingLink || "",
-      cancellationPolicy: body.cancellationPolicy || "",
+      verified: false,
       hostId: user._id, // This is crucial for linking the event to the user
       createdBy: user._id, // Additional field for backup
       host: {
@@ -170,33 +177,24 @@ export async function POST(request: NextRequest) {
         email: user.email,
         name: user.name || "Organizzatore",
         image: user.image || null,
+        verified: user.verified || false,
       },
-      verified: false,
+      participants: [],
       views: 0,
-      likes: 0,
       rating: 0,
       reviewCount: 0,
-      participants: [],
       createdAt: new Date(),
       updatedAt: new Date(),
     }
 
-    console.log("📝 Event data to insert:", {
-      title: eventData.title,
-      hostId: eventData.hostId.toString(),
-      createdBy: eventData.createdBy.toString(),
-    })
+    console.log("💾 Saving event with hostId:", user._id.toString())
 
     const result = await db.collection("events").insertOne(eventData)
-
-    if (!result.insertedId) {
-      throw new Error("Errore nella creazione dell'evento")
-    }
 
     console.log("✅ Event created with ID:", result.insertedId.toString())
 
     return NextResponse.json({
-      message: "Evento creato con successo",
+      message: "Evento creato con successo!",
       eventId: result.insertedId.toString(),
     })
   } catch (error: any) {
