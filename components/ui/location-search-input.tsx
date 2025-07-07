@@ -34,7 +34,7 @@ export function LocationSearchInput({ onLocationSelect }: LocationSearchInputPro
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
           searchQuery,
-        )}&format=json&addressdetails=1&limit=5`,
+        )}&format=json&addressdetails=1&limit=5&countrycodes=it`,
       )
       if (!response.ok) {
         throw new Error("Network response was not ok")

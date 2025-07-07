@@ -171,7 +171,7 @@ export default function CreateEventPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4 sm:p-6 lg:p-8">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto pb-24">
         <div className="flex items-center mb-6">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="mr-4">
             <ArrowLeft className="h-5 w-5" />

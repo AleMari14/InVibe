@@ -1,5 +1,7 @@
 "use client"
 
+import { Label } from "@/components/ui/label"
+
 import type React from "react"
 
 import { useState, useEffect, useCallback } from "react"
@@ -19,6 +21,7 @@ import {
   Zap,
   Loader2,
   Compass,
+  X,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -26,6 +29,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import Link from "next/link"
 import Image from "next/image"
@@ -91,34 +95,27 @@ export default function HomePage() {
         params.append("radius", searchRadius.toString())
       }
 
-      console.log("🔍 Fetching events with params:", params.toString())
-
       const response = await fetch(`/api/events?${params}`)
-      console.log("📋 Events API response status:", response.status)
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const responseData = await response.json()
-      const data = responseData.events // Extract events array from the response object
-      console.log("📊 Events data received:", data?.length || 0, "events")
+      const data = responseData.events
 
       if (Array.isArray(data)) {
         setEvents(data)
-        // Featured events: closest and soonest
         const featured = [...data]
           .sort((a, b) => new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime())
           .slice(0, 5)
         setFeaturedEvents(featured)
       } else {
-        console.error("❌ Data is not an array:", typeof data)
         setEvents([])
         setFeaturedEvents([])
         setError("Formato dati non valido ricevuto dal server")
       }
     } catch (error: any) {
-      console.error("💥 Error fetching events:", error)
       setError("Errore nel caricamento degli eventi. Riprova.")
       setEvents([])
       setFeaturedEvents([])
@@ -146,7 +143,7 @@ export default function HomePage() {
             lat: position.coords.latitude,
             lng: position.coords.longitude,
           })
-          toast.success("Posizione trovata!")
+          toast.success("Posizione trovata! Verranno mostrati gli eventi vicino a te.")
         },
         () => {
           toast.error("Impossibile accedere alla posizione. Controlla i permessi del browser.")
@@ -157,18 +154,19 @@ export default function HomePage() {
     }
   }
 
+  const clearLocationFilter = () => {
+    setUserLocation(null)
+    toast.info("Filtro di posizione rimosso.")
+  }
+
   const fetchFavorites = async () => {
     if (!session?.user?.email) return
-
     try {
-      console.log("💖 Fetching favorites...")
       const response = await fetch("/api/favorites")
-
       if (response.ok) {
         const data = await response.json()
         if (Array.isArray(data)) {
           setFavorites(data.map((event: Event) => event._id))
-          console.log("✅ Favorites loaded:", data.length)
         }
       }
     } catch (error) {
@@ -184,6 +182,16 @@ export default function HomePage() {
       return
     }
 
+    const isCurrentlyFavorite = favorites.includes(eventId)
+    // Optimistic update
+    if (isCurrentlyFavorite) {
+      setFavorites((prev) => prev.filter((id) => id !== eventId))
+      toast.success("Rimosso dai preferiti")
+    } else {
+      setFavorites((prev) => [...prev, eventId])
+      toast.success("Aggiunto ai preferiti")
+    }
+
     try {
       const response = await fetch("/api/favorites", {
         method: "POST",
@@ -191,15 +199,14 @@ export default function HomePage() {
         body: JSON.stringify({ eventId }),
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.isFavorited) {
+      if (!response.ok) {
+        // Revert optimistic update on failure
+        if (isCurrentlyFavorite) {
           setFavorites((prev) => [...prev, eventId])
-          toast.success("Aggiunto ai preferiti")
         } else {
           setFavorites((prev) => prev.filter((id) => id !== eventId))
-          toast.success("Rimosso dai preferiti")
         }
+        toast.error("Errore nell'aggiornamento dei preferiti")
       }
     } catch (error) {
       console.error("💥 Error toggling favorite:", error)
@@ -398,30 +405,63 @@ export default function HomePage() {
       <div className="px-4 py-4 pb-20">
         {/* Location Search */}
         <Card className="mb-6 bg-gray-800/50 border-gray-700">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row items-center gap-4">
-              <Button onClick={getUserLocation} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
-                <Compass className="mr-2 h-4 w-4" />
-                Trova eventi vicino a me
-              </Button>
-              {userLocation && (
-                <div className="w-full sm:flex-1 flex items-center gap-4">
-                  <Slider
-                    defaultValue={[searchRadius]}
-                    max={200}
-                    step={10}
-                    onValueChange={(value) => setSearchRadius(value[0])}
-                    className="w-full"
-                  />
-                  <span className="text-sm text-gray-300 font-medium whitespace-nowrap">{searchRadius} km</span>
-                </div>
-              )}
-            </div>
-            {userLocation && (
-              <p className="text-xs text-gray-500 mt-2 text-center sm:text-left">
-                Ricerca attiva nel raggio di {searchRadius} km dalla tua posizione.
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex-1">
+              <h3 className="font-semibold text-gray-200">Eventi Vicino a Te</h3>
+              <p className="text-sm text-gray-400">
+                {userLocation ? `Ricerca attiva entro ${searchRadius} km` : "Attiva la ricerca per posizione"}
               </p>
-            )}
+            </div>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className={`rounded-full h-12 w-12 transition-colors ${
+                    userLocation ? "bg-blue-500/20 border-blue-500 text-blue-400" : "border-gray-600"
+                  }`}
+                >
+                  <Compass className="h-6 w-6" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80 bg-gray-800 border-gray-700 text-white">
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Ricerca per Posizione</h4>
+                    <p className="text-sm text-gray-400">
+                      Trova eventi nel raggio che preferisci dalla tua posizione attuale.
+                    </p>
+                  </div>
+                  <Button onClick={getUserLocation} className="w-full bg-blue-600 hover:bg-blue-700">
+                    <Compass className="mr-2 h-4 w-4" />
+                    Usa la mia posizione
+                  </Button>
+                  {userLocation && (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <Label htmlFor="radius" className="text-gray-300">
+                            Raggio di ricerca
+                          </Label>
+                          <span className="text-sm font-medium text-blue-400">{searchRadius} km</span>
+                        </div>
+                        <Slider
+                          id="radius"
+                          defaultValue={[searchRadius]}
+                          max={200}
+                          step={10}
+                          onValueChange={(value) => setSearchRadius(value[0])}
+                        />
+                      </div>
+                      <Button onClick={clearLocationFilter} variant="destructive" className="w-full">
+                        <X className="mr-2 h-4 w-4" />
+                        Rimuovi filtro posizione
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
           </CardContent>
         </Card>
 

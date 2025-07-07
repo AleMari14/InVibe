@@ -22,8 +22,7 @@ export async function GET(request: NextRequest) {
     const { db } = await connectToDatabase()
 
     const query: any = {
-      // Filtra solo gli eventi futuri
-      dateStart: { $gte: new Date() },
+      dateStart: { $gte: new Date().toISOString() },
     }
 
     if (category && category !== "all") {
@@ -47,21 +46,24 @@ export async function GET(request: NextRequest) {
     }
 
     if (lat && lng && radius) {
-      const locationQuery = {
-        location: {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: [Number.parseFloat(lng), Number.parseFloat(lat)],
-            },
-            $maxDistance: Number.parseFloat(radius) * 1000, // Convert km to meters
+      query.locationCoords = {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: [Number.parseFloat(lng), Number.parseFloat(lat)],
           },
+          $maxDistance: Number.parseFloat(radius) * 1000, // Convert km to meters
         },
       }
-      Object.assign(query, locationQuery)
     }
 
-    const events = await db.collection("events").find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray()
+    const events = await db
+      .collection("events")
+      .find(query)
+      .sort(lat && lng ? {} : { dateStart: 1 }) // Sort by distance if location is provided, otherwise by date
+      .skip(skip)
+      .limit(limit)
+      .toArray()
 
     const totalEvents = await db.collection("events").countDocuments(query)
 
