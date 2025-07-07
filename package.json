@@ -44,7 +44,6 @@
     "cloudinary": "latest",
     "clsx": "^2.1.1",
     "cmdk": "^0.2.0",
-    "crypto": "latest",
     "date-fns": "latest",
     "dotenv": "latest",
     "framer-motion": "latest",
