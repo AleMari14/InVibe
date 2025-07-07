@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
 
@@ -13,70 +13,59 @@ export async function GET(request: NextRequest) {
 
     const { db } = await connectToDatabase()
 
-    // Get user profile
+    // Find user
     const user = await db.collection("users").findOne({
-      email: session.user.email,
+      email: session.user.email.toLowerCase(),
     })
 
     if (!user) {
-      // Create a basic user profile if it doesn't exist
-      const newUser = {
-        name: session.user.name || "Utente",
-        email: session.user.email,
-        image: session.user.image || "",
-        bio: "",
-        phone: "",
-        location: "",
-        verified: false,
-        rating: 0,
-        reviewCount: 0,
-        joinDate: new Date().toISOString(),
-        favorites: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-
-      const result = await db.collection("users").insertOne(newUser)
-
-      const createdUser = {
-        ...newUser,
-        _id: result.insertedId.toString(),
-      }
-
-      return NextResponse.json({
-        user: createdUser,
-        stats: {
-          totalEvents: 0,
-          totalBookings: 0,
-          totalViews: 0,
-          totalParticipants: 0,
-          averageRating: 0,
-          completionRate: 0,
-          eventsOrganized: 0,
-          eventsParticipated: 0,
-          totalReviews: 0,
-        },
-      })
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    // Get user statistics
-    const userId = user._id.toString()
+    // Calculate user statistics
+    const [eventsCreated, eventsParticipated, totalBookings, totalReviews] = await Promise.all([
+      // Events created by user
+      db
+        .collection("events")
+        .countDocuments({
+          $or: [
+            { hostId: user._id },
+            { hostId: user._id.toString() },
+            { createdBy: user._id },
+            { createdBy: user._id.toString() },
+          ],
+        }),
+      // Events user participated in
+      db
+        .collection("bookings")
+        .countDocuments({
+          userId: user._id,
+          status: "confirmed",
+        }),
+      // Total bookings made by user
+      db
+        .collection("bookings")
+        .countDocuments({
+          userId: user._id,
+        }),
+      // Total reviews written by user
+      db
+        .collection("reviews")
+        .countDocuments({
+          userId: user._id,
+        }),
+    ])
 
-    // Count events created by user
-    const eventsCreated = await db.collection("events").countDocuments({
-      "host.email": session.user.email,
-    })
-
-    // Count bookings made by user
-    const bookingsMade = await db.collection("bookings").countDocuments({
-      userEmail: session.user.email,
-    })
-
-    // Count total views for user's events
+    // Get user's events for additional stats
     const userEvents = await db
       .collection("events")
       .find({
-        "host.email": session.user.email,
+        $or: [
+          { hostId: user._id },
+          { hostId: user._id.toString() },
+          { createdBy: user._id },
+          { createdBy: user._id.toString() },
+        ],
       })
       .toArray()
 
@@ -86,85 +75,54 @@ export async function GET(request: NextRequest) {
       0,
     )
 
-    // Count reviews received
-    const reviewsReceived = await db.collection("reviews").countDocuments({
-      hostId: userId,
-    })
-
-    // Count reviews given
-    const reviewsGiven = await db.collection("reviews").countDocuments({
-      reviewerId: userId,
-    })
-
     // Calculate average rating
-    const reviewsForRating = await db
-      .collection("reviews")
-      .find({
-        hostId: userId,
-      })
-      .toArray()
+    const userReviews = await db.collection("reviews").find({ hostId: user._id }).toArray()
 
     const averageRating =
-      reviewsForRating.length > 0
-        ? reviewsForRating.reduce((sum, review) => sum + review.rating, 0) / reviewsForRating.length
-        : 0
+      userReviews.length > 0 ? userReviews.reduce((sum, review) => sum + review.rating, 0) / userReviews.length : 0
 
-    // Count events participated in
-    const eventsParticipated = await db.collection("events").countDocuments({
-      participants: session.user.email,
-    })
-
-    const stats = {
-      totalEvents: eventsCreated,
-      totalBookings: bookingsMade,
-      totalViews,
-      totalParticipants,
-      averageRating: Math.round(averageRating * 10) / 10,
-      completionRate: 100, // Default completion rate
-      eventsOrganized: eventsCreated,
-      eventsParticipated,
-      totalReviews: reviewsReceived + reviewsGiven,
-    }
-
-    // Update user rating if needed
-    if (user.rating !== averageRating || user.reviewCount !== reviewsReceived) {
-      await db.collection("users").updateOne(
-        { _id: user._id },
-        {
-          $set: {
-            rating: averageRating,
-            reviewCount: reviewsReceived,
-            updatedAt: new Date(),
-          },
-        },
-      )
-    }
-
-    // Format user data
     const userProfile = {
       _id: user._id.toString(),
-      name: user.name || session.user.name || "Utente",
-      email: user.email,
-      image: user.image || session.user.image || "",
+      name: user.name || "",
+      email: user.email || "",
+      image: user.image || "",
       bio: user.bio || "",
       phone: user.phone || "",
       location: user.location || "",
       verified: user.verified || false,
       rating: averageRating,
-      reviewCount: reviewsReceived,
-      joinDate: user.joinDate || user.createdAt?.toISOString() || new Date().toISOString(),
+      reviewCount: userReviews.length,
+      joinDate: user.createdAt || new Date(),
       favorites: user.favorites || [],
-      createdAt: user.createdAt?.toISOString() || new Date().toISOString(),
-      updatedAt: user.updatedAt?.toISOString() || new Date().toISOString(),
+      createdAt: user.createdAt || new Date(),
+      updatedAt: user.updatedAt || new Date(),
+    }
+
+    const stats = {
+      totalEvents: eventsCreated,
+      totalBookings,
+      totalViews,
+      totalParticipants,
+      averageRating,
+      completionRate: 100, // Default completion rate
+      eventsOrganized: eventsCreated,
+      eventsParticipated,
+      totalReviews,
     }
 
     return NextResponse.json({
       user: userProfile,
       stats,
     })
-  } catch (error) {
-    console.error("Error in profile API:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+  } catch (error: any) {
+    console.error("💥 Error fetching profile:", error)
+    return NextResponse.json(
+      {
+        error: "Errore nel caricamento del profilo",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
 
@@ -177,34 +135,38 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, bio, phone, location, image } = body
-
     const { db } = await connectToDatabase()
 
-    const updateData: any = {
+    // Find user
+    const user = await db.collection("users").findOne({
+      email: session.user.email.toLowerCase(),
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    }
+
+    // Update user profile
+    const updateData = {
+      ...body,
       updatedAt: new Date(),
     }
 
-    if (name !== undefined) updateData.name = name
-    if (bio !== undefined) updateData.bio = bio
-    if (phone !== undefined) updateData.phone = phone
-    if (location !== undefined) updateData.location = location
-    if (image !== undefined) updateData.image = image
+    const result = await db.collection("users").updateOne({ _id: user._id }, { $set: updateData })
 
-    const result = await db
-      .collection("users")
-      .updateOne({ email: session.user.email }, { $set: updateData }, { upsert: true })
-
-    if (result.matchedCount === 0 && result.upsertedCount === 0) {
-      return NextResponse.json({ error: "Errore durante l'aggiornamento del profilo" }, { status: 400 })
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: "Errore nell'aggiornamento" }, { status: 400 })
     }
 
-    return NextResponse.json({
-      success: true,
-      message: "Profilo aggiornato con successo",
-    })
-  } catch (error) {
-    console.error("Error updating profile:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+    return NextResponse.json({ message: "Profilo aggiornato con successo" })
+  } catch (error: any) {
+    console.error("💥 Error updating profile:", error)
+    return NextResponse.json(
+      {
+        error: "Errore nell'aggiornamento del profilo",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }

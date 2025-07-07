@@ -5,8 +5,6 @@ import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import Image from "next/image"
-import { format } from "date-fns"
-import { it } from "date-fns/locale"
 import {
   ArrowLeft,
   Calendar,
@@ -55,6 +53,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
 import { MessageHostButton } from "@/components/event/message-host-button"
+import { getEventImageUrl } from "@/lib/image-utils"
 
 // Safe utility functions
 const getInitials = (name?: string): string => {
@@ -69,6 +68,73 @@ const getSafeName = (name?: string): string => {
 
 const getSafeArray = <T,>(arr: T[] | undefined | null): T[] => {
   return Array.isArray(arr) ? arr : []
+}
+
+// Completely safe date formatting without date-fns
+const formatSafeDate = (dateInput: any): string => {
+  try {
+    if (!dateInput) return "Data non disponibile"
+
+    let date: Date
+
+    // Handle different input types
+    if (dateInput instanceof Date) {
+      date = dateInput
+    } else if (typeof dateInput === "string") {
+      // If it's already a formatted string, return it
+      if (!dateInput.includes("T") && !dateInput.includes("-") && dateInput.length > 10) {
+        return dateInput
+      }
+      date = new Date(dateInput)
+    } else {
+      return "Data non disponibile"
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.warn("Invalid date detected:", dateInput)
+      return "Data non valida"
+    }
+
+    // Format using native JavaScript
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }
+
+    return date.toLocaleDateString("it-IT", options)
+  } catch (error) {
+    console.error("Date formatting error:", error)
+    return "Data non disponibile"
+  }
+}
+
+const formatSafeTime = (timeInput: any): string => {
+  try {
+    if (!timeInput) return "Orario da definire"
+
+    // If it's already in HH:MM format
+    if (typeof timeInput === "string" && /^\d{1,2}:\d{2}$/.test(timeInput)) {
+      return timeInput
+    }
+
+    // Try to parse as date
+    const date = new Date(timeInput)
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })
+    }
+
+    return "Orario da definire"
+  } catch (error) {
+    console.error("Time formatting error:", error)
+    return "Orario da definire"
+  }
 }
 
 interface Event {
@@ -104,6 +170,8 @@ interface Event {
   likes?: number
   rating?: number
   totalReviews?: number
+  dateStart?: string
+  dateEnd?: string
 }
 
 interface Review {
@@ -126,6 +194,10 @@ const categoryIcons: Record<string, any> = {
   sport: "⚽",
   arte: "🎨",
   cibo: "🍽️",
+  casa: "🏠",
+  viaggio: "✈️",
+  evento: "🎉",
+  esperienza: "🌟",
 }
 
 const amenityIcons: Record<string, any> = {
@@ -176,6 +248,7 @@ export default function EventoPage() {
       const response = await fetch(`/api/events/${eventId}`)
       if (!response.ok) throw new Error("Evento non trovato")
       const data = await response.json()
+      console.log("📅 Event data received:", data)
       setEvent(data)
     } catch (error) {
       console.error("Error fetching event:", error)
@@ -287,18 +360,23 @@ export default function EventoPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-purple-600 mx-auto mb-4" />
+          <p className="text-purple-600 font-medium">Caricamento evento...</p>
+        </div>
       </div>
     )
   }
 
   if (!event) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Evento non trovato</h1>
-          <Button onClick={() => router.back()}>Torna indietro</Button>
+          <h1 className="text-2xl font-bold mb-4 text-purple-800">Evento non trovato</h1>
+          <Button onClick={() => router.back()} className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
+            Torna indietro
+          </Button>
         </div>
       </div>
     )
@@ -314,7 +392,7 @@ export default function EventoPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 pb-20">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-40">
+      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200 px-4 py-3 sticky top-0 z-40">
         <div className="flex items-center justify-between">
           <Button variant="ghost" size="icon" onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4" />
@@ -336,11 +414,14 @@ export default function EventoPage() {
           <Card className="overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-xl">
             <div className="relative h-80 md:h-96">
               <Image
-                src={safeImages[currentImageIndex] || "/placeholder.svg?height=400&width=800"}
+                src={
+                  getEventImageUrl(safeImages[currentImageIndex], 800, 400) || "/placeholder.svg?height=400&width=800"
+                }
                 alt={event.title}
                 fill
                 className="object-cover"
                 priority
+                sizes="(max-width: 768px) 100vw, 800px"
               />
 
               {/* Controlli Galleria */}
@@ -413,7 +494,7 @@ export default function EventoPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-2xl">{categoryIcons[event.category] || "🎉"}</span>
-                  <Badge variant="secondary" className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
+                  <Badge variant="secondary" className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
                     {event.category}
                   </Badge>
                   {averageRating > 0 && (
@@ -424,7 +505,7 @@ export default function EventoPage() {
                     </div>
                   )}
                 </div>
-                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+                <h1 className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent mb-2">
                   {event.title}
                 </h1>
                 <p className="text-muted-foreground mb-4">{event.description}</p>
@@ -435,7 +516,11 @@ export default function EventoPage() {
             {safeTags.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {safeTags.map((tag, index) => (
-                  <Badge key={index} variant="outline" className="bg-gradient-to-r from-pink-100 to-purple-100">
+                  <Badge
+                    key={index}
+                    variant="outline"
+                    className="bg-gradient-to-r from-pink-100 to-purple-100 border-pink-200"
+                  >
                     {tag}
                   </Badge>
                 ))}
@@ -470,17 +555,15 @@ export default function EventoPage() {
             <div className="grid md:grid-cols-2 gap-4 mb-6">
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-blue-500" />
-                  <span className="font-medium">
-                    {format(new Date(event.date), "EEEE d MMMM yyyy", { locale: it })}
-                  </span>
+                  <Calendar className="h-5 w-5 text-pink-500" />
+                  <span className="font-medium">{formatSafeDate(event.dateStart || event.date)}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-green-500" />
-                  <span className="font-medium">{event.time}</span>
+                  <Clock className="h-5 w-5 text-purple-500" />
+                  <span className="font-medium">{formatSafeTime(event.time)}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <MapPin className="h-5 w-5 text-red-500" />
+                  <MapPin className="h-5 w-5 text-blue-500" />
                   <div>
                     <div className="font-medium">{event.location.address}</div>
                     <div className="text-sm text-muted-foreground">{event.location.city}</div>
@@ -495,7 +578,7 @@ export default function EventoPage() {
                   </span>
                 </div>
                 <Progress value={(event.currentParticipants / event.maxParticipants) * 100} className="h-2" />
-                <div className="text-2xl font-bold text-green-600">
+                <div className="text-2xl font-bold bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent">
                   {event.price === 0 ? "Gratuito" : `€${event.price}`}
                 </div>
               </div>
@@ -507,7 +590,7 @@ export default function EventoPage() {
         <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5 text-blue-500" />
+              <User className="h-5 w-5 text-pink-500" />
               Organizzatore
             </CardTitle>
           </CardHeader>
@@ -516,7 +599,7 @@ export default function EventoPage() {
               <div className="flex items-center gap-4">
                 <Avatar className="h-16 w-16">
                   <AvatarImage src={event.host.image || "/placeholder.svg"} />
-                  <AvatarFallback className="bg-gradient-to-br from-blue-500 to-purple-500 text-white text-lg">
+                  <AvatarFallback className="bg-gradient-to-br from-pink-500 to-purple-500 text-white text-lg">
                     {getInitials(event.host.name)}
                   </AvatarFallback>
                 </Avatar>
@@ -609,7 +692,7 @@ export default function EventoPage() {
               </CardTitle>
               <Dialog open={reviewDialogOpen} onOpenChange={setReviewDialogOpen}>
                 <DialogTrigger asChild>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="border-pink-200 hover:bg-pink-50 bg-transparent">
                     <Send className="h-4 w-4 mr-2" />
                     Scrivi recensione
                   </Button>
@@ -652,7 +735,7 @@ export default function EventoPage() {
                     <Button
                       onClick={submitReview}
                       disabled={isSubmittingReview}
-                      className="bg-gradient-to-r from-blue-500 to-purple-500 text-white"
+                      className="bg-gradient-to-r from-pink-500 to-purple-500 text-white"
                     >
                       {isSubmittingReview ? (
                         <>
@@ -741,9 +824,7 @@ export default function EventoPage() {
                           </div>
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">{review.comment}</p>
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(review.createdAt), "d MMMM yyyy", { locale: it })}
-                        </span>
+                        <span className="text-xs text-muted-foreground">{formatSafeDate(review.createdAt)}</span>
                       </div>
                     </div>
                   </div>
@@ -770,10 +851,10 @@ export default function EventoPage() {
       </div>
 
       {/* Bottom Action Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-border p-4 z-30">
+      <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-pink-200 p-4 z-30">
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
           <div className="flex-1">
-            <div className="text-2xl font-bold text-green-600">
+            <div className="text-2xl font-bold bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent">
               {event.price === 0 ? "Gratuito" : `€${event.price}`}
             </div>
             <div className="text-sm text-muted-foreground">
@@ -782,14 +863,14 @@ export default function EventoPage() {
           </div>
           <div className="flex gap-2">
             {event.externalBookingUrl && (
-              <Button variant="outline" asChild>
+              <Button variant="outline" asChild className="border-pink-200 hover:bg-pink-50 bg-transparent">
                 <Link href={event.externalBookingUrl} target="_blank" rel="noopener noreferrer">
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Link Esterno
                 </Link>
               </Button>
             )}
-            <Button size="lg" className="bg-gradient-to-r from-blue-500 to-purple-500 text-white px-8" asChild>
+            <Button size="lg" className="bg-gradient-to-r from-pink-500 to-purple-500 text-white px-8" asChild>
               <Link href={`/prenota/${eventId}`}>Prenota Ora</Link>
             </Button>
           </div>
@@ -801,10 +882,11 @@ export default function EventoPage() {
         <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
           <div className="relative w-full h-full">
             <Image
-              src={safeImages[currentImageIndex] || "/placeholder.svg?height=600&width=800"}
+              src={getEventImageUrl(safeImages[currentImageIndex], 800, 600) || "/placeholder.svg?height=600&width=800"}
               alt={event.title}
               fill
               className="object-contain"
+              sizes="800px"
             />
             <Button
               variant="ghost"

@@ -1,191 +1,179 @@
 import { type NextRequest, NextResponse } from "next/server"
-import clientPromise from "@/lib/mongodb"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import { connectToDatabase } from "@/lib/mongodb"
 
 export async function GET(request: NextRequest) {
   try {
-    console.log("🔍 GET /api/events called")
-
     const { searchParams } = new URL(request.url)
     const category = searchParams.get("category")
     const search = searchParams.get("search")
-    const sort = searchParams.get("sort") || "newest"
     const location = searchParams.get("location")
-    const priceMin = searchParams.get("priceMin")
-    const priceMax = searchParams.get("priceMax")
-    const includeOwn = searchParams.get("includeOwn") === "true" // Per includere i propri eventi
+    const minPrice = searchParams.get("minPrice")
+    const maxPrice = searchParams.get("maxPrice")
+    const dateFrom = searchParams.get("dateFrom")
+    const dateTo = searchParams.get("dateTo")
+    const limit = Number.parseInt(searchParams.get("limit") || "20")
+    const page = Number.parseInt(searchParams.get("page") || "1")
 
-    console.log("📋 Query params:", { category, search, sort, location, priceMin, priceMax, includeOwn })
+    const { db } = await connectToDatabase()
 
-    const client = await clientPromise
-    const db = client.db("invibe")
-    const eventsCollection = db.collection("events")
-
-    // Get current user session
-    const session = await getServerSession(authOptions)
-    const currentUserEmail = session?.user?.email
-
-    // Build query
-    const query: any = {
-      verified: true,
-      availableSpots: { $gt: 0 },
-    }
-
-    // Exclude current user's events from home feed (unless explicitly requested)
-    if (!includeOwn && currentUserEmail) {
-      const usersCollection = db.collection("users")
-      const currentUser = await usersCollection.findOne({ email: currentUserEmail })
-      if (currentUser) {
-        query.$and = [
-          {
-            $nor: [
-              { hostId: currentUser._id },
-              { hostId: currentUser._id.toString() },
-              { createdBy: currentUser._id },
-              { createdBy: currentUser._id.toString() },
-            ],
-          },
-        ]
-      }
-    }
+    // Build filter query
+    const filter: any = {}
 
     if (category && category !== "all") {
-      query.category = category
-    }
-
-    if (location) {
-      query.location = { $regex: location, $options: "i" }
-    }
-
-    if (priceMin || priceMax) {
-      query.price = {}
-      if (priceMin) query.price.$gte = Number.parseInt(priceMin)
-      if (priceMax) query.price.$lte = Number.parseInt(priceMax)
+      filter.category = category
     }
 
     if (search) {
-      query.$or = [
+      filter.$or = [
         { title: { $regex: search, $options: "i" } },
         { description: { $regex: search, $options: "i" } },
-        { location: { $regex: search, $options: "i" } },
+        { tags: { $in: [new RegExp(search, "i")] } },
       ]
     }
 
-    // Build sort
-    let sortQuery: any = { createdAt: -1 }
-    switch (sort) {
-      case "price-low":
-        sortQuery = { price: 1 }
-        break
-      case "price-high":
-        sortQuery = { price: -1 }
-        break
-      case "rating":
-        sortQuery = { rating: -1, reviewCount: -1 }
-        break
-      case "popular":
-        sortQuery = { views: -1, rating: -1 }
-        break
-      default:
-        sortQuery = { createdAt: -1 }
+    if (location) {
+      filter.$or = [
+        { "location.address": { $regex: location, $options: "i" } },
+        { "location.city": { $regex: location, $options: "i" } },
+        { location: { $regex: location, $options: "i" } },
+      ]
     }
 
-    console.log("🔍 Final query:", JSON.stringify(query, null, 2))
+    if (minPrice || maxPrice) {
+      filter.price = {}
+      if (minPrice) filter.price.$gte = Number.parseFloat(minPrice)
+      if (maxPrice) filter.price.$lte = Number.parseFloat(maxPrice)
+    }
 
-    // Use aggregation to get events with host information
-    const events = await eventsCollection
-      .aggregate([
-        { $match: query },
-        {
-          $lookup: {
-            from: "users",
-            localField: "hostId",
-            foreignField: "_id",
-            as: "hostInfo",
-          },
-        },
-        {
-          $addFields: {
-            host: {
-              $cond: {
-                if: { $gt: [{ $size: "$hostInfo" }, 0] },
-                then: {
-                  _id: { $arrayElemAt: ["$hostInfo._id", 0] },
-                  name: { $arrayElemAt: ["$hostInfo.name", 0] },
-                  email: { $arrayElemAt: ["$hostInfo.email", 0] },
-                  image: { $arrayElemAt: ["$hostInfo.image", 0] },
-                  verified: { $arrayElemAt: ["$hostInfo.verified", 0] },
-                  rating: { $arrayElemAt: ["$hostInfo.rating", 0] },
-                  reviewCount: { $arrayElemAt: ["$hostInfo.reviewCount", 0] },
-                },
-                else: null,
-              },
-            },
-          },
-        },
-        { $project: { hostInfo: 0 } },
-        { $sort: sortQuery },
-        { $limit: 50 },
-      ])
-      .toArray()
+    if (dateFrom || dateTo) {
+      filter.dateStart = {}
+      if (dateFrom) filter.dateStart.$gte = new Date(dateFrom)
+      if (dateTo) filter.dateStart.$lte = new Date(dateTo)
+    }
 
-    console.log(`✅ Found ${events.length} events`)
+    // Get events with pagination
+    const skip = (page - 1) * limit
+    const events = await db.collection("events").find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray()
 
-    // Serialize the events data
-    const serializedEvents = events.map((event) => ({
-      ...event,
-      _id: event._id.toString(),
-      hostId: event.hostId?.toString(),
-      dateStart: event.dateStart?.toISOString?.() || event.dateStart,
-      dateEnd: event.dateEnd?.toISOString?.() || event.dateEnd,
-      createdAt: event.createdAt?.toISOString?.() || event.createdAt,
-      updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
-      host: event.host
-        ? {
-            ...event.host,
-            _id: event.host._id?.toString(),
+    const total = await db.collection("events").countDocuments(filter)
+
+    // Safe date handling
+    const safeDate = (dateValue: any): string => {
+      if (!dateValue) return new Date().toISOString()
+
+      try {
+        if (dateValue instanceof Date) {
+          return dateValue.toISOString()
+        }
+        if (typeof dateValue === "string") {
+          const parsed = new Date(dateValue)
+          if (isNaN(parsed.getTime())) {
+            return new Date().toISOString()
           }
-        : null,
+          return parsed.toISOString()
+        }
+        return new Date().toISOString()
+      } catch (error) {
+        return new Date().toISOString()
+      }
+    }
+
+    // Transform events for frontend
+    const transformedEvents = events.map((event) => ({
+      _id: event._id.toString(),
+      title: event.title || "Evento senza titolo",
+      description: event.description || "",
+      category: event.category || "evento",
+      location: event.location || "Posizione non specificata",
+      price: Number(event.price) || 0,
+      rating: Number(event.rating) || 0,
+      reviewCount: Number(event.reviewCount) || 0,
+      images: Array.isArray(event.images) ? event.images : [],
+      dateStart: safeDate(event.dateStart),
+      dateEnd: event.dateEnd ? safeDate(event.dateEnd) : null,
+      totalSpots: Number(event.totalSpots) || 10,
+      availableSpots: Number(event.availableSpots) || Number(event.totalSpots) || 10,
+      amenities: Array.isArray(event.amenities) ? event.amenities : [],
+      verified: Boolean(event.verified),
+      views: Number(event.views) || 0,
+      createdAt: safeDate(event.createdAt),
+      updatedAt: safeDate(event.updatedAt),
     }))
 
-    return NextResponse.json(serializedEvents)
-  } catch (error) {
-    console.error("💥 Error in GET /api/events:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({
+      events: transformedEvents,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    })
+  } catch (error: any) {
+    console.error("💥 Error fetching events:", error)
+    return NextResponse.json(
+      {
+        error: "Errore nel caricamento degli eventi",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("📝 POST /api/events called")
-
     const session = await getServerSession(authOptions)
+
     if (!session?.user?.email) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const body = await request.json()
-    console.log("📋 Event data received:", body)
+    const { db } = await connectToDatabase()
 
-    const client = await clientPromise
-    const db = client.db("invibe")
-    const eventsCollection = db.collection("events")
-    const usersCollection = db.collection("users")
+    // Find user
+    const user = await db.collection("users").findOne({
+      email: session.user.email.toLowerCase(),
+    })
 
-    // Get user info
-    const user = await usersCollection.findOne({ email: session.user.email })
     if (!user) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 })
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    // Create event with proper hostId
+    console.log("🎉 Creating event for user:", user._id.toString())
+
+    // Create event data
     const eventData = {
-      ...body,
-      hostId: user._id, // Use ObjectId for consistency
-      createdBy: user._id, // Also set createdBy for backup
-      verified: false, // Events need verification
+      title: body.title || "Nuovo Evento",
+      description: body.description || "",
+      category: body.category || "evento",
+      location: body.location || "",
+      coordinates: body.coordinates || { lat: 0, lng: 0 },
+      price: Number(body.price) || 0,
+      dateStart: body.dateStart ? new Date(body.dateStart) : new Date(),
+      dateEnd: body.dateEnd ? new Date(body.dateEnd) : null,
+      totalSpots: Number(body.totalSpots) || 10,
+      availableSpots: Number(body.availableSpots) || Number(body.totalSpots) || 10,
+      images: Array.isArray(body.images) ? body.images : [],
+      amenities: Array.isArray(body.amenities) ? body.amenities : [],
+      tags: Array.isArray(body.tags) ? body.tags : [],
+      requirements: Array.isArray(body.requirements) ? body.requirements : [],
+      bookingLink: body.bookingLink || "",
+      cancellationPolicy: body.cancellationPolicy || "",
+      hostId: user._id, // This is crucial for linking the event to the user
+      createdBy: user._id, // Additional field for backup
+      host: {
+        // Store host info for easier queries
+        email: user.email,
+        name: user.name || "Organizzatore",
+        image: user.image || null,
+      },
+      verified: false,
       views: 0,
+      likes: 0,
       rating: 0,
       reviewCount: 0,
       participants: [],
@@ -193,16 +181,32 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     }
 
-    const result = await eventsCollection.insertOne(eventData)
-    console.log("✅ Event created with ID:", result.insertedId)
+    console.log("📝 Event data to insert:", {
+      title: eventData.title,
+      hostId: eventData.hostId.toString(),
+      createdBy: eventData.createdBy.toString(),
+    })
+
+    const result = await db.collection("events").insertOne(eventData)
+
+    if (!result.insertedId) {
+      throw new Error("Errore nella creazione dell'evento")
+    }
+
+    console.log("✅ Event created with ID:", result.insertedId.toString())
 
     return NextResponse.json({
-      success: true,
+      message: "Evento creato con successo",
       eventId: result.insertedId.toString(),
-      message: "Evento creato con successo!",
     })
-  } catch (error) {
-    console.error("💥 Error in POST /api/events:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+  } catch (error: any) {
+    console.error("💥 Error creating event:", error)
+    return NextResponse.json(
+      {
+        error: "Errore nella creazione dell'evento",
+        details: error.message,
+      },
+      { status: 500 },
+    )
   }
 }

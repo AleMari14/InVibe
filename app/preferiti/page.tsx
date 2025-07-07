@@ -2,621 +2,550 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { motion, AnimatePresence } from "framer-motion"
-import { format } from "date-fns"
-import { it } from "date-fns/locale"
 import {
   ArrowLeft,
   Heart,
-  Search,
-  Grid3X3,
-  List,
-  Calendar,
   MapPin,
+  Calendar,
   Users,
   Star,
-  Share2,
-  Trash2,
-  Eye,
+  Euro,
+  Search,
+  Filter,
+  SortAsc,
+  Grid3X3,
+  List,
   Loader2,
-  SlidersHorizontal,
+  HeartOff,
+  Sparkles,
+  TrendingUp,
   Clock,
+  Eye,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
+import { getEventImageUrl } from "@/lib/image-utils"
 
-interface FavoriteEvent {
+interface Event {
   _id: string
   title: string
   description: string
-  date: string
-  time: string
-  location: {
-    address: string
-    city: string
-  }
+  location: string
   price: number
-  maxParticipants: number
-  currentParticipants: number
-  category: string
+  rating: number
+  reviewCount: number
   images: string[]
-  host: {
-    name: string
-    email: string
-    image?: string
-    verified?: boolean
-  }
-  amenities?: string[]
-  views?: number
-  likes?: number
-  rating?: number
-  totalReviews?: number
+  category: string
+  dateStart: string
+  dateEnd?: string
+  totalSpots: number
+  availableSpots: number
+  views: number
+  verified: boolean
+  hostName?: string
+  createdAt: string
 }
 
 const categoryIcons: Record<string, string> = {
-  festa: "🎉",
-  compleanno: "🎂",
-  matrimonio: "💒",
-  aziendale: "🏢",
+  casa: "🏠",
+  viaggio: "✈️",
+  evento: "🎉",
+  esperienza: "🌟",
+  festa: "🎊",
   musica: "🎵",
   sport: "⚽",
   arte: "🎨",
   cibo: "🍽️",
 }
 
-const categories = ["Tutti", "festa", "compleanno", "matrimonio", "aziendale", "musica", "sport", "arte", "cibo"]
-
-const sortOptions = [
-  { value: "date", label: "Data" },
-  { value: "price", label: "Prezzo" },
-  { value: "rating", label: "Rating" },
-  { value: "popularity", label: "Popolarità" },
-  { value: "recent", label: "Aggiunti di recente" },
-  { value: "alphabetical", label: "Alfabetico" },
-]
+const getCategoryColor = (category: string) => {
+  const colors: Record<string, string> = {
+    casa: "bg-gradient-to-r from-green-100 to-emerald-100 text-green-700 border-green-200",
+    viaggio: "bg-gradient-to-r from-blue-100 to-sky-100 text-blue-700 border-blue-200",
+    evento: "bg-gradient-to-r from-purple-100 to-violet-100 text-purple-700 border-purple-200",
+    esperienza: "bg-gradient-to-r from-orange-100 to-amber-100 text-orange-700 border-orange-200",
+    festa: "bg-gradient-to-r from-pink-100 to-rose-100 text-pink-700 border-pink-200",
+    musica: "bg-gradient-to-r from-indigo-100 to-blue-100 text-indigo-700 border-indigo-200",
+    sport: "bg-gradient-to-r from-red-100 to-pink-100 text-red-700 border-red-200",
+    arte: "bg-gradient-to-r from-purple-100 to-pink-100 text-purple-700 border-purple-200",
+    cibo: "bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-700 border-yellow-200",
+  }
+  return colors[category] || "bg-gradient-to-r from-gray-100 to-slate-100 text-gray-700 border-gray-200"
+}
 
 export default function PreferitiPage() {
-  const { data: session } = useSession()
-  const [favorites, setFavorites] = useState<FavoriteEvent[]>([])
-  const [filteredFavorites, setFilteredFavorites] = useState<FavoriteEvent[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [events, setEvents] = useState<Event[]>([])
+  const [filteredEvents, setFilteredEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("Tutti")
-  const [sortBy, setSortBy] = useState("recent")
+  const [selectedCategory, setSelectedCategory] = useState("all")
+  const [sortBy, setSortBy] = useState("newest")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [eventToRemove, setEventToRemove] = useState<string | null>(null)
+  const [removingId, setRemovingId] = useState<string | null>(null)
+
+  const { data: session, status } = useSession()
+  const router = useRouter()
 
   useEffect(() => {
-    if (session?.user?.email) {
+    if (status === "unauthenticated") {
+      router.push("/auth/login")
+      return
+    }
+
+    if (status === "authenticated") {
       fetchFavorites()
     }
-  }, [session])
+  }, [status, router])
 
   useEffect(() => {
-    filterAndSortFavorites()
-  }, [favorites, searchQuery, selectedCategory, sortBy])
+    filterAndSortEvents()
+  }, [events, searchQuery, selectedCategory, sortBy])
 
   const fetchFavorites = async () => {
     try {
-      setIsLoading(true)
+      setLoading(true)
       const response = await fetch("/api/favorites")
-      if (!response.ok) throw new Error("Errore nel caricamento dei preferiti")
+
+      if (!response.ok) {
+        throw new Error("Errore nel caricamento dei preferiti")
+      }
 
       const data = await response.json()
-      setFavorites(data.favorites || [])
-    } catch (error) {
+      setEvents(data.favorites || [])
+    } catch (error: any) {
       console.error("Error fetching favorites:", error)
-      toast.error("Errore nel caricamento dei preferiti")
+      toast.error(error.message || "Errore nel caricamento dei preferiti")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const filterAndSortFavorites = () => {
-    let filtered = [...favorites]
+  const filterAndSortEvents = () => {
+    let filtered = [...events]
 
-    // Filtro per ricerca
+    // Filter by search query
     if (searchQuery) {
       filtered = filtered.filter(
         (event) =>
           event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.location.city.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          event.host.name.toLowerCase().includes(searchQuery.toLowerCase()),
+          event.location.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     }
 
-    // Filtro per categoria
-    if (selectedCategory !== "Tutti") {
+    // Filter by category
+    if (selectedCategory !== "all") {
       filtered = filtered.filter((event) => event.category === selectedCategory)
     }
 
-    // Ordinamento
+    // Sort events
     filtered.sort((a, b) => {
       switch (sortBy) {
-        case "date":
-          return new Date(a.date).getTime() - new Date(b.date).getTime()
-        case "price":
+        case "newest":
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        case "oldest":
+          return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        case "price-low":
           return a.price - b.price
+        case "price-high":
+          return b.price - a.price
         case "rating":
-          return (b.rating || 0) - (a.rating || 0)
-        case "popularity":
-          return (b.views || 0) - (a.views || 0)
-        case "alphabetical":
-          return a.title.localeCompare(b.title)
-        case "recent":
+          return b.rating - a.rating
+        case "popular":
+          return b.views - a.views
+        case "date":
+          return new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime()
         default:
-          return b._id.localeCompare(a._id)
+          return 0
       }
     })
 
-    setFilteredFavorites(filtered)
+    setFilteredEvents(filtered)
   }
 
-  const removeFavorite = async (eventId: string) => {
+  const handleRemoveFromFavorites = async (eventId: string) => {
     try {
+      setRemovingId(eventId)
+
       const response = await fetch("/api/favorites", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({ eventId }),
       })
 
-      if (!response.ok) throw new Error("Errore nella rimozione dai preferiti")
-
-      setFavorites((prev) => prev.filter((event) => event._id !== eventId))
-      toast.success("Evento rimosso dai preferiti")
-    } catch (error) {
-      console.error("Error removing favorite:", error)
-      toast.error("Errore nella rimozione dai preferiti")
-    }
-  }
-
-  const shareEvent = async (event: FavoriteEvent) => {
-    const shareData = {
-      title: event.title,
-      text: event.description,
-      url: `${window.location.origin}/evento/${event._id}`,
-    }
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData)
-      } catch (error) {
-        console.log("Condivisione annullata")
+      if (!response.ok) {
+        throw new Error("Errore nella rimozione dai preferiti")
       }
-    } else {
-      navigator.clipboard.writeText(shareData.url)
-      toast.success("Link copiato negli appunti!")
+
+      // Remove from local state
+      setEvents((prev) => prev.filter((event) => event._id !== eventId))
+      toast.success("Rimosso dai preferiti")
+    } catch (error: any) {
+      console.error("Error removing from favorites:", error)
+      toast.error(error.message || "Errore nella rimozione dai preferiti")
+    } finally {
+      setRemovingId(null)
     }
   }
 
-  const handleRemoveClick = (eventId: string) => {
-    setEventToRemove(eventId)
-    setDeleteDialogOpen(true)
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString("it-IT", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    })
   }
 
-  const confirmRemove = () => {
-    if (eventToRemove) {
-      removeFavorite(eventToRemove)
-      setEventToRemove(null)
-    }
-    setDeleteDialogOpen(false)
+  const formatDateRange = (startDate: string, endDate?: string) => {
+    const start = new Date(startDate)
+    const startFormatted = start.toLocaleDateString("it-IT", {
+      day: "numeric",
+      month: "short",
+    })
+
+    if (!endDate) return startFormatted
+
+    const end = new Date(endDate)
+    const endFormatted = end.toLocaleDateString("it-IT", {
+      day: "numeric",
+      month: "short",
+    })
+
+    return `${startFormatted} - ${endFormatted}`
   }
 
-  const clearFilters = () => {
-    setSearchQuery("")
-    setSelectedCategory("Tutti")
-    setSortBy("recent")
+  const getUniqueCategories = () => {
+    const categories = events.map((event) => event.category)
+    return [...new Set(categories)]
   }
 
-  if (isLoading) {
+  if (status === "loading" || loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center pb-20">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50">
+        <div className="px-4 py-6">
+          <div className="flex items-center gap-4 mb-6">
+            <Skeleton className="w-10 h-10 rounded-full" />
+            <Skeleton className="h-8 w-48" />
+          </div>
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {[...Array(6)].map((_, i) => (
+              <Card key={i} className="overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-lg">
+                <Skeleton className="w-full h-48" />
+                <div className="p-4 space-y-3">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-full" />
+                  <Skeleton className="h-3 w-1/2" />
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
       </div>
     )
+  }
+
+  if (status === "unauthenticated") {
+    return null
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 pb-20">
       {/* Header */}
-      <div className="bg-white/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
+      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200/50">
+        <div className="px-4 py-6">
+          <div className="flex items-center gap-4 mb-6">
+            <Link href="/profile">
+              <Button variant="ghost" size="icon" className="text-pink-600 hover:bg-pink-100">
+                <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <div className="flex items-center gap-2">
-              <Heart className="h-5 w-5 text-red-500" />
-              <h1 className="text-xl font-semibold bg-gradient-to-r from-pink-500 to-red-500 bg-clip-text text-transparent">
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-to-r from-pink-600 via-purple-600 to-blue-600 bg-clip-text text-transparent">
                 I Miei Preferiti
               </h1>
-              <Badge className="bg-red-500 text-white">{favorites.length}</Badge>
+              <p className="text-pink-600/70">
+                {events.length} {events.length === 1 ? "evento salvato" : "eventi salvati"}
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant={viewMode === "grid" ? "default" : "outline"}
-              size="icon"
-              onClick={() => setViewMode("grid")}
-            >
-              <Grid3X3 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === "list" ? "default" : "outline"}
-              size="icon"
-              onClick={() => setViewMode("list")}
-            >
-              <List className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
 
-        {/* Filtri */}
-        <div className="space-y-3">
-          {/* Ricerca */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Cerca nei preferiti..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
+          {/* Search and Filters */}
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-pink-400" />
+                <Input
+                  placeholder="Cerca nei tuoi preferiti..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 border-pink-200 focus:border-pink-400 focus:ring-pink-400/20 bg-white/70 backdrop-blur-sm"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                  <SelectTrigger className="w-40 border-pink-200 focus:border-pink-400 bg-white/70 backdrop-blur-sm">
+                    <Filter className="h-4 w-4 mr-2 text-pink-500" />
+                    <SelectValue placeholder="Categoria" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tutte</SelectItem>
+                    {getUniqueCategories().map((category) => (
+                      <SelectItem key={category} value={category}>
+                        {categoryIcons[category]} {category}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
 
-          {/* Filtri avanzati */}
-          <div className="flex flex-wrap gap-2">
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Categoria" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    <div className="flex items-center gap-2">
-                      {category !== "Tutti" && <span>{categoryIcons[category] || "🎉"}</span>}
-                      {category}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="border-pink-200 hover:bg-pink-50 bg-white/70 backdrop-blur-sm">
+                      <SortAsc className="h-4 w-4 mr-2 text-pink-500" />
+                      Ordina
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setSortBy("newest")}>
+                      <Clock className="h-4 w-4 mr-2" />
+                      Più recenti
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("oldest")}>
+                      <Clock className="h-4 w-4 mr-2" />
+                      Meno recenti
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("date")}>
+                      <Calendar className="h-4 w-4 mr-2" />
+                      Data evento
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("price-low")}>
+                      <Euro className="h-4 w-4 mr-2" />
+                      Prezzo crescente
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("price-high")}>
+                      <Euro className="h-4 w-4 mr-2" />
+                      Prezzo decrescente
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("rating")}>
+                      <Star className="h-4 w-4 mr-2" />
+                      Valutazione
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setSortBy("popular")}>
+                      <TrendingUp className="h-4 w-4 mr-2" />
+                      Più popolari
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Ordina per" />
-              </SelectTrigger>
-              <SelectContent>
-                {sortOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+                  className="border-pink-200 hover:bg-pink-50 bg-white/70 backdrop-blur-sm"
+                >
+                  {viewMode === "grid" ? (
+                    <List className="h-4 w-4 text-pink-500" />
+                  ) : (
+                    <Grid3X3 className="h-4 w-4 text-pink-500" />
+                  )}
+                </Button>
+              </div>
+            </div>
 
-            {(searchQuery || selectedCategory !== "Tutti" || sortBy !== "recent") && (
-              <Button variant="outline" size="sm" onClick={clearFilters}>
-                <SlidersHorizontal className="h-4 w-4 mr-2" />
-                Cancella filtri
-              </Button>
+            {/* Active Filters */}
+            {(searchQuery || selectedCategory !== "all") && (
+              <div className="flex flex-wrap gap-2">
+                {searchQuery && (
+                  <Badge variant="secondary" className="bg-pink-100 text-pink-700 border-pink-200">
+                    Ricerca: "{searchQuery}"
+                    <button onClick={() => setSearchQuery("")} className="ml-2 hover:text-pink-900">
+                      ×
+                    </button>
+                  </Badge>
+                )}
+                {selectedCategory !== "all" && (
+                  <Badge variant="secondary" className="bg-purple-100 text-purple-700 border-purple-200">
+                    {categoryIcons[selectedCategory]} {selectedCategory}
+                    <button onClick={() => setSelectedCategory("all")} className="ml-2 hover:text-purple-900">
+                      ×
+                    </button>
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-4">
-        {filteredFavorites.length === 0 ? (
-          <div className="text-center py-12">
-            <Heart className="h-16 w-16 mx-auto mb-4 text-muted-foreground/50" />
-            <h2 className="text-2xl font-bold mb-2">
-              {favorites.length === 0 ? "Nessun preferito ancora" : "Nessun risultato"}
-            </h2>
-            <p className="text-muted-foreground mb-6">
-              {favorites.length === 0
-                ? "Inizia ad aggiungere eventi ai tuoi preferiti per vederli qui"
-                : "Prova a modificare i filtri di ricerca"}
+      <div className="px-4 py-6">
+        {/* Results Count */}
+        <div className="mb-6">
+          <p className="text-sm text-pink-600/70">
+            {filteredEvents.length === 0
+              ? "Nessun evento trovato"
+              : `${filteredEvents.length} ${filteredEvents.length === 1 ? "evento trovato" : "eventi trovati"}`}
+          </p>
+        </div>
+
+        {/* Events Grid/List */}
+        {filteredEvents.length === 0 ? (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
+            <div className="w-20 h-20 bg-gradient-to-r from-pink-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              {searchQuery || selectedCategory !== "all" ? (
+                <Search className="h-10 w-10 text-pink-500" />
+              ) : (
+                <HeartOff className="h-10 w-10 text-pink-500" />
+              )}
+            </div>
+            <h3 className="text-xl font-semibold mb-2 text-pink-800">
+              {searchQuery || selectedCategory !== "all" ? "Nessun risultato trovato" : "Nessun evento nei preferiti"}
+            </h3>
+            <p className="text-pink-600/70 mb-6 max-w-md mx-auto">
+              {searchQuery || selectedCategory !== "all"
+                ? "Prova a modificare i filtri di ricerca per trovare quello che stai cercando."
+                : "Inizia ad esplorare gli eventi e salva quelli che ti interessano di più!"}
             </p>
-            {favorites.length === 0 ? (
-              <Button asChild className="bg-gradient-to-r from-pink-500 to-red-500 text-white">
-                <Link href="/">Esplora Eventi</Link>
-              </Button>
-            ) : (
-              <Button variant="outline" onClick={clearFilters}>
-                Cancella filtri
-              </Button>
+            {!searchQuery && selectedCategory === "all" && (
+              <Link href="/">
+                <Button className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white px-8">
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Esplora Eventi
+                </Button>
+              </Link>
             )}
-          </div>
+          </motion.div>
         ) : (
-          <motion.div
-            className={viewMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" : "space-y-4"}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
+          <div className={viewMode === "grid" ? "grid gap-6 md:grid-cols-2 lg:grid-cols-3" : "space-y-4"}>
             <AnimatePresence>
-              {filteredFavorites.map((event, index) => (
+              {filteredEvents.map((event, index) => (
                 <motion.div
                   key={event._id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3, delay: index * 0.1 }}
+                  transition={{ duration: 0.3, delay: index * 0.05 }}
                 >
-                  {viewMode === "grid" ? (
-                    <Card className="group overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
-                      <div className="relative h-48">
+                  <Card
+                    className={`overflow-hidden bg-white/80 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300 group ${
+                      viewMode === "list" ? "flex" : ""
+                    }`}
+                  >
+                    <div className={`relative ${viewMode === "list" ? "w-48 flex-shrink-0" : "h-48"}`}>
+                      <Link href={`/evento/${event._id}`}>
                         <Image
-                          src={event.images?.[0] || "/placeholder.svg?height=200&width=400"}
+                          src={
+                            getEventImageUrl(event.images?.[0], viewMode === "list" ? 192 : 400, 192) ||
+                            "/placeholder.svg"
+                          }
                           alt={event.title}
                           fill
-                          className="object-cover transition-transform duration-300 group-hover:scale-110"
+                          className="object-cover group-hover:scale-105 transition-transform duration-300"
+                          sizes={
+                            viewMode === "list" ? "192px" : "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          }
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                      </Link>
 
-                        {/* Badges */}
-                        <div className="absolute top-3 left-3 flex gap-2">
-                          <Badge className="bg-gradient-to-r from-blue-500 to-purple-500 text-white">
-                            {categoryIcons[event.category]} {event.category}
-                          </Badge>
-                          {event.host.verified && <Badge className="bg-green-500 text-white">Verificato</Badge>}
-                        </div>
-
-                        {/* Actions */}
-                        <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="bg-white/20 hover:bg-white/40 text-white"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              shareEvent(event)
-                            }}
-                          >
-                            <Share2 className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="bg-white/20 hover:bg-white/40 text-white"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              handleRemoveClick(event._id)
-                            }}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-
-                        {/* Price */}
-                        <div className="absolute bottom-3 right-3">
-                          <Badge className="bg-green-500 text-white font-bold">
-                            {event.price === 0 ? "Gratuito" : `€${event.price}`}
-                          </Badge>
-                        </div>
+                      {/* Category Badge */}
+                      <div className="absolute top-3 left-3">
+                        <Badge className={`text-xs font-medium ${getCategoryColor(event.category)}`}>
+                          {categoryIcons[event.category]} {event.category}
+                        </Badge>
                       </div>
 
-                      <Link href={`/evento/${event._id}`}>
-                        <CardContent className="p-4">
-                          <h3 className="font-bold text-lg mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                            {event.title}
-                          </h3>
+                      {/* Favorite Button */}
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-3 right-3 bg-white/80 hover:bg-white text-pink-500 hover:text-pink-600 backdrop-blur-sm"
+                        onClick={() => handleRemoveFromFavorites(event._id)}
+                        disabled={removingId === event._id}
+                      >
+                        {removingId === event._id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Heart className="h-4 w-4 fill-current" />
+                        )}
+                      </Button>
 
-                          <div className="space-y-2 mb-4">
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Calendar className="h-4 w-4" />
-                              {format(new Date(event.date), "d MMM yyyy", { locale: it })} • {event.time}
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <MapPin className="h-4 w-4" />
-                              {event.location.city}
-                            </div>
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                              <Users className="h-4 w-4" />
-                              {event.currentParticipants}/{event.maxParticipants} partecipanti
-                            </div>
+                      {/* Verified Badge */}
+                      {event.verified && (
+                        <div className="absolute bottom-3 left-3">
+                          <Badge className="bg-green-500 text-white text-xs">✓ Verificato</Badge>
+                        </div>
+                      )}
+                    </div>
+
+                    <CardContent className={`p-4 ${viewMode === "list" ? "flex-1" : ""}`}>
+                      <div className="space-y-3">
+                        <div>
+                          <Link href={`/evento/${event._id}`}>
+                            <h3 className="font-semibold text-lg line-clamp-2 hover:text-pink-600 transition-colors">
+                              {event.title}
+                            </h3>
+                          </Link>
+                          <p className="text-sm text-muted-foreground line-clamp-2 mt-1">{event.description}</p>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MapPin className="h-4 w-4 text-pink-500" />
+                            <span className="line-clamp-1">{event.location}</span>
                           </div>
-
-                          {/* Host */}
-                          <div className="flex items-center gap-2 mb-3">
-                            <Avatar className="h-6 w-6">
-                              <AvatarImage src={event.host.image || "/placeholder.svg"} />
-                              <AvatarFallback className="text-xs">
-                                {event.host.name?.charAt(0)?.toUpperCase() || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <span className="text-sm text-muted-foreground">{event.host.name}</span>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Calendar className="h-4 w-4 text-purple-500" />
+                            <span>{formatDateRange(event.dateStart, event.dateEnd)}</span>
                           </div>
-
-                          {/* Stats */}
-                          <div className="flex items-center justify-between text-xs text-muted-foreground">
-                            <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-1">
-                                <Eye className="h-3 w-3" />
-                                {event.views || 0}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Heart className="h-3 w-3" />
-                                {event.likes || 0}
-                              </div>
-                              {event.rating && (
-                                <div className="flex items-center gap-1">
-                                  <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                  {event.rating.toFixed(1)}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Amenities Preview */}
-                          {event.amenities && event.amenities.length > 0 && (
-                            <div className="mt-3 flex flex-wrap gap-1">
-                              {event.amenities.slice(0, 3).map((amenity, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {amenity}
-                                </Badge>
-                              ))}
-                              {event.amenities.length > 3 && (
-                                <Badge variant="outline" className="text-xs">
-                                  +{event.amenities.length - 3}
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Link>
-                    </Card>
-                  ) : (
-                    <Card className="group overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-lg hover:shadow-xl transition-all duration-300">
-                      <Link href={`/evento/${event._id}`}>
-                        <div className="flex gap-4 p-4">
-                          <div className="relative w-32 h-24 flex-shrink-0">
-                            <Image
-                              src={event.images?.[0] || "/placeholder.svg?height=100&width=150"}
-                              alt={event.title}
-                              fill
-                              className="object-cover rounded-lg"
-                            />
-                            <Badge className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-500 to-purple-500 text-white text-xs">
-                              {categoryIcons[event.category]}
-                            </Badge>
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between mb-2">
-                              <h3 className="font-bold text-lg line-clamp-1 group-hover:text-blue-600 transition-colors">
-                                {event.title}
-                              </h3>
-                              <div className="flex gap-1 ml-2">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    shareEvent(event)
-                                  }}
-                                >
-                                  <Share2 className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity text-red-500"
-                                  onClick={(e) => {
-                                    e.preventDefault()
-                                    handleRemoveClick(event._id)
-                                  }}
-                                >
-                                  <Trash2 className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            </div>
-
-                            <p className="text-sm text-muted-foreground line-clamp-2 mb-3">{event.description}</p>
-
-                            <div className="grid grid-cols-2 gap-2 text-sm text-muted-foreground mb-3">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {format(new Date(event.date), "d MMM", { locale: it })}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" />
-                                {event.time}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {event.location.city}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Users className="h-3 w-3" />
-                                {event.currentParticipants}/{event.maxParticipants}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Avatar className="h-6 w-6">
-                                  <AvatarImage src={event.host.image || "/placeholder.svg"} />
-                                  <AvatarFallback className="text-xs">
-                                    {event.host.name?.charAt(0)?.toUpperCase() || "?"}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-sm text-muted-foreground">{event.host.name}</span>
-                                {event.host.verified && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    Verificato
-                                  </Badge>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                  <Eye className="h-3 w-3" />
-                                  {event.views || 0}
-                                </div>
-                                {event.rating && (
-                                  <div className="flex items-center gap-1">
-                                    <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                                    {event.rating.toFixed(1)}
-                                  </div>
-                                )}
-                                <Badge className="bg-green-500 text-white text-xs">
-                                  {event.price === 0 ? "Gratuito" : `€${event.price}`}
-                                </Badge>
-                              </div>
-                            </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Users className="h-4 w-4 text-blue-500" />
+                            <span>
+                              {event.availableSpots}/{event.totalSpots} posti disponibili
+                            </span>
                           </div>
                         </div>
-                      </Link>
-                    </Card>
-                  )}
+
+                        <div className="flex items-center justify-between pt-2">
+                          <div className="flex items-center gap-4">
+                            {event.rating > 0 && (
+                              <div className="flex items-center gap-1">
+                                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                <span className="text-sm font-medium">{event.rating.toFixed(1)}</span>
+                                <span className="text-xs text-muted-foreground">({event.reviewCount})</span>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Eye className="h-3 w-3" />
+                              <span>{event.views}</span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-pink-600">
+                              {event.price === 0 ? "Gratuito" : `€${event.price}`}
+                            </div>
+                            {event.price > 0 && <div className="text-xs text-muted-foreground">per persona</div>}
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                 </motion.div>
               ))}
             </AnimatePresence>
-          </motion.div>
+          </div>
         )}
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Rimuovi dai preferiti</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler rimuovere questo evento dai tuoi preferiti?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmRemove} className="bg-red-600 hover:bg-red-700">
-              Rimuovi
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   )
 }
