@@ -375,8 +375,8 @@ export default function PreferitiPage() {
                       <div className="flex items-center justify-between pt-3 mt-auto">
                         <div className="flex items-center gap-1">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span className="text-sm font-medium">{event.rating.toFixed(1)}</span>
-                          <span className="text-xs text-muted-foreground">({event.reviewCount})</span>
+                          <span className="text-sm font-medium">{(event.rating || 0).toFixed(1)}</span>
+                          <span className="text-xs text-muted-foreground">({event.reviewCount || 0})</span>
                         </div>
                         <div className="text-lg font-bold text-primary">
                           {event.price === 0 ? "Gratuito" : `€${event.price}`}

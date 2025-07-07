@@ -83,7 +83,7 @@ export default function EventoPage() {
       const response = await fetch(`/api/events/${id}`)
       if (!response.ok) throw new Error("Evento non trovato")
       const data = await response.json()
-      setEvent(data.event)
+      setEvent(data)
     } catch (error) {
       console.error("Error fetching event:", error)
       toast.error("Impossibile caricare l'evento.")
@@ -339,8 +339,8 @@ export default function EventoPage() {
                     <h3 className="font-semibold">{event.host.name}</h3>
                     <div className="flex items-center gap-1 text-sm text-muted-foreground">
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>{event.rating.toFixed(1)}</span>
-                      <span>({event.reviewCount} recensioni)</span>
+                      <span>{(event.rating || 0).toFixed(1)}</span>
+                      <span>({event.reviewCount || 0} recensioni)</span>
                     </div>
                   </div>
                 </div>
