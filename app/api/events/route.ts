@@ -9,6 +9,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const category = searchParams.get("category")
     const searchQuery = searchParams.get("search")
+    const lat = searchParams.get("lat")
+    const lng = searchParams.get("lng")
+    const radius = searchParams.get("radius") // in km
     const page = Number.parseInt(searchParams.get("page") || "1", 10)
     const limit = Number.parseInt(searchParams.get("limit") || "20", 10)
     const skip = (page - 1) * limit
@@ -41,6 +44,21 @@ export async function GET(request: NextRequest) {
       } catch (e) {
         console.warn("Invalid ObjectId for userId, skipping user event filter:", userId)
       }
+    }
+
+    if (lat && lng && radius) {
+      const locationQuery = {
+        location: {
+          $near: {
+            $geometry: {
+              type: "Point",
+              coordinates: [Number.parseFloat(lng), Number.parseFloat(lat)],
+            },
+            $maxDistance: Number.parseFloat(radius) * 1000, // Convert km to meters
+          },
+        },
+      }
+      Object.assign(query, locationQuery)
     }
 
     const events = await db.collection("events").find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray()

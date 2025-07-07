@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Loader2, MapPin } from "lucide-react"
@@ -36,18 +36,22 @@ export function LocationSearchInput({ onLocationSelect }: LocationSearchInputPro
           searchQuery,
         )}&format=json&addressdetails=1&limit=5`,
       )
+      if (!response.ok) {
+        throw new Error("Network response was not ok")
+      }
       const data = await response.json()
       setSuggestions(data)
     } catch (error) {
       console.error("Error fetching location suggestions:", error)
+      setSuggestions([])
     } finally {
       setIsLoading(false)
     }
   }, [])
 
-  useState(() => {
+  useEffect(() => {
     fetchSuggestions(debouncedQuery)
-  })
+  }, [debouncedQuery, fetchSuggestions])
 
   const handleSelect = (suggestion: Suggestion) => {
     setQuery(suggestion.display_name)

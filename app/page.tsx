@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import type React from "react"
+
+import { useState, useEffect, useCallback } from "react"
 import {
   Search,
   Filter,
@@ -16,6 +18,7 @@ import {
   Menu,
   Zap,
   Loader2,
+  Compass,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -27,10 +30,11 @@ import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
+import { Slider } from "@/components/ui/slider"
 
 const categories = [
   { id: "casa", name: "Case", icon: "🏠", gradient: "from-green-500 to-emerald-600" },
@@ -51,18 +55,13 @@ interface Event {
   dateStart: string
   totalSpots: number
   availableSpots: number
-  amenities: string[]
-  bookingLink: string
-  verified: boolean
-  views: number
   host?: {
     _id?: string
     name: string
-    email: string
     image?: string
-    rating: number
     verified: boolean
   }
+  verified: boolean
 }
 
 export default function HomePage() {
@@ -73,18 +72,12 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [error, setError] = useState("")
-  const [refreshing, setRefreshing] = useState(false)
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [searchRadius, setSearchRadius] = useState(50) // Default 50km
   const { data: session, status } = useSession()
   const router = useRouter()
 
-  useEffect(() => {
-    fetchEvents()
-    if (session?.user?.email) {
-      fetchFavorites()
-    }
-  }, [selectedCategory, searchQuery, session])
-
-  const fetchEvents = async () => {
+  const fetchEvents = useCallback(async () => {
     try {
       setLoading(true)
       setError("")
@@ -92,6 +85,11 @@ export default function HomePage() {
       const params = new URLSearchParams()
       if (selectedCategory !== "all") params.append("category", selectedCategory)
       if (searchQuery) params.append("search", searchQuery)
+      if (userLocation) {
+        params.append("lat", userLocation.lat.toString())
+        params.append("lng", userLocation.lng.toString())
+        params.append("radius", searchRadius.toString())
+      }
 
       console.log("🔍 Fetching events with params:", params.toString())
 
@@ -108,8 +106,10 @@ export default function HomePage() {
 
       if (Array.isArray(data)) {
         setEvents(data)
-        // Set featured events (eventi con rating alto o molte visualizzazioni)
-        const featured = data.filter((event: Event) => event.rating >= 4.7 || event.views > 30).slice(0, 3)
+        // Featured events: closest and soonest
+        const featured = [...data]
+          .sort((a, b) => new Date(a.dateStart).getTime() - new Date(b.dateStart).getTime())
+          .slice(0, 5)
         setFeaturedEvents(featured)
       } else {
         console.error("❌ Data is not an array:", typeof data)
@@ -117,14 +117,43 @@ export default function HomePage() {
         setFeaturedEvents([])
         setError("Formato dati non valido ricevuto dal server")
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("💥 Error fetching events:", error)
       setError("Errore nel caricamento degli eventi. Riprova.")
       setEvents([])
       setFeaturedEvents([])
     } finally {
       setLoading(false)
-      setRefreshing(false)
+    }
+  }, [selectedCategory, searchQuery, userLocation, searchRadius])
+
+  useEffect(() => {
+    fetchEvents()
+  }, [fetchEvents])
+
+  useEffect(() => {
+    if (session?.user?.email) {
+      fetchFavorites()
+    }
+  }, [session])
+
+  const getUserLocation = () => {
+    if (navigator.geolocation) {
+      toast.info("Accesso alla tua posizione...")
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          })
+          toast.success("Posizione trovata!")
+        },
+        () => {
+          toast.error("Impossibile accedere alla posizione. Controlla i permessi del browser.")
+        },
+      )
+    } else {
+      toast.error("La geolocalizzazione non è supportata da questo browser.")
     }
   }
 
@@ -147,7 +176,8 @@ export default function HomePage() {
     }
   }
 
-  const toggleFavorite = async (eventId: string) => {
+  const toggleFavorite = async (e: React.MouseEvent, eventId: string) => {
+    e.stopPropagation()
     if (!session?.user?.email) {
       toast.error("Devi essere loggato per aggiungere ai preferiti")
       router.push("/auth/login")
@@ -179,11 +209,6 @@ export default function HomePage() {
 
   const handleEventClick = (eventId: string) => {
     router.push(`/evento/${eventId}`)
-  }
-
-  const handleRefresh = () => {
-    setRefreshing(true)
-    fetchEvents()
   }
 
   const formatDate = (dateString: string) => {
@@ -340,7 +365,7 @@ export default function HomePage() {
                 size="sm"
                 className={`text-xs h-9 px-4 whitespace-nowrap transition-all ${
                   selectedCategory === "all"
-                    ? "bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
+                    ? "bg-gradient-to-r from-blue-600 to-purple-500 text-white shadow-lg"
                     : "hover:bg-blue-50 hover:text-blue-600"
                 }`}
                 onClick={() => setSelectedCategory("all")}
@@ -371,6 +396,35 @@ export default function HomePage() {
 
       {/* Main Content */}
       <div className="px-4 py-4 pb-20">
+        {/* Location Search */}
+        <Card className="mb-6 bg-gray-800/50 border-gray-700">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row items-center gap-4">
+              <Button onClick={getUserLocation} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700">
+                <Compass className="mr-2 h-4 w-4" />
+                Trova eventi vicino a me
+              </Button>
+              {userLocation && (
+                <div className="w-full sm:flex-1 flex items-center gap-4">
+                  <Slider
+                    defaultValue={[searchRadius]}
+                    max={200}
+                    step={10}
+                    onValueChange={(value) => setSearchRadius(value[0])}
+                    className="w-full"
+                  />
+                  <span className="text-sm text-gray-300 font-medium whitespace-nowrap">{searchRadius} km</span>
+                </div>
+              )}
+            </div>
+            {userLocation && (
+              <p className="text-xs text-gray-500 mt-2 text-center sm:text-left">
+                Ricerca attiva nel raggio di {searchRadius} km dalla tua posizione.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Welcome Banner for Non-Logged Users */}
         {!session && status !== "loading" && (
           <motion.div
@@ -530,11 +584,11 @@ export default function HomePage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={handleRefresh}
-            disabled={refreshing}
+            onClick={fetchEvents}
+            disabled={loading}
             className="text-xs hover:bg-blue-50 hover:text-blue-600 transition-colors bg-transparent"
           >
-            {refreshing ? (
+            {loading ? (
               <>
                 <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 mr-2"></div>
                 Aggiornamento...
@@ -557,16 +611,10 @@ export default function HomePage() {
         {/* Featured Events */}
         {featuredEvents.length > 0 && !loading && (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-orange-500" />
-                In Evidenza
-              </h2>
-              <Badge variant="secondary" className="bg-orange-100 text-orange-700">
-                {featuredEvents.length} eventi
-              </Badge>
-            </div>
-
+            <h2 className="text-lg font-semibold flex items-center gap-2 mb-4">
+              <TrendingUp className="h-5 w-5 text-orange-500" />
+              In Evidenza Vicino a Te
+            </h2>
             <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
               {featuredEvents.map((event, index) => (
                 <motion.div
@@ -580,48 +628,29 @@ export default function HomePage() {
                   <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                     <div className="relative aspect-[16/10] overflow-hidden">
                       <Image
-                        src={getEventImageUrl(event.images?.[0], 300, 200) || "/placeholder.svg"}
+                        src={getEventImageUrl(event.images?.[0], event.category, 300, 200) || "/placeholder.svg"}
                         alt={event.title}
                         fill
                         className="object-cover transition-transform duration-300 hover:scale-105"
                         sizes="300px"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                      <div className="absolute top-3 left-3">
-                        <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white text-xs font-semibold">
-                          ⭐ Featured
-                        </Badge>
-                      </div>
                       <div className="absolute top-3 right-3">
-                        <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 bg-black/30 backdrop-blur-sm hover:bg-black/40 rounded-full"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              toggleFavorite(event._id)
-                            }}
-                          >
-                            <Heart
-                              className={`h-4 w-4 transition-colors ${
-                                favorites.includes(event._id) ? "fill-red-500 text-red-500" : "text-white"
-                              }`}
-                            />
-                          </Button>
-                        </motion.div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 bg-black/30 backdrop-blur-sm hover:bg-black/40 rounded-full"
+                          onClick={(e) => toggleFavorite(e, event._id)}
+                        >
+                          <Heart
+                            className={`h-4 w-4 transition-colors ${
+                              favorites.includes(event._id) ? "fill-red-500 text-red-500" : "text-white"
+                            }`}
+                          />
+                        </Button>
                       </div>
                       <div className="absolute bottom-3 left-3 right-3">
                         <h3 className="font-bold text-white text-sm line-clamp-2 mb-2">{event.title}</h3>
-                        <div className="flex items-center justify-between">
-                          <p className="text-white/80 text-xs flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {event.location.split(",")[0]}
-                          </p>
-                          <div className="text-white font-semibold text-sm bg-black/30 backdrop-blur-sm px-2 py-1 rounded">
-                            €{event.price}
-                          </div>
-                        </div>
                       </div>
                     </div>
                   </Card>
@@ -633,64 +662,62 @@ export default function HomePage() {
 
         {/* Events Grid */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold">
-              {searchQuery
-                ? `Risultati per "${searchQuery}"`
-                : selectedCategory !== "all"
-                  ? `${categories.find((c) => c.id === selectedCategory)?.name || "Eventi"}`
-                  : "Eventi Disponibili"}
-            </h2>
-            {events.length > 0 && (
-              <Badge variant="secondary" className="bg-blue-100 text-blue-700">
-                {events.length} eventi
-              </Badge>
-            )}
-          </div>
-
+          <h2 className="text-lg font-semibold mb-4">Eventi Disponibili</h2>
           {loading ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-blue-400" />
             </div>
+          ) : events.length === 0 ? (
+            <div className="text-center py-16">
+              <h3 className="text-xl font-semibold mb-2">Nessun evento trovato</h3>
+              <p className="text-muted-foreground mb-6">
+                Prova ad allargare il raggio di ricerca o a cambiare categoria.
+              </p>
+            </div>
           ) : (
-            <motion.div
-              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-              initial="hidden"
-              animate="visible"
-              variants={{
-                visible: {
-                  transition: {
-                    staggerChildren: 0.05,
-                  },
-                },
-              }}
-            >
-              {filteredEvents.map((event) => (
-                <motion.div key={event._id} variants={cardVariants}>
-                  <Card className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden group transform hover:-translate-y-1 transition-transform duration-300 shadow-lg hover:shadow-blue-500/20">
-                    <Link href={`/evento/${event._id}`} className="block">
-                      <div className="relative h-48">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <AnimatePresence>
+                {filteredEvents.map((event, index) => (
+                  <motion.div
+                    key={event._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3, delay: index * 0.05 }}
+                    whileHover={{ y: -4 }}
+                  >
+                    <Card
+                      className="overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group"
+                      onClick={() => handleEventClick(event._id)}
+                    >
+                      <div className="relative aspect-[4/3] overflow-hidden">
                         <Image
                           src={getEventImageUrl(event.images?.[0], event.category, 400, 300) || "/placeholder.svg"}
                           alt={event.title}
                           fill
-                          className="object-cover group-hover:scale-105 transition-transform duration-300"
-                          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                          sizes="(max-width: 768px) 100vw, 50vw"
                         />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent"></div>
-                        <Badge className="absolute top-3 left-3 bg-black/50 text-white">{event.category}</Badge>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute top-3 right-3 bg-black/50 text-white rounded-full h-8 w-8 hover:bg-red-500"
-                        >
-                          <Heart className="h-4 w-4" />
-                        </Button>
-                        <div className="absolute bottom-3 left-3 right-3">
-                          <h3 className="text-lg font-bold text-white truncate">{event.title}</h3>
+                        <div className="absolute top-3 right-3">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 bg-black/30 backdrop-blur-sm hover:bg-black/40 rounded-full"
+                            onClick={(e) => toggleFavorite(e, event._id)}
+                          >
+                            <Heart
+                              className={`h-4 w-4 transition-all ${
+                                favorites.includes(event._id) ? "fill-red-500 text-red-500" : "text-white"
+                              }`}
+                            />
+                          </Button>
                         </div>
+                        <Badge className="absolute top-3 left-3 bg-black/50 text-white">{event.category}</Badge>
                       </div>
                       <CardContent className="p-4">
+                        <h3 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
+                          {event.title}
+                        </h3>
                         <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
                           <div className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-blue-400" />
@@ -709,18 +736,13 @@ export default function HomePage() {
                           </span>
                         </div>
                       </CardContent>
-                    </Link>
-                  </Card>
-                </motion.div>
-              ))}
-            </motion.div>
+                    </Card>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
           )}
         </div>
-        {filteredEvents.length === 0 && !loading && (
-          <div className="text-center py-16">
-            <p className="text-gray-400">Nessun evento trovato. Prova a modificare la ricerca.</p>
-          </div>
-        )}
       </div>
 
       {/* Mobile Navigation */}
