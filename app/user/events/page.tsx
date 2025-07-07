@@ -1,34 +1,41 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import {
-  ArrowLeft,
-  Plus,
-  Calendar,
-  MapPin,
-  Users,
-  Eye,
-  Star,
-  Edit3,
-  Trash2,
-  MoreVertical,
-  AlertTriangle,
-  RefreshCw,
-} from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Skeleton } from "@/components/ui/skeleton"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import Link from "next/link"
 import Image from "next/image"
-import { motion, AnimatePresence } from "framer-motion"
+import { format } from "date-fns"
+import { it } from "date-fns/locale"
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  Users,
+  Star,
+  Eye,
+  Edit,
+  Trash2,
+  Plus,
+  Loader2,
+  AlertCircle,
+  TrendingUp,
+} from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 
@@ -44,8 +51,12 @@ interface Event {
   category: string
   dateStart: string
   dateEnd?: string
+  date: string
+  time: string
   totalSpots: number
   availableSpots: number
+  maxParticipants: number
+  currentParticipants: number
   amenities: string[]
   bookingLink: string
   verified: boolean
@@ -54,15 +65,27 @@ interface Event {
   updatedAt: string
 }
 
+const categoryIcons: Record<string, string> = {
+  festa: "🎉",
+  compleanno: "🎂",
+  matrimonio: "💒",
+  aziendale: "🏢",
+  musica: "🎵",
+  sport: "⚽",
+  arte: "🎨",
+  cibo: "🍽️",
+  casa: "🏠",
+  viaggio: "✈️",
+  evento: "🎉",
+  esperienza: "🌟",
+}
+
 export default function UserEventsPage() {
-  const [events, setEvents] = useState<Event[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
-  const [deleteEventId, setDeleteEventId] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [events, setEvents] = useState<Event[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [deletingEventId, setDeletingEventId] = useState<string | null>(null)
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -77,164 +100,64 @@ export default function UserEventsPage() {
 
   const fetchUserEvents = async () => {
     try {
-      setLoading(true)
-      setError("")
-
       console.log("🔍 Fetching user events...")
-
-      const response = await fetch("/api/user/events", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      console.log("📋 Response status:", response.status)
+      const response = await fetch("/api/user/events")
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || `HTTP error! status: ${response.status}`)
+        throw new Error(errorData.error || "Errore nel caricamento")
       }
 
       const data = await response.json()
-      console.log("📊 User events data received:", data?.length || 0, "events")
-
-      if (Array.isArray(data)) {
-        setEvents(data)
-      } else {
-        console.error("❌ Data is not an array:", typeof data)
-        setEvents([])
-        setError("Formato dati non valido ricevuto dal server")
-      }
-    } catch (error: any) {
-      console.error("💥 Error fetching user events:", error)
-      setError(error.message || "Errore nel caricamento degli eventi. Riprova.")
-      setEvents([])
+      console.log("📊 User events received:", data.length)
+      setEvents(data)
+    } catch (error) {
+      console.error("Error fetching user events:", error)
+      toast.error("Errore nel caricamento degli eventi")
     } finally {
-      setLoading(false)
-      setRefreshing(false)
+      setIsLoading(false)
     }
   }
 
-  const handleRefresh = () => {
-    setRefreshing(true)
-    fetchUserEvents()
-  }
-
   const handleDeleteEvent = async (eventId: string) => {
+    setDeletingEventId(eventId)
     try {
-      setDeleting(true)
-
       const response = await fetch(`/api/events/${eventId}`, {
         method: "DELETE",
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Errore durante l'eliminazione")
+        throw new Error("Errore nell'eliminazione dell'evento")
       }
 
-      const data = await response.json()
-      toast.success(data.message || "Evento eliminato con successo!")
-
-      // Remove event from list
-      setEvents((prev) => prev.filter((event) => event._id !== eventId))
-      setDeleteEventId(null)
-    } catch (error: any) {
-      console.error("💥 Error deleting event:", error)
-      toast.error(error.message || "Errore durante l'eliminazione dell'evento")
+      toast.success("Evento eliminato con successo")
+      setEvents(events.filter((event) => event._id !== eventId))
+    } catch (error) {
+      console.error("Error deleting event:", error)
+      toast.error("Errore nell'eliminazione dell'evento")
     } finally {
-      setDeleting(false)
+      setDeletingEventId(null)
     }
   }
 
-  const handleEventClick = (eventId: string, e: React.MouseEvent) => {
-    // Prevent navigation if clicking on dropdown or buttons
-    if ((e.target as HTMLElement).closest("[data-dropdown-trigger]") || (e.target as HTMLElement).closest("button")) {
-      return
-    }
-    router.push(`/evento/${eventId}`)
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
-  }
-
-  const formatDateRange = (startDate: string, endDate?: string) => {
-    const start = new Date(startDate)
-    const startFormatted = start.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "short",
-    })
-
-    if (!endDate) return startFormatted
-
-    const end = new Date(endDate)
-    const endFormatted = end.toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "short",
-    })
-
-    return `${startFormatted} - ${endFormatted}`
-  }
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case "casa":
-        return "🏠"
-      case "viaggio":
-        return "✈️"
-      case "evento":
-        return "🎉"
-      case "esperienza":
-        return "🌟"
-      default:
-        return "📅"
+  const safeFormatDate = (dateString: string): string => {
+    try {
+      if (!dateString) return "Data non disponibile"
+      const date = new Date(dateString)
+      if (isNaN(date.getTime())) return "Data non valida"
+      return format(date, "EEEE d MMMM yyyy", { locale: it })
+    } catch (error) {
+      console.error("Error formatting date:", error)
+      return "Data non disponibile"
     }
   }
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case "casa":
-        return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-      case "viaggio":
-        return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-      case "evento":
-        return "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-      case "esperienza":
-        return "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300"
-      default:
-        return "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-300"
-    }
-  }
-
-  if (status === "loading" || loading) {
+  if (status === "loading" || isLoading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="px-4 py-6">
-          <div className="flex items-center gap-4 mb-6">
-            <Skeleton className="w-10 h-10 rounded-full" />
-            <Skeleton className="h-8 w-48" />
-          </div>
-          <div className="grid gap-4">
-            {[...Array(3)].map((_, i) => (
-              <Card key={i} className="overflow-hidden">
-                <div className="flex">
-                  <Skeleton className="w-32 h-24 flex-shrink-0" />
-                  <div className="flex-1 p-4 space-y-2">
-                    <Skeleton className="h-4 w-3/4" />
-                    <Skeleton className="h-3 w-full" />
-                    <Skeleton className="h-3 w-1/2" />
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Caricamento eventi...</p>
         </div>
       </div>
     )
@@ -245,218 +168,219 @@ export default function UserEventsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-purple-50 to-blue-50 pb-20">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white">
-        <div className="px-4 py-6">
-          <div className="flex items-center gap-4 mb-4">
-            <Link href="/profile">
-              <Button variant="ghost" size="icon" className="text-white hover:bg-white/20">
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">I Miei Eventi</h1>
-              <p className="text-white/80">Gestisci i tuoi eventi creati</p>
-            </div>
-          </div>
-
+      <div className="bg-white/80 backdrop-blur-md border-b border-pink-200 px-4 py-6">
+        <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4 text-white/90 text-sm">
-              <span className="flex items-center gap-1">
-                <Calendar className="h-4 w-4" />
-                {events.length} eventi
-              </span>
-              <span className="flex items-center gap-1">
-                <Eye className="h-4 w-4" />
-                {events.reduce((sum, event) => sum + event.views, 0)} visualizzazioni
-              </span>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-pink-600 to-purple-600 bg-clip-text text-transparent">
+                I Miei Eventi
+              </h1>
+              <p className="text-muted-foreground mt-1">Gestisci i tuoi eventi creati</p>
             </div>
-            <div className="flex gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-white hover:bg-white/20"
-                onClick={handleRefresh}
-                disabled={refreshing}
-              >
-                <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-              </Button>
+            <Button asChild className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
               <Link href="/crea-evento">
-                <Button className="bg-white/20 hover:bg-white/30 text-white border-white/30">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nuovo Evento
-                </Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Crea Evento
               </Link>
-            </div>
+            </Button>
           </div>
         </div>
       </div>
 
-      <div className="px-4 py-6">
-        {/* Error Alert */}
-        {error && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-            <Alert variant="destructive">
-              <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          </motion.div>
-        )}
-
-        {/* Debug Info */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mb-4 p-4 bg-gray-100 rounded-lg text-sm">
-            <p>
-              <strong>Debug:</strong> User: {session?.user?.email}, Events found: {events.length}
-            </p>
-          </div>
-        )}
+      <div className="max-w-6xl mx-auto p-4">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-blue-600">{events.length}</div>
+              <div className="text-sm text-muted-foreground">Eventi Totali</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-green-600">
+                {events.reduce((sum, event) => sum + event.currentParticipants, 0)}
+              </div>
+              <div className="text-sm text-muted-foreground">Partecipanti</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-purple-600">
+                {events.reduce((sum, event) => sum + event.views, 0)}
+              </div>
+              <div className="text-sm text-muted-foreground">Visualizzazioni</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-lg">
+            <CardContent className="p-4 text-center">
+              <div className="text-2xl font-bold text-orange-600">
+                {events.length > 0
+                  ? (events.reduce((sum, event) => sum + event.rating, 0) / events.length).toFixed(1)
+                  : "0.0"}
+              </div>
+              <div className="text-sm text-muted-foreground">Rating Medio</div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Events List */}
-        {events.length === 0 && !loading ? (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
-            <div className="w-20 h-20 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <Calendar className="h-10 w-10 text-blue-500" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Nessun evento creato</h3>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Non hai ancora creato nessun evento. Inizia a condividere le tue esperienze!
-            </p>
-            <Link href="/crea-evento">
-              <Button className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-8">
-                <Plus className="h-4 w-4 mr-2" />
-                Crea il tuo primo evento
+        {events.length === 0 ? (
+          <Card className="bg-white/70 backdrop-blur-sm border-0 shadow-xl">
+            <CardContent className="p-12 text-center">
+              <AlertCircle className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h3 className="text-xl font-semibold mb-2">Nessun evento creato</h3>
+              <p className="text-muted-foreground mb-6">
+                Non hai ancora creato nessun evento. Inizia creando il tuo primo evento!
+              </p>
+              <Button asChild className="bg-gradient-to-r from-pink-500 to-purple-500 text-white">
+                <Link href="/crea-evento">
+                  <Plus className="h-4 w-4 mr-2" />
+                  Crea il tuo primo evento
+                </Link>
               </Button>
-            </Link>
-          </motion.div>
+            </CardContent>
+          </Card>
         ) : (
-          <div className="space-y-4">
-            <AnimatePresence>
-              {events.map((event, index) => (
-                <motion.div
-                  key={event._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -20 }}
-                  transition={{ duration: 0.3, delay: index * 0.05 }}
-                >
-                  <Card
-                    className="overflow-hidden border-0 shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
-                    onClick={(e) => handleEventClick(event._id, e)}
-                  >
-                    <div className="flex">
-                      {/* Event Image */}
-                      <div className="relative w-32 h-24 flex-shrink-0">
-                        <Image
-                          src={getEventImageUrl(event.images?.[0], 128, 96) || "/placeholder.svg"}
-                          alt={event.title}
-                          fill
-                          className="object-cover"
-                          sizes="128px"
-                        />
-                        <div className="absolute top-2 left-2">
-                          <Badge className={`text-xs ${getCategoryColor(event.category)}`}>
-                            {getCategoryIcon(event.category)} {event.category}
-                          </Badge>
-                        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {events.map((event) => (
+              <Card
+                key={event._id}
+                className="bg-white/70 backdrop-blur-sm border-0 shadow-xl hover:shadow-2xl transition-all duration-300 group"
+              >
+                <div className="relative">
+                  {event.images && event.images.length > 0 ? (
+                    <div className="relative h-48 overflow-hidden rounded-t-lg">
+                      <Image
+                        src={getEventImageUrl(event.images[0], 400, 300) || "/placeholder.svg?height=300&width=400"}
+                        alt={event.title}
+                        fill
+                        className="object-cover group-hover:scale-105 transition-transform duration-300"
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                      <div className="absolute top-3 left-3">
+                        <Badge className="bg-white/90 text-gray-800">
+                          {categoryIcons[event.category]} {event.category}
+                        </Badge>
                       </div>
-
-                      {/* Event Info */}
-                      <div className="flex-1 p-4">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-sm line-clamp-1 mb-1">{event.title}</h3>
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground mb-2">
-                              <span className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                {event.location.split(",")[0]}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatDateRange(event.dateStart, event.dateEnd)}
-                              </span>
-                            </div>
-                          </div>
-
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild data-dropdown-trigger>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem asChild>
-                                <Link href={`/evento/${event._id}/edit`} className="flex items-center gap-2">
-                                  <Edit3 className="h-4 w-4" />
-                                  Modifica
-                                </Link>
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => setDeleteEventId(event._id)}
-                                className="text-red-600 focus:text-red-600"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                Elimina
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1">
-                              <Users className="h-3 w-3" />
-                              {event.availableSpots}/{event.totalSpots} posti
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Eye className="h-3 w-3" />
-                              {event.views} visualizzazioni
-                            </span>
-                            {event.rating > 0 && (
-                              <span className="flex items-center gap-1">
-                                <Star className="h-3 w-3 text-yellow-500" />
-                                {event.rating.toFixed(1)}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <div className="text-right">
-                              <div className="text-sm font-semibold text-blue-600">€{event.price}</div>
-                              <div className="text-xs text-muted-foreground">per persona</div>
-                            </div>
-                            {event.verified ? (
-                              <Badge className="bg-green-100 text-green-700 text-xs">✓ Verificato</Badge>
-                            ) : (
-                              <Badge variant="outline" className="text-xs">
-                                In revisione
-                              </Badge>
-                            )}
-                          </div>
-                        </div>
+                      <div className="absolute top-3 right-3 flex gap-2">
+                        {event.verified && <Badge className="bg-green-500 text-white">Verificato</Badge>}
                       </div>
                     </div>
-                  </Card>
-                </motion.div>
-              ))}
-            </AnimatePresence>
+                  ) : (
+                    <div className="h-48 bg-gradient-to-br from-pink-100 to-purple-100 rounded-t-lg flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">{categoryIcons[event.category] || "🎉"}</div>
+                        <p className="text-sm text-muted-foreground">Nessuna immagine</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <CardContent className="p-4">
+                  <div className="mb-3">
+                    <h3 className="font-semibold text-lg mb-1 line-clamp-1">{event.title}</h3>
+                    <p className="text-sm text-muted-foreground line-clamp-2">{event.description}</p>
+                  </div>
+
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Calendar className="h-4 w-4 text-blue-500" />
+                      <span>{safeFormatDate(event.dateStart)}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Clock className="h-4 w-4 text-green-500" />
+                      <span>{event.time}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <MapPin className="h-4 w-4 text-red-500" />
+                      <span className="line-clamp-1">{event.location}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-purple-500" />
+                      <span className="text-sm font-medium">
+                        {event.currentParticipants}/{event.maxParticipants}
+                      </span>
+                    </div>
+                    <div className="text-lg font-bold text-green-600">
+                      {event.price === 0 ? "Gratuito" : `€${event.price}`}
+                    </div>
+                  </div>
+
+                  <Progress value={(event.currentParticipants / event.maxParticipants) * 100} className="h-2 mb-4" />
+
+                  <div className="grid grid-cols-3 gap-2 mb-4 text-center">
+                    <div className="p-2 rounded-lg bg-blue-50">
+                      <Eye className="h-4 w-4 mx-auto mb-1 text-blue-600" />
+                      <div className="text-xs font-medium text-blue-600">{event.views}</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-yellow-50">
+                      <Star className="h-4 w-4 mx-auto mb-1 text-yellow-600" />
+                      <div className="text-xs font-medium text-yellow-600">{event.rating.toFixed(1)}</div>
+                    </div>
+                    <div className="p-2 rounded-lg bg-purple-50">
+                      <TrendingUp className="h-4 w-4 mx-auto mb-1 text-purple-600" />
+                      <div className="text-xs font-medium text-purple-600">{event.reviewCount}</div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" asChild className="flex-1 bg-transparent">
+                      <Link href={`/evento/${event._id}`}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        Visualizza
+                      </Link>
+                    </Button>
+                    <Button variant="outline" size="sm" asChild>
+                      <Link href={`/evento/${event._id}/edit`}>
+                        <Edit className="h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 bg-transparent">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Elimina evento</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Sei sicuro di voler eliminare questo evento? Questa azione non può essere annullata.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Annulla</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => handleDeleteEvent(event._id)}
+                            disabled={deletingEventId === event._id}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            {deletingEventId === event._id ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Eliminazione...
+                              </>
+                            ) : (
+                              "Elimina"
+                            )}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         )}
       </div>
-
-      {/* Delete Confirmation Dialog */}
-      <ConfirmDialog
-        open={!!deleteEventId}
-        onOpenChange={() => setDeleteEventId(null)}
-        title="Elimina Evento"
-        description="Sei sicuro di voler eliminare questo evento? Questa azione non può essere annullata."
-        confirmText="Elimina"
-        cancelText="Annulla"
-        onConfirm={() => deleteEventId && handleDeleteEvent(deleteEventId)}
-        loading={deleting}
-        variant="destructive"
-      />
     </div>
   )
 }

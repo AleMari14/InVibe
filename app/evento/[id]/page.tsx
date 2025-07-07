@@ -5,8 +5,6 @@ import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import Image from "next/image"
-import { format } from "date-fns"
-import { it } from "date-fns/locale"
 import {
   ArrowLeft,
   Calendar,
@@ -55,6 +53,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { toast } from "sonner"
 import { MessageHostButton } from "@/components/event/message-host-button"
+import { getEventImageUrl } from "@/lib/image-utils"
 
 // Safe utility functions
 const getInitials = (name?: string): string => {
@@ -69,6 +68,67 @@ const getSafeName = (name?: string): string => {
 
 const getSafeArray = <T,>(arr: T[] | undefined | null): T[] => {
   return Array.isArray(arr) ? arr : []
+}
+
+const safeFormatDate = (dateString: string | Date | null | undefined, formatStr = "EEEE d MMMM yyyy"): string => {
+  try {
+    if (!dateString) return "Data non disponibile"
+
+    let date: Date
+    if (typeof dateString === "string") {
+      // Check if it's a valid ISO string or date string
+      if (dateString.includes("T") || dateString.includes("-")) {
+        date = new Date(dateString)
+      } else {
+        return dateString // Return as is if it's already formatted
+      }
+    } else if (dateString instanceof Date) {
+      date = dateString
+    } else {
+      return "Data non disponibile"
+    }
+
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.warn("Invalid date:", dateString)
+      return "Data non valida"
+    }
+
+    // Simple formatting without date-fns to avoid errors
+    const options: Intl.DateTimeFormatOptions = {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    }
+
+    return date.toLocaleDateString("it-IT", options)
+  } catch (error) {
+    console.error("Error formatting date:", error, dateString)
+    return "Data non disponibile"
+  }
+}
+
+const safeFormatTime = (timeString: string | null | undefined): string => {
+  if (!timeString) return "Orario da definire"
+
+  try {
+    // If it's already in HH:MM format, return as is
+    if (/^\d{2}:\d{2}$/.test(timeString)) {
+      return timeString
+    }
+
+    // Try to parse as date and extract time
+    const date = new Date(timeString)
+    if (!isNaN(date.getTime())) {
+      return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+    }
+
+    return timeString
+  } catch (error) {
+    console.error("Error formatting time:", error, timeString)
+    return "Orario da definire"
+  }
 }
 
 interface Event {
@@ -104,6 +164,8 @@ interface Event {
   likes?: number
   rating?: number
   totalReviews?: number
+  dateStart?: string
+  dateEnd?: string
 }
 
 interface Review {
@@ -126,6 +188,10 @@ const categoryIcons: Record<string, any> = {
   sport: "⚽",
   arte: "🎨",
   cibo: "🍽️",
+  casa: "🏠",
+  viaggio: "✈️",
+  evento: "🎉",
+  esperienza: "🌟",
 }
 
 const amenityIcons: Record<string, any> = {
@@ -176,6 +242,7 @@ export default function EventoPage() {
       const response = await fetch(`/api/events/${eventId}`)
       if (!response.ok) throw new Error("Evento non trovato")
       const data = await response.json()
+      console.log("📅 Event data received:", data)
       setEvent(data)
     } catch (error) {
       console.error("Error fetching event:", error)
@@ -336,11 +403,14 @@ export default function EventoPage() {
           <Card className="overflow-hidden bg-white/70 backdrop-blur-sm border-0 shadow-xl">
             <div className="relative h-80 md:h-96">
               <Image
-                src={safeImages[currentImageIndex] || "/placeholder.svg?height=400&width=800"}
+                src={
+                  getEventImageUrl(safeImages[currentImageIndex], 800, 400) || "/placeholder.svg?height=400&width=800"
+                }
                 alt={event.title}
                 fill
                 className="object-cover"
                 priority
+                sizes="(max-width: 768px) 100vw, 800px"
               />
 
               {/* Controlli Galleria */}
@@ -471,13 +541,11 @@ export default function EventoPage() {
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <Calendar className="h-5 w-5 text-blue-500" />
-                  <span className="font-medium">
-                    {format(new Date(event.date), "EEEE d MMMM yyyy", { locale: it })}
-                  </span>
+                  <span className="font-medium">{safeFormatDate(event.dateStart || event.date)}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <Clock className="h-5 w-5 text-green-500" />
-                  <span className="font-medium">{event.time}</span>
+                  <span className="font-medium">{safeFormatTime(event.time)}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <MapPin className="h-5 w-5 text-red-500" />
@@ -742,7 +810,7 @@ export default function EventoPage() {
                         </div>
                         <p className="text-sm text-muted-foreground mb-2">{review.comment}</p>
                         <span className="text-xs text-muted-foreground">
-                          {format(new Date(review.createdAt), "d MMMM yyyy", { locale: it })}
+                          {safeFormatDate(review.createdAt, "d MMMM yyyy")}
                         </span>
                       </div>
                     </div>
@@ -801,10 +869,11 @@ export default function EventoPage() {
         <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
           <div className="relative w-full h-full">
             <Image
-              src={safeImages[currentImageIndex] || "/placeholder.svg?height=600&width=800"}
+              src={getEventImageUrl(safeImages[currentImageIndex], 800, 600) || "/placeholder.svg?height=600&width=800"}
               alt={event.title}
               fill
               className="object-contain"
+              sizes="800px"
             />
             <Button
               variant="ghost"
