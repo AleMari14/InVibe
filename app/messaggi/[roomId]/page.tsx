@@ -113,7 +113,10 @@ export default function ChatRoomPage() {
     if (!session || !roomId) return
 
     const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
-    const socket = io(socketUrl)
+    const socket = io(socketUrl, {
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    })
     socketRef.current = socket
 
     socket.on("connect", () => {

@@ -57,12 +57,16 @@ export async function GET(request: NextRequest) {
             $maxDistance: radiusInMeters,
           },
         }
-        // MongoDB automatically sorts by distance when using $nearSphere
+        // MongoDB automatically sorts by distance when using $nearSphere, so we clear our sort
         sort = {}
       }
     }
 
+    console.log("Executing event query:", JSON.stringify(query, null, 2))
+
     const events = await db.collection("events").find(query).sort(sort).limit(20).toArray()
+
+    console.log(`Found ${events.length} events.`)
 
     return NextResponse.json({ events })
   } catch (error: any) {

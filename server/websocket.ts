@@ -15,16 +15,25 @@ export function setupSocketIO(io: Server) {
     console.log(`A client connected: ${socket.id}`)
 
     socket.on("joinRoom", (roomId: string) => {
+      if (!roomId) return
       socket.join(roomId)
       console.log(`Socket ${socket.id} joined room ${roomId}`)
     })
 
     socket.on("leaveRoom", (roomId: string) => {
+      if (!roomId) return
       socket.leave(roomId)
       console.log(`Socket ${socket.id} left room ${roomId}`)
     })
 
     socket.on("sendMessage", async (message: SocketMessage) => {
+      // --- VALIDAZIONE ROBUSTA PER PREVENIRE CRASH ---
+      if (!message || !ObjectId.isValid(message.roomId) || !ObjectId.isValid(message.senderId)) {
+        console.error("Invalid message data received:", message)
+        socket.emit("messageError", { error: "Dati del messaggio non validi." })
+        return
+      }
+
       try {
         const client = await clientPromise
         const db = client.db("invibe")
@@ -48,8 +57,8 @@ export function setupSocketIO(io: Server) {
 
         io.to(message.roomId).emit("receiveMessage", messageToSend)
       } catch (error) {
-        console.error("Error handling message:", error)
-        socket.emit("messageError", { error: "Failed to send message." })
+        console.error("Error handling message in WebSocket:", error)
+        socket.emit("messageError", { error: "Impossibile inviare il messaggio." })
       }
     })
 
