@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
 
     const query: any = {
       dateStart: { $gte: new Date().toISOString() },
-      verified: true,
+      // Rimosso 'verified: true' per mostrare tutti gli eventi esistenti
     }
 
     // Escludi gli eventi dell'utente loggato, gestendo possibili errori nell'ID
@@ -61,7 +61,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const events = await db.collection("events").find(query).limit(20).sort({ dateStart: 1 }).toArray()
+    const events = await db
+      .collection("events")
+      .find(query)
+      .sort(lat && lng ? {} : { dateStart: 1 }) // Sort by distance if location is provided, otherwise by date
+      .limit(20)
+      .toArray()
 
     return NextResponse.json({ events })
   } catch (error: any) {
@@ -92,6 +97,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
     }
 
+    const user = await db.collection("users").findOne({ _id: new ObjectId(session.user.id) })
+    if (!user) {
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    }
+
     const newEvent = {
       title,
       description,
@@ -103,16 +113,21 @@ export async function POST(request: NextRequest) {
       totalSpots: Number(totalSpots) || 1,
       availableSpots: Number(totalSpots) || 1,
       images: images || [],
-      hostId: new ObjectId(session.user.id),
+      hostId: user._id,
+      host: {
+        _id: user._id,
+        name: user.name,
+        image: user.image,
+      },
       participants: [],
-      verified: true,
+      verified: true, // I nuovi eventi sono verificati, per usi futuri
       createdAt: new Date(),
       updatedAt: new Date(),
     }
 
     const result = await db.collection("events").insertOne(newEvent)
 
-    return NextResponse.json({ message: "Evento creato", eventId: result.insertedId }, { status: 201 })
+    return NextResponse.json({ message: "Evento creato", eventId: result.insertedId.toString() }, { status: 201 })
   } catch (error: any) {
     console.error("Error creating event:", error)
     return NextResponse.json({ error: "Errore nella creazione dell'evento", details: error.message }, { status: 500 })

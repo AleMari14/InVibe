@@ -113,8 +113,9 @@ export default function CreateEventPage() {
 
     try {
       // 1. Upload images to Cloudinary
-      const imageUrls: string[] = []
+      let imageUrls: string[] = []
       if (imageFiles.length > 0) {
+        toast.info(`Caricamento di ${imageFiles.length} immagini...`)
         const uploadPromises = imageFiles.map(async (file) => {
           const formData = new FormData()
           formData.append("file", file)
@@ -123,17 +124,13 @@ export default function CreateEventPage() {
             body: formData,
           })
           if (!response.ok) {
-            throw new Error("Caricamento immagine fallito")
+            throw new Error(`Caricamento immagine fallito per ${file.name}`)
           }
-          const { url } = await response.json()
-          return url
+          const result = await response.json()
+          return result.url
         })
-        const settledPromises = await Promise.all(uploadPromises)
-        settledPromises.forEach((result) => {
-          if (result.status === "fulfilled") {
-            imageUrls.push(result.value)
-          }
-        })
+        // Correzione: Promise.all restituisce direttamente l'array di risultati
+        imageUrls = await Promise.all(uploadPromises)
       }
 
       // 2. Combine date and time
