@@ -205,8 +205,8 @@ export default function PreferitiPage() {
   return (
     <div className="min-h-screen bg-background text-foreground pb-20">
       <div className="bg-card/80 backdrop-blur-md border-b border-border sticky top-16 z-40">
-        <div className="px-4 py-6 max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-6">
+        <div className="px-4 py-3 max-w-7xl mx-auto">
+          <div className="flex items-center gap-4 mb-2">
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
                 I Miei Preferiti
