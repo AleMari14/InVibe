@@ -78,8 +78,16 @@ export default function CreateEventPage() {
   } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
+      title: "",
+      description: "",
+      category: "",
+      location: "",
+      locationCoords: { lat: 0, lng: 0 },
+      dateStart: "",
+      timeStart: "",
       price: 0,
       totalSpots: 10,
+      images: [],
     },
   })
 
@@ -153,14 +161,20 @@ export default function CreateEventPage() {
         body: JSON.stringify(eventPayload),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Errore nella creazione dell'evento")
+      const text = await response.text();
+      console.log("Risposta server:", text);
+      let responseData;
+      try {
+        responseData = JSON.parse(text);
+      } catch {
+        throw new Error("Risposta non valida dal server: " + text);
       }
-
-      const { eventId } = await response.json()
-      toast.success("Evento creato con successo!")
-      router.push(`/evento/${eventId}`)
+      if (!response.ok) {
+        throw new Error(responseData?.error || "Errore nella creazione dell'evento");
+      }
+      const { eventId } = responseData;
+      toast.success("Evento creato con successo!");
+      router.push(`/evento/${eventId}`);
     } catch (error: any) {
       toast.error(error.message || "Si è verificato un errore imprevisto.")
     } finally {
