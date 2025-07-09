@@ -324,6 +324,7 @@ export default function CreateEventPage() {
                 <Label htmlFor="price" className="text-base font-medium text-gray-300">
                   Prezzo per persona (€) *
                 </Label>
+                
                 <Input
                   id="price"
                   type="number"
