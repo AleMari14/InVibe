@@ -153,11 +153,13 @@ export default function CreateEventPage() {
       const combinedDateStart = new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes))
 
       // 3. Create event in database
+      console.log("DEBUG locationCoords:", data.locationCoords, typeof data.locationCoords);
       const eventPayload = {
         ...data,
         dateStart: combinedDateStart.toISOString(),
         images: imageUrls,
       }
+      console.log("DEBUG eventPayload:", eventPayload);
 
       const response = await fetch("/api/events", {
         method: "POST",
