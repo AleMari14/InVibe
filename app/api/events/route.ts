@@ -3,8 +3,22 @@ import { connectToDatabase } from "@/lib/mongodb"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { ObjectId } from "mongodb"
+import { z } from "zod"
 
 export const dynamic = "force-dynamic";
+
+const eventSchema = z.object({
+  title: z.string().min(5),
+  description: z.string().min(20),
+  category: z.string().min(1),
+  location: z.string().min(5),
+  locationCoords: z.object({ lat: z.number(), lng: z.number() }),
+  dateStart: z.string(),
+  timeStart: z.string(),
+  price: z.number(),
+  totalSpots: z.number(),
+  images: z.array(z.string()).optional(),
+});
 
 export async function GET(request: NextRequest) {
   try {
