@@ -139,10 +139,12 @@ export default function CreateEventPage() {
       const combinedDateStart = new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes))
 
       // 3. Create event in database
+      // locationCoords deve essere { lat, lng } (non GeoJSON): il backend lo trasforma
       const eventPayload = {
         ...data,
         dateStart: combinedDateStart.toISOString(),
         images: imageUrls,
+        // locationCoords: { lat, lng } già gestito da handleLocationSelect
       }
 
       const response = await fetch("/api/events", {
