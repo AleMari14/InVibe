@@ -100,14 +100,10 @@ export default function CreateEventPage() {
     setImagePreviews((prev) => prev.filter((_, i) => i !== index))
   }
 
-  const handleLocationSelect = (address: string, coordinates: { lat: number; lng: number } | null) => {
-    setValue("location", address, { shouldValidate: true });
-    if (coordinates && typeof coordinates.lat === "number" && typeof coordinates.lng === "number") {
-      setValue("locationCoords", coordinates, { shouldValidate: true });
-    } else {
-      setValue("locationCoords", { lat: 0, lng: 0 }, { shouldValidate: true }); // fallback o mostra errore custom
-    }
-  };
+  const handleLocationSelect = (address: string, coordinates: { lat: number; lng: number }) => {
+    setValue("location", address, { shouldValidate: true })
+    setValue("locationCoords", coordinates, { shouldValidate: true })
+  }
 
   const onSubmit = async (data: EventFormData) => {
     if (!session?.user?.id) {
