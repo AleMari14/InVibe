@@ -40,11 +40,11 @@ const eventSchema = z.object({
   }),
   timeStart: z.string().min(1, "L'orario di inizio è richiesto"),
   price: z.preprocess(
-    (a) => Number.parseInt(z.string().parse(a), 10),
+    (a) => typeof a === "string" ? Number.parseInt(a, 10) : a,
     z.number().min(0, "Il prezzo non può essere negativo"),
   ),
   totalSpots: z.preprocess(
-    (a) => Number.parseInt(z.string().parse(a), 10),
+    (a) => typeof a === "string" ? Number.parseInt(a, 10) : a,
     z.number().min(1, "Ci deve essere almeno un posto disponibile"),
   ),
   images: z.array(z.string()).optional(),
