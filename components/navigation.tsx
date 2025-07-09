@@ -40,7 +40,7 @@ function Navigation() {
     { name: "Preferiti", href: "/preferiti", icon: Heart },
     { name: "Crea", href: "/crea-evento", icon: Plus, special: true },
     { name: "Messaggi", href: "/messaggi", icon: MessageSquare, badge: unreadMessagesCount },
-    { name: "Notifiche", href: "#", icon: Bell, action: () => setIsSheetOpen(true) },
+    // { name: "Notifiche", href: "#", icon: Bell, action: () => setIsSheetOpen(true) }, // Rimossa
   ]
 
   const isActive = (path: string) => (path === "/" ? pathname === "/" : pathname.startsWith(path))
@@ -118,7 +118,7 @@ function Navigation() {
           </div>
         </div>
       </div>
-      {status === "authenticated" && <NotificationsSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} />}
+      {/* {status === "authenticated" && <NotificationsSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} />} */}
     </>
   )
 }

@@ -21,6 +21,7 @@ import {
   Zap,
   Compass,
   X,
+  Bell,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -38,6 +39,8 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 import { Slider } from "@/components/ui/slider"
+import { useNotifications } from "@/hooks/use-notifications"
+import { NotificationsSheet } from "@/components/notifications-sheet"
 
 const categories = [
   { id: "casa", name: "Case", icon: "🏠", gradient: "from-green-500 to-emerald-600" },
@@ -79,6 +82,8 @@ export default function HomePage() {
   const [searchRadius, setSearchRadius] = useState(50) // Default 50km
   const { data: session, status } = useSession()
   const router = useRouter()
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const { unreadCount } = useNotifications()
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -316,11 +321,15 @@ export default function HomePage() {
             <div className="flex items-center gap-2">
               {session ? (
                 <>
-                  <Link href="/messaggi">
-                    <Button variant="ghost" size="icon" className="h-9 w-9">
-                      <MessageSquare className="h-4 w-4" />
-                    </Button>
-                  </Link>
+                  <Button variant="ghost" size="icon" className="h-9 w-9 relative" onClick={() => setIsSheetOpen(true)}>
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 && (
+                      <Badge className="absolute -top-1 -right-1 h-4 w-4 flex items-center justify-center p-0 text-[10px] bg-red-500 text-white">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </Badge>
+                    )}
+                  </Button>
+                  <NotificationsSheet open={isSheetOpen} onOpenChange={setIsSheetOpen} />
                   <Link href="/profile">
                     <OptimizedAvatar
                       src={session.user?.image}
