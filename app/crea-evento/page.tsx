@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { useForm, Controller } from "react-hook-form"
@@ -77,6 +77,7 @@ export default function CreateEventPage() {
     control,
     setValue,
     formState: { errors },
+    watch,
   } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
@@ -92,6 +93,14 @@ export default function CreateEventPage() {
       images: [],
     },
   })
+
+  // DEBUG: logga tutti i valori del form ad ogni cambiamento
+  useEffect(() => {
+    const subscription = watch((values) => {
+      console.log("DEBUG form values:", values);
+    });
+    return () => subscription.unsubscribe();
+  }, [watch]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
