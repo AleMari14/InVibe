@@ -18,6 +18,8 @@ import { Label } from "@/components/ui/label"
 import { LocationSearchInput } from "@/components/ui/location-search-input"
 import Image from "next/image"
 
+export const dynamic = "force-dynamic";
+
 const eventSchema = z.object({
   title: z
     .string()

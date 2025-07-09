@@ -5,6 +5,8 @@ import { authOptions } from "@/lib/auth"
 import { ObjectId } from "mongodb"
 import { z } from "zod"
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const { db } = await connectToDatabase()
