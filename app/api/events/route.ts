@@ -115,7 +115,6 @@ export async function POST(request: NextRequest) {
       availableSpots: data.totalSpots,
       images: data.images || [],
       hostId: new ObjectId(session.user.id),
-      hostIdString: session.user.id.toString(), // aggiunto campo stringa
       verified: false,
       createdAt: new Date(),
       updatedAt: new Date(),
