@@ -30,7 +30,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
-import { MessageHostButton } from "@/components/event/message-host-button"
 
 interface Event {
   _id: string
@@ -47,12 +46,6 @@ interface Event {
   views: number
   verified: boolean
   createdAt: string
-  host: {
-    _id: string
-    name: string
-    email: string
-    image?: string
-  }
 }
 
 const categoryIcons: Record<string, string> = {
@@ -181,7 +174,7 @@ export default function PreferitiPage() {
     return `${startFormatted} - ${endFormatted}`
   }
 
-  const getUniqueCategories = () => Array.from(new Set(events.map((event) => event.category)))
+  const getUniqueCategories = () => [...new Set(events.map((event) => event.category))]
 
   if (status === "loading" || isLoading) {
     return (
@@ -212,8 +205,8 @@ export default function PreferitiPage() {
   return (
     <div className="min-h-screen bg-background text-foreground pb-20">
       <div className="bg-card/80 backdrop-blur-md border-b border-border sticky top-16 z-40">
-        <div className="px-4 py-3 max-w-7xl mx-auto">
-          <div className="flex items-center gap-4 mb-2">
+        <div className="px-4 py-6 max-w-7xl mx-auto">
+          <div className="flex items-center gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold bg-gradient-to-r from-primary via-purple-500 to-pink-500 bg-clip-text text-transparent">
                 I Miei Preferiti
@@ -323,7 +316,7 @@ export default function PreferitiPage() {
                       <Link href={`/evento/${event._id}`}>
                         <Image
                           src={
-                            getEventImageUrl(event.images?.[0], event.category, viewMode === "list" ? 192 : 400, 192) ||
+                            getEventImageUrl(event.images?.[0], viewMode === "list" ? 192 : 400, 192) ||
                             "/placeholder.svg"
                           }
                           alt={event.title}
@@ -389,17 +382,6 @@ export default function PreferitiPage() {
                           {event.price === 0 ? "Gratuito" : `€${event.price}`}
                         </div>
                       </div>
-                      {event.host && (session?.user?._id ?? session?.user?.id) !== event.host._id && (
-                        <div className="mt-3">
-                          <MessageHostButton
-                            hostId={event.host._id}
-                            hostName={event.host.name}
-                            hostEmail={event.host.email}
-                            eventId={event._id}
-                            eventTitle={event.title}
-                          />
-                        </div>
-                      )}
                     </CardContent>
                   </Card>
                 </motion.div>
