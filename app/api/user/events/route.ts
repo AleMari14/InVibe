@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
         $or: [
           { hostId: user._id },
           { hostId: userIdString },
+          { hostIdString: userIdString }, // nuovo filtro
           { createdBy: user._id },
           { createdBy: userIdString },
           { "host.email": session.user.email.toLowerCase() },
