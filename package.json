@@ -89,12 +89,8 @@
     "typescript": "^5",
     "url": "latest",
     "use-debounce": "latest",
-<<<<<<< HEAD
-    "zod": "^3.25.76"
-=======
     "vaul": "latest",
     "zod": "latest"
->>>>>>> 4a4bcba6759d395d82da4c6e5e2de64ffed57d8a
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
