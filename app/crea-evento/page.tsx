@@ -80,16 +80,8 @@ export default function CreateEventPage() {
   } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
-      title: "",
-      description: "",
-      category: "",
-      location: "",
-      locationCoords: { lat: 0, lng: 0 },
-      dateStart: "",
-      timeStart: "",
       price: 0,
       totalSpots: 10,
-      images: [],
     },
   })
 
@@ -149,14 +141,11 @@ export default function CreateEventPage() {
       const combinedDateStart = new Date(Number(year), Number(month) - 1, Number(day), Number(hours), Number(minutes))
 
       // 3. Create event in database
-      // locationCoords deve essere { lat, lng } (non GeoJSON): il backend lo trasforma
-      const { timeStart, ...rest } = data;
       const eventPayload = {
-        ...rest,
+        ...data,
         dateStart: combinedDateStart.toISOString(),
         images: imageUrls,
-      };
-      console.log("Payload inviato:", eventPayload);
+      }
 
       const response = await fetch("/api/events", {
         method: "POST",
@@ -164,20 +153,14 @@ export default function CreateEventPage() {
         body: JSON.stringify(eventPayload),
       })
 
-      const text = await response.text();
-      console.log("Risposta server:", text);
-      let responseData;
-      try {
-        responseData = JSON.parse(text);
-      } catch {
-        throw new Error("Risposta non valida dal server: " + text);
-      }
       if (!response.ok) {
-        throw new Error(responseData?.error || "Errore nella creazione dell'evento");
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nella creazione dell'evento")
       }
-      const { eventId } = responseData;
-      toast.success("Evento creato con successo!");
-      router.push(`/evento/${eventId}`);
+
+      const { eventId } = await response.json()
+      toast.success("Evento creato con successo!")
+      router.push(`/evento/${eventId}`)
     } catch (error: any) {
       toast.error(error.message || "Si è verificato un errore imprevisto.")
     } finally {
@@ -326,7 +309,6 @@ export default function CreateEventPage() {
                 <Label htmlFor="price" className="text-base font-medium text-gray-300">
                   Prezzo per persona (€) *
                 </Label>
-                
                 <Input
                   id="price"
                   type="number"
