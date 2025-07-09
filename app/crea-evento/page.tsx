@@ -148,12 +148,13 @@ export default function CreateEventPage() {
 
       // 3. Create event in database
       // locationCoords deve essere { lat, lng } (non GeoJSON): il backend lo trasforma
+      const { timeStart, ...rest } = data;
       const eventPayload = {
-        ...data,
+        ...rest,
         dateStart: combinedDateStart.toISOString(),
         images: imageUrls,
-        // locationCoords: { lat, lng } già gestito da handleLocationSelect
-      }
+      };
+      console.log("Payload inviato:", eventPayload);
 
       const response = await fetch("/api/events", {
         method: "POST",
