@@ -80,8 +80,16 @@ export default function CreateEventPage() {
   } = useForm<EventFormData>({
     resolver: zodResolver(eventSchema),
     defaultValues: {
+      title: "",
+      description: "",
+      category: "",
+      location: "",
+      locationCoords: { lat: 0, lng: 0 },
+      dateStart: "",
+      timeStart: "",
       price: 0,
       totalSpots: 10,
+      images: [],
     },
   })
 
