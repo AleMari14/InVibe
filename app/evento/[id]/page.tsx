@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
 interface Event {
   _id: string
@@ -62,6 +63,9 @@ export default function EventoPage() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false)
   const [isChatLoading, setIsChatLoading] = useState(false)
+  const [showReviews, setShowReviews] = useState(false)
+  const [reviews, setReviews] = useState([])
+  const [reviewsLoading, setReviewsLoading] = useState(false)
 
   const id = params.id as string
 
@@ -178,6 +182,22 @@ export default function EventoPage() {
     } else {
       navigator.clipboard.writeText(window.location.href)
       toast.success("Link copiato negli appunti!")
+    }
+  }
+
+  const fetchEventReviews = async () => {
+    if (!event?._id) return
+    try {
+      setReviewsLoading(true)
+      const response = await fetch(`/api/reviews?eventId=${event._id}`)
+      if (response.ok) {
+        const data = await response.json()
+        setReviews(data)
+      }
+    } catch (error) {
+      console.error("Error fetching event reviews:", error)
+    } finally {
+      setReviewsLoading(false)
     }
   }
 
@@ -337,7 +357,7 @@ export default function EventoPage() {
                   <OptimizedAvatar src={event.host.image} alt={event.host.name} size={48} />
                   <div>
                     <h3 className="font-semibold">{event.host.name}</h3>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:text-primary" onClick={() => { setShowReviews(true); fetchEventReviews(); }}>
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                       <span>{(event.rating || 0).toFixed(1)}</span>
                       <span>({event.reviewCount || 0} recensioni)</span>
@@ -372,6 +392,68 @@ export default function EventoPage() {
           </div>
         </div>
       </div>
+
+      {/* Modale recensioni evento */}
+      <Dialog open={showReviews} onOpenChange={setShowReviews}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5" />
+              Recensioni evento
+            </DialogTitle>
+          </DialogHeader>
+          {reviewsLoading ? (
+            <div className="space-y-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="p-4 border rounded-lg">
+                  <div className="animate-pulse space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                    <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                    <div className="h-3 bg-gray-200 rounded w-full"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : reviews.length === 0 ? (
+            <div className="text-center py-8">
+              <Star className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-muted-foreground">Nessuna recensione per questo evento</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {reviews.map((review) => (
+                <Card key={review._id} className="p-4">
+                  <div className="flex items-start gap-3">
+                    <OptimizedAvatar
+                      src={review.reviewer?.image || "/placeholder.svg"}
+                      alt={review.reviewer?.name || "Utente"}
+                      size={40}
+                      className="h-10 w-10"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium">{review.reviewer?.name}</span>
+                        <div className="flex items-center">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`h-4 w-4 ${i < review.rating ? "text-yellow-500 fill-current" : "text-gray-300"}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      {review.comment && <p className="text-sm">{review.comment}</p>}
+                      <p className="text-xs text-muted-foreground mt-2">
+                        {new Date(review.createdAt).toLocaleDateString("it-IT")}
+                      </p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
