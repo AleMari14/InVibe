@@ -27,20 +27,26 @@ export async function GET(request: NextRequest) {
 
     console.log("✅ User found:", user._id)
 
+    // Forza userId come stringa per confronti robusti
+    const userIdString = user._id.toString();
+
     // Find events created by this user with multiple matching strategies
     const events = await db
       .collection("events")
       .find({
         $or: [
           { hostId: user._id },
-          { hostId: user._id.toString() },
+          { hostId: userIdString },
           { createdBy: user._id },
-          { createdBy: user._id.toString() },
+          { createdBy: userIdString },
           { "host.email": session.user.email.toLowerCase() },
         ],
       })
       .sort({ createdAt: -1 })
-      .toArray()
+      .toArray();
+
+    console.log("Query userId:", user._id, userIdString, session.user.email.toLowerCase());
+    console.log("Events found:", events.length);
 
     console.log(`📊 Found ${events.length} events for user`)
 
