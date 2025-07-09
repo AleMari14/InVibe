@@ -27,7 +27,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         .findOne({ _id: new ObjectId(event.hostId) }, { projection: { name: 1, image: 1, email: 1, _id: 1 } })
     }
 
-    const fullEvent = { ...event, host }
+    const fullEvent = { ...event, host: host || { _id: "", name: "", image: "", email: "" } }
 
     return NextResponse.json(fullEvent)
   } catch (error: any) {
