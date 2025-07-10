@@ -167,6 +167,12 @@ export default function CreateEventPage() {
         ...data,
         dateStart: combinedDateStart.toISOString(),
         images: imageUrls,
+        host: {
+          _id: session.user.id,
+          name: session.user.name,
+          image: session.user.image,
+          email: session.user.email,
+        },
       }
       console.log("DEBUG eventPayload:", eventPayload);
 
