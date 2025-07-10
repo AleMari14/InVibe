@@ -27,30 +27,10 @@ export async function GET(request: NextRequest) {
 
     const favorites = await db
       .collection("events")
-      .aggregate([
-        { $match: { _id: { $in: favoriteEventIds.map((id: string | ObjectId) => new ObjectId(id)) } } },
-        {
-          $lookup: {
-            from: "users",
-            localField: "hostId",
-            foreignField: "_id",
-            as: "hostInfo",
-          },
-        },
-        { $unwind: "$hostInfo" },
-        {
-          $addFields: {
-            host: {
-              _id: "$hostInfo._id",
-              name: "$hostInfo.name",
-              email: "$hostInfo.email",
-              image: "$hostInfo.image",
-            },
-          },
-        },
-        { $project: { hostInfo: 0 } },
-        { $sort: { createdAt: -1 } },
-      ])
+      .find({
+        _id: { $in: favoriteEventIds.map((id: string | ObjectId) => new ObjectId(id)) },
+      })
+      .sort({ createdAt: -1 })
       .toArray()
 
     return NextResponse.json({ favorites })
