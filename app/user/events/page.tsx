@@ -157,7 +157,7 @@ export default function UserEventsPage() {
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => router.back()}
+                onClick={() => router.push("/")}
                 className="text-gray-300 hover:bg-gray-700"
               >
                 <ArrowLeft className="h-5 w-5" />

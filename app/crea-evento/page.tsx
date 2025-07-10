@@ -183,7 +183,7 @@ export default function CreateEventPage() {
 
       const { eventId } = await response.json()
       toast.success("Evento creato con successo!")
-      router.push(`/evento/${eventId}`)
+      router.push("/user/events")
     } catch (error: any) {
       toast.error(error.message || "Si è verificato un errore imprevisto.")
     } finally {
