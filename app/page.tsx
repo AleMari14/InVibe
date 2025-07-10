@@ -170,8 +170,9 @@ export default function HomePage() {
       const response = await fetch("/api/favorites")
       if (response.ok) {
         const data = await response.json()
-        if (Array.isArray(data)) {
-          setFavorites(data.map((event: Event) => event._id))
+        // Corretto: ora legge da data.favorites
+        if (Array.isArray(data.favorites)) {
+          setFavorites(data.favorites.map((event: Event) => event._id))
         }
       }
     } catch (error) {
