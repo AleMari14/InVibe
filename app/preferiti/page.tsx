@@ -286,8 +286,8 @@ export default function PreferitiPage() {
         </div>
       </div>
 
-      <div className="px-4 py-6 max-w-7xl mx-auto">
-        {filteredEvents.length === 0 ? (
+      <div className="px-4 pt-[70px] pb-6 max-w-7xl mx-auto">
+      {filteredEvents.length === 0 ? (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-16">
             <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
               <HeartOff className="h-10 w-10 text-primary" />
