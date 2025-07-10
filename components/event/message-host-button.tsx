@@ -65,6 +65,7 @@ export function MessageHostButton({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          hostId: hostId.trim(), // aggiunto hostId
           hostEmail: hostEmail.trim(),
           hostName: hostName.trim(),
           eventId: eventId.trim(),
