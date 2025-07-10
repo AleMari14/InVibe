@@ -106,11 +106,13 @@ export default function UserEventsPage() {
         throw new Error(errorData.error || "Errore nel caricamento")
       }
       const data = await response.json()
+      let eventsArr = [];
       if (Array.isArray(data)) {
-        setEvents(data)
-      } else {
-        setEvents([])
+        eventsArr = data;
+      } else if (Array.isArray(data.events)) {
+        eventsArr = data.events;
       }
+      setEvents(eventsArr)
     } catch (error) {
       toast.error("Errore nel caricamento degli eventi")
       setEvents([])
