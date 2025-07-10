@@ -53,7 +53,7 @@ export function MessageHostButton({
       console.log("Creating/finding chat room...")
 
       // Verifica che tutti i parametri necessari siano definiti
-      if (!hostEmail || !hostName || !eventId || !eventTitle) {
+      if (!hostId || !hostEmail || !hostName || !eventId || !eventTitle) {
         toast.error("Informazioni mancanti per creare la chat")
         return
       }
