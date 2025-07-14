@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { connectToDatabase } from "@/lib/mongodb"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 
 export async function POST(request: NextRequest) {
@@ -11,89 +11,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { eventId, eventTitle, hostId, hostName, hostEmail, hostImage } = body
+    const { eventId, hostId, hostName, hostImage, hostEmail, eventTitle } = await request.json()
 
-    console.log("Received data:", { eventId, eventTitle, hostId, hostName, hostEmail })
-
-    // Validazione dei dati richiesti
-    if (!eventId) {
-      return NextResponse.json({ error: "ID evento mancante" }, { status: 400 })
-    }
-
-    if (!hostId) {
-      return NextResponse.json({ error: "ID host mancante" }, { status: 400 })
-    }
-
-    if (!hostEmail) {
-      return NextResponse.json({ error: "Email host mancante" }, { status: 400 })
-    }
-
-    if (!hostName) {
-      return NextResponse.json({ error: "Nome host mancante" }, { status: 400 })
-    }
-
-    if (!eventTitle) {
-      return NextResponse.json({ error: "Titolo evento mancante" }, { status: 400 })
-    }
-
-    // Controlla che l'utente non stia cercando di chattare con se stesso
-    if (session.user.email === hostEmail) {
-      return NextResponse.json({ error: "Non puoi chattare con te stesso" }, { status: 400 })
+    if (!eventId || !hostId) {
+      return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
     }
 
     const { db } = await connectToDatabase()
 
-    // Cerca una chat room esistente tra questi due utenti per questo evento
-    const existingRoom = await db.collection("chatRooms").findOne({
+    // Controlla se esiste già una stanza tra questi due utenti per questo evento
+    let room = await db.collection("chatRooms").findOne({
       eventId: new ObjectId(eventId),
-      participants: {
-        $all: [
-          { $elemMatch: { userId: new ObjectId(session.user.id) } },
-          { $elemMatch: { userId: new ObjectId(hostId) } },
-        ],
-      },
+      "participants.id": { $all: [session.user.id, hostId] },
     })
 
-    if (existingRoom) {
-      return NextResponse.json({
-        roomId: existingRoom._id.toString(),
-        isNewRoom: false,
-      })
+    let isNewRoom = false
+    if (!room) {
+      isNewRoom = true
+      const newRoomData = {
+        eventId: new ObjectId(eventId),
+        eventTitle,
+        participants: [
+          { id: session.user.id, name: session.user.name, image: session.user.image, email: session.user.email },
+          { id: hostId, name: hostName, image: hostImage, email: hostEmail },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      const result = await db.collection("chatRooms").insertOne(newRoomData)
+      room = { ...newRoomData, _id: result.insertedId }
     }
-
-    // Crea una nuova chat room
-    const newRoom = {
-      eventId: new ObjectId(eventId),
-      eventTitle,
-      participants: [
-        {
-          userId: new ObjectId(session.user.id),
-          name: session.user.name || "Utente",
-          email: session.user.email,
-          image: session.user.image || "",
-        },
-        {
-          userId: new ObjectId(hostId),
-          name: hostName,
-          email: hostEmail,
-          image: hostImage || "",
-        },
-      ],
-      createdAt: new Date(),
-      lastMessage: null,
-      lastMessageAt: null,
-      isArchived: false,
-    }
-
-    const result = await db.collection("chatRooms").insertOne(newRoom)
 
     return NextResponse.json({
-      roomId: result.insertedId.toString(),
-      isNewRoom: true,
+      roomId: room._id.toString(),
+      newRoom: isNewRoom,
     })
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating/finding chat room:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+    return NextResponse.json({ error: "Errore nella gestione della chat", details: error.message }, { status: 500 })
   }
 }
