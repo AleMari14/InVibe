@@ -6,14 +6,15 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Image from "next/image"
-import { ArrowLeft, Calendar, MapPin, Users, Clock, User } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, MapPin, Calendar, Users, Clock, CreditCard, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
@@ -27,26 +28,14 @@ interface Event {
   images: string[]
   category: string
   dateStart: string
-  dateEnd?: string
   totalSpots: number
   availableSpots: number
-  host: {
+  host?: {
     _id: string
     name: string
     image: string
     email: string
   }
-}
-
-interface BookingForm {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  guests: number
-  specialRequests: string
-  acceptTerms: boolean
-  acceptPrivacy: boolean
 }
 
 export default function PrenotaPage() {
@@ -56,7 +45,9 @@ export default function PrenotaPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [form, setForm] = useState<BookingForm>({
+
+  // Form state
+  const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
     email: "",
@@ -67,21 +58,20 @@ export default function PrenotaPage() {
     acceptPrivacy: false,
   })
 
-  const eventId = params.id as string
+  const id = params.id as string
 
   useEffect(() => {
-    if (eventId) {
+    if (id) {
       fetchEvent()
     }
-  }, [eventId])
+  }, [id])
 
   useEffect(() => {
     if (session?.user) {
-      const names = session.user.name?.split(" ") || ["", ""]
-      setForm((prev) => ({
+      setFormData((prev) => ({
         ...prev,
-        firstName: names[0] || "",
-        lastName: names.slice(1).join(" ") || "",
+        firstName: session.user.name?.split(" ")[0] || "",
+        lastName: session.user.name?.split(" ").slice(1).join(" ") || "",
         email: session.user.email || "",
       }))
     }
@@ -90,7 +80,7 @@ export default function PrenotaPage() {
   const fetchEvent = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/events/${eventId}`)
+      const response = await fetch(`/api/events/${id}`)
       if (!response.ok) throw new Error("Evento non trovato")
       const data = await response.json()
       setEvent(data)
@@ -103,13 +93,11 @@ export default function PrenotaPage() {
     }
   }
 
-  const handleInputChange = (field: keyof BookingForm, value: string | number | boolean) => {
-    setForm((prev) => ({ ...prev, [field]: value }))
-  }
-
-  const calculateTotal = () => {
-    if (!event) return 0
-    return event.price * form.guests
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -120,38 +108,38 @@ export default function PrenotaPage() {
       return
     }
 
-    if (!form.acceptTerms || !form.acceptPrivacy) {
-      toast.error("Devi accettare i termini di servizio e la privacy policy")
+    if (!formData.acceptTerms || !formData.acceptPrivacy) {
+      toast.error("Devi accettare i termini e la privacy policy")
       return
     }
 
-    if (form.guests > (event?.availableSpots || 0)) {
-      toast.error("Numero di ospiti superiore ai posti disponibili")
+    if (formData.guests < 1 || formData.guests > (event?.availableSpots || 0)) {
+      toast.error(`Numero di ospiti non valido (max ${event?.availableSpots})`)
       return
     }
 
     setSubmitting(true)
-
     try {
       const response = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          eventId,
-          ...form,
-          totalPrice: calculateTotal(),
+          eventId: event?._id,
+          ...formData,
         }),
       })
 
       if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.message || "Errore nella prenotazione")
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nella prenotazione")
       }
 
+      const booking = await response.json()
       toast.success("Prenotazione completata con successo!")
       router.push(`/prenotazioni`)
     } catch (error: any) {
-      toast.error(error.message || "Errore nella prenotazione")
+      console.error("Error creating booking:", error)
+      toast.error(error.message)
     } finally {
       setSubmitting(false)
     }
@@ -159,19 +147,10 @@ export default function PrenotaPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-muted rounded w-1/3"></div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="h-96 bg-muted rounded"></div>
-              </div>
-              <div className="space-y-6">
-                <div className="h-64 bg-muted rounded"></div>
-              </div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-muted-foreground">Caricamento...</p>
         </div>
       </div>
     )
@@ -181,21 +160,27 @@ export default function PrenotaPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Evento non trovato</h1>
-          <Button onClick={() => router.push("/")}>Torna alla Home</Button>
+          <h1 className="text-2xl font-bold">Evento non trovato</h1>
+          <Button asChild className="mt-4">
+            <Link href="/">Torna alla Home</Link>
+          </Button>
         </div>
       </div>
     )
   }
 
-  const isHost = session?.user?.id === event.host._id
+  const isHost = session?.user?.id === event.host?._id
+  const totalPrice = event.price * formData.guests
 
   if (isHost) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Non puoi prenotare il tuo evento</h1>
-          <Button onClick={() => router.push(`/evento/${eventId}`)}>Torna all'evento</Button>
+          <h1 className="text-2xl font-bold">Non puoi prenotare il tuo evento</h1>
+          <p className="text-muted-foreground mt-2">Sei l'organizzatore di questo evento</p>
+          <Button asChild className="mt-4">
+            <Link href={`/evento/${event._id}`}>Torna all'evento</Link>
+          </Button>
         </div>
       </div>
     )
@@ -211,7 +196,7 @@ export default function PrenotaPage() {
               <ArrowLeft className="h-5 w-5" />
             </Button>
             <div>
-              <h1 className="text-xl font-bold">Prenota il tuo posto</h1>
+              <h1 className="text-xl font-semibold">Prenota il tuo posto</h1>
               <p className="text-sm text-muted-foreground">{event.title}</p>
             </div>
           </div>
@@ -219,142 +204,154 @@ export default function PrenotaPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Form di prenotazione */}
-          <div className="lg:col-span-2">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Informazioni personali */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Informazioni personali
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="firstName">Nome *</Label>
-                      <Input
-                        id="firstName"
-                        value={form.firstName}
-                        onChange={(e) => handleInputChange("firstName", e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="lastName">Cognome *</Label>
-                      <Input
-                        id="lastName"
-                        value={form.lastName}
-                        onChange={(e) => handleInputChange("lastName", e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Form */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Informazioni Personali
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="email">Email *</Label>
+                    <Label htmlFor="firstName">Nome *</Label>
                     <Input
-                      id="email"
-                      type="email"
-                      value={form.email}
-                      onChange={(e) => handleInputChange("email", e.target.value)}
+                      id="firstName"
+                      value={formData.firstName}
+                      onChange={(e) => handleInputChange("firstName", e.target.value)}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="phone">Telefono *</Label>
+                    <Label htmlFor="lastName">Cognome *</Label>
                     <Input
-                      id="phone"
-                      type="tel"
-                      value={form.phone}
-                      onChange={(e) => handleInputChange("phone", e.target.value)}
+                      id="lastName"
+                      value={formData.lastName}
+                      onChange={(e) => handleInputChange("lastName", e.target.value)}
                       required
                     />
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+                <div>
+                  <Label htmlFor="email">Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange("email", e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="phone">Telefono</Label>
+                  <Input
+                    id="phone"
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange("phone", e.target.value)}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* Dettagli prenotazione */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Dettagli prenotazione
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="guests">Numero di ospiti *</Label>
-                    <Input
-                      id="guests"
-                      type="number"
-                      min="1"
-                      max={event.availableSpots}
-                      value={form.guests}
-                      onChange={(e) => handleInputChange("guests", Number.parseInt(e.target.value) || 1)}
-                      required
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Massimo {event.availableSpots} ospiti disponibili
-                    </p>
-                  </div>
-                  <div>
-                    <Label htmlFor="specialRequests">Richieste speciali (opzionale)</Label>
-                    <Textarea
-                      id="specialRequests"
-                      value={form.specialRequests}
-                      onChange={(e) => handleInputChange("specialRequests", e.target.value)}
-                      placeholder="Eventuali richieste particolari o note per l'organizzatore..."
-                      rows={3}
-                    />
-                  </div>
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Dettagli Prenotazione
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="guests">Numero di ospiti *</Label>
+                  <Input
+                    id="guests"
+                    type="number"
+                    min="1"
+                    max={event.availableSpots}
+                    value={formData.guests}
+                    onChange={(e) => handleInputChange("guests", Number.parseInt(e.target.value) || 1)}
+                    required
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">Posti disponibili: {event.availableSpots}</p>
+                </div>
+                <div>
+                  <Label htmlFor="specialRequests">Richieste speciali</Label>
+                  <Textarea
+                    id="specialRequests"
+                    value={formData.specialRequests}
+                    onChange={(e) => handleInputChange("specialRequests", e.target.value)}
+                    placeholder="Eventuali richieste particolari..."
+                    rows={3}
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
-              {/* Termini e condizioni */}
-              <Card>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-start space-x-2">
-                    <Checkbox
-                      id="terms"
-                      checked={form.acceptTerms}
-                      onCheckedChange={(checked) => handleInputChange("acceptTerms", !!checked)}
-                    />
-                    <Label htmlFor="terms" className="text-sm leading-5">
-                      Accetto i{" "}
-                      <a href="/termini" className="text-primary hover:underline">
-                        termini di servizio
-                      </a>
-                    </Label>
-                  </div>
-                  <div className="flex items-start space-x-2">
-                    <Checkbox
-                      id="privacy"
-                      checked={form.acceptPrivacy}
-                      onCheckedChange={(checked) => handleInputChange("acceptPrivacy", !!checked)}
-                    />
-                    <Label htmlFor="privacy" className="text-sm leading-5">
-                      Accetto la{" "}
-                      <a href="/privacy" className="text-primary hover:underline">
-                        privacy policy
-                      </a>
-                    </Label>
-                  </div>
-                </CardContent>
-              </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Termini e Condizioni</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="terms"
+                    checked={formData.acceptTerms}
+                    onCheckedChange={(checked) => handleInputChange("acceptTerms", checked)}
+                  />
+                  <Label htmlFor="terms" className="text-sm leading-5">
+                    Accetto i{" "}
+                    <Link href="/termini" className="text-primary hover:underline">
+                      termini e condizioni
+                    </Link>{" "}
+                    del servizio
+                  </Label>
+                </div>
+                <div className="flex items-start space-x-2">
+                  <Checkbox
+                    id="privacy"
+                    checked={formData.acceptPrivacy}
+                    onCheckedChange={(checked) => handleInputChange("acceptPrivacy", checked)}
+                  />
+                  <Label htmlFor="privacy" className="text-sm leading-5">
+                    Accetto la{" "}
+                    <Link href="/privacy" className="text-primary hover:underline">
+                      privacy policy
+                    </Link>
+                  </Label>
+                </div>
+              </CardContent>
+            </Card>
 
-              <Button type="submit" size="lg" className="w-full" disabled={submitting}>
-                {submitting ? "Prenotazione in corso..." : `Prenota ora - €${calculateTotal()}`}
-              </Button>
-            </form>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={submitting || !formData.acceptTerms || !formData.acceptPrivacy}
+              onClick={handleSubmit}
+            >
+              {submitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Elaborazione...
+                </>
+              ) : (
+                <>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Conferma Prenotazione
+                </>
+              )}
+            </Button>
           </div>
 
-          {/* Riepilogo evento */}
+          {/* Riepilogo */}
           <div className="lg:sticky lg:top-24 lg:self-start">
             <Card>
               <CardHeader>
-                <CardTitle>Riepilogo prenotazione</CardTitle>
+                <CardTitle>Riepilogo Prenotazione</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="relative h-48 rounded-lg overflow-hidden">
@@ -367,13 +364,17 @@ export default function PrenotaPage() {
                 </div>
 
                 <div>
-                  <h3 className="font-semibold text-lg">{event.title}</h3>
-                  <Badge variant="secondary" className="mt-1">
+                  <Badge variant="secondary" className="mb-2">
                     {event.category}
                   </Badge>
+                  <h3 className="font-semibold text-lg">{event.title}</h3>
                 </div>
 
                 <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground" />
+                    <span>{event.location}</span>
+                  </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-muted-foreground" />
                     <span>
@@ -395,14 +396,8 @@ export default function PrenotaPage() {
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-4 w-4 text-muted-foreground" />
-                    <span>{event.location}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
                     <Users className="h-4 w-4 text-muted-foreground" />
-                    <span>
-                      {event.availableSpots} / {event.totalSpots} posti disponibili
-                    </span>
+                    <span>{formData.guests} ospiti</span>
                   </div>
                 </div>
 
@@ -411,25 +406,43 @@ export default function PrenotaPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Prezzo per persona</span>
-                    <span>€{event.price}</span>
+                    <span>{event.price > 0 ? `€${event.price}` : "Gratuito"}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Numero ospiti</span>
-                    <span>{form.guests}</span>
+                    <span>×{formData.guests}</span>
                   </div>
                   <Separator />
                   <div className="flex justify-between font-semibold text-lg">
                     <span>Totale</span>
-                    <span>€{calculateTotal()}</span>
+                    <span>{totalPrice > 0 ? `€${totalPrice}` : "Gratuito"}</span>
                   </div>
                 </div>
 
-                <div className="pt-4 border-t">
-                  <p className="text-xs text-muted-foreground">
-                    Prenotando questo evento accetti i termini di servizio e la privacy policy. La prenotazione è
-                    soggetta a conferma da parte dell'organizzatore.
-                  </p>
-                </div>
+                {event.host && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h4 className="font-medium mb-2">Organizzato da</h4>
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                          {event.host.image ? (
+                            <Image
+                              src={event.host.image || "/placeholder.svg"}
+                              alt={event.host.name}
+                              width={40}
+                              height={40}
+                              className="rounded-full"
+                            />
+                          ) : (
+                            <User className="h-5 w-5" />
+                          )}
+                        </div>
+                        <span className="text-sm font-medium">{event.host.name}</span>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
           </div>

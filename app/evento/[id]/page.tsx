@@ -140,7 +140,7 @@ export default function EventoPage() {
     }
 
     if (!event.host) {
-      toast.error("Informazioni host non disponibili")
+      toast.error("Informazioni host non disponibili per questo evento")
       return
     }
 
@@ -174,6 +174,7 @@ export default function EventoPage() {
 
       const { roomId } = await response.json()
       router.push(`/messaggi/${roomId}`)
+      toast.success("Chat aperta!")
     } catch (error: any) {
       console.error("Error creating chat:", error)
       toast.error(error.message)
@@ -222,7 +223,6 @@ export default function EventoPage() {
   }
 
   const isHost = session?.user?.id === event.host?._id
-  const hasValidHost = event.host && event.host._id && event.host.name && event.host.email
 
   return (
     <div className="bg-background text-foreground pb-20">
@@ -353,36 +353,46 @@ export default function EventoPage() {
           </div>
 
           <div className="space-y-6">
-            {hasValidHost && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Organizzato da</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center gap-4">
-                    <OptimizedAvatar src={event.host.image} alt={event.host.name} size={48} />
-                    <div>
-                      <h3 className="font-semibold">{event.host.name}</h3>
-                      <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                        <span>{(event.rating || 0).toFixed(1)}</span>
-                        <span>({event.reviewCount || 0} recensioni)</span>
+            <Card>
+              <CardHeader>
+                <CardTitle>Organizzato da</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {event.host ? (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <OptimizedAvatar src={event.host.image} alt={event.host.name} size={48} />
+                      <div>
+                        <h3 className="font-semibold">{event.host.name}</h3>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span>{(event.rating || 0).toFixed(1)}</span>
+                          <span>({event.reviewCount || 0} recensioni)</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                  {!isHost && (
-                    <Button className="w-full mt-4" onClick={handleContactHost} disabled={isChatLoading}>
-                      {isChatLoading ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <MessageSquare className="mr-2 h-4 w-4" />
-                      )}
+                    {!isHost && (
+                      <Button className="w-full mt-4" onClick={handleContactHost} disabled={isChatLoading}>
+                        {isChatLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                        )}
+                        Contatta l'host
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground text-sm">Informazioni host non disponibili</p>
+                    <Button className="w-full mt-4" disabled>
+                      <MessageSquare className="mr-2 h-4 w-4" />
                       Contatta l'host
                     </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
             <Card>
               <CardHeader>
                 <CardTitle>Prenota il tuo posto</CardTitle>

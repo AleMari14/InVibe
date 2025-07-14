@@ -4,19 +4,20 @@ import { ObjectId } from "mongodb"
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
   try {
+    const { db } = await connectToDatabase()
     const { id } = params
 
     if (!ObjectId.isValid(id)) {
       return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
     }
 
-    const { db } = await connectToDatabase()
-
-    // Usa aggregation per fare il join con la collezione users per ottenere i dati dell'host
+    // Usa aggregation per fare il join con la collezione users
     const events = await db
       .collection("events")
       .aggregate([
-        { $match: { _id: new ObjectId(id) } },
+        {
+          $match: { _id: new ObjectId(id) },
+        },
         {
           $lookup: {
             from: "users",
@@ -41,88 +42,33 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
             },
           },
         },
-        { $project: { hostData: 0 } },
+        {
+          $project: {
+            hostData: 0,
+            hostId: 0,
+          },
+        },
       ])
       .toArray()
 
-    if (!events || events.length === 0) {
+    if (events.length === 0) {
       return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
     }
 
     const event = events[0]
 
-    // Incrementa le visualizzazioni
-    await db.collection("events").updateOne({ _id: new ObjectId(id) }, { $inc: { views: 1 } })
-
-    // Converti ObjectId in stringhe per la serializzazione JSON
+    // Serializza gli ObjectId
     const serializedEvent = {
       ...event,
       _id: event._id.toString(),
-      hostId: event.hostId?.toString(),
-      dateStart: event.dateStart?.toISOString?.() || event.dateStart,
-      dateEnd: event.dateEnd?.toISOString?.() || event.dateEnd,
-      createdAt: event.createdAt?.toISOString?.() || event.createdAt,
-      updatedAt: event.updatedAt?.toISOString?.() || event.updatedAt,
+      createdAt: event.createdAt?.toISOString() || new Date().toISOString(),
+      dateStart: event.dateStart?.toISOString() || new Date().toISOString(),
+      dateEnd: event.dateEnd?.toISOString() || null,
     }
 
     return NextResponse.json(serializedEvent)
   } catch (error) {
     console.error("Error fetching event:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
-  }
-}
-
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const { id } = params
-    const updateData = await request.json()
-
-    if (!ObjectId.isValid(id)) {
-      return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
-    }
-
-    const { db } = await connectToDatabase()
-
-    const result = await db.collection("events").updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          ...updateData,
-          updatedAt: new Date(),
-        },
-      },
-    )
-
-    if (result.matchedCount === 0) {
-      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Error updating event:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    const { id } = params
-
-    if (!ObjectId.isValid(id)) {
-      return NextResponse.json({ error: "ID evento non valido" }, { status: 400 })
-    }
-
-    const { db } = await connectToDatabase()
-
-    const result = await db.collection("events").deleteOne({ _id: new ObjectId(id) })
-
-    if (result.deletedCount === 0) {
-      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
-    }
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Error deleting event:", error)
     return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
