@@ -28,6 +28,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { BookingModal } from "@/components/booking-modal"
 
 interface Event {
   _id: string
@@ -62,6 +64,7 @@ export default function EventoPage() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false)
   const [isChatLoading, setIsChatLoading] = useState(false)
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
 
   const id = params.id as string
 
@@ -364,9 +367,20 @@ export default function EventoPage() {
                 <p className="text-muted-foreground text-sm mb-4">
                   Non perdere l'occasione di partecipare a questo evento unico!
                 </p>
-                <Button size="lg" className="w-full" disabled={isHost}>
-                  {isHost ? "Sei l'organizzatore" : "Prenota Ora"}
-                </Button>
+                <Sheet>
+                  <SheetTrigger asChild>
+                    <Button size="lg" className="w-full" disabled={isHost}>
+                      {isHost ? "Sei l'organizzatore" : "Prenota Ora"}
+                    </Button>
+                  </SheetTrigger>
+                  <SheetContent>
+                    <SheetHeader>
+                      <SheetTitle>Prenota il tuo posto</SheetTitle>
+                      <SheetDescription>Completa il form per prenotare il tuo posto a questo evento.</SheetDescription>
+                    </SheetHeader>
+                    <BookingModal eventId={event._id} onClose={() => setIsBookingModalOpen(false)} />
+                  </SheetContent>
+                </Sheet>
               </CardContent>
             </Card>
           </div>
