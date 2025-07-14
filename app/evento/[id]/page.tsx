@@ -28,8 +28,6 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { BookingModal } from "@/components/booking-modal"
 
 interface Event {
   _id: string
@@ -64,7 +62,6 @@ export default function EventoPage() {
   const [isFavorite, setIsFavorite] = useState(false)
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false)
   const [isChatLoading, setIsChatLoading] = useState(false)
-  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
 
   const id = params.id as string
 
@@ -97,8 +94,6 @@ export default function EventoPage() {
   }
 
   const checkIfFavorite = async () => {
-    // This logic can be improved by fetching all favorites at once
-    // For now, we check one by one
     try {
       const res = await fetch("/api/favorites")
       if (!res.ok) return
@@ -137,10 +132,22 @@ export default function EventoPage() {
       router.push("/auth/login")
       return
     }
-    if (!event || !event.host) return
+    if (!event || !event.host) {
+      toast.error("Informazioni host non disponibili")
+      return
+    }
 
     setIsChatLoading(true)
     try {
+      console.log("Sending chat data:", {
+        eventId: event._id,
+        eventTitle: event.title,
+        hostId: event.host._id,
+        hostName: event.host.name,
+        hostImage: event.host.image,
+        hostEmail: event.host.email,
+      })
+
       const response = await fetch("/api/messages/room", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -182,6 +189,14 @@ export default function EventoPage() {
       navigator.clipboard.writeText(window.location.href)
       toast.success("Link copiato negli appunti!")
     }
+  }
+
+  const handleBooking = () => {
+    if (!session) {
+      router.push("/auth/login")
+      return
+    }
+    router.push(`/prenota/${event?._id}`)
   }
 
   if (loading) {
@@ -367,20 +382,9 @@ export default function EventoPage() {
                 <p className="text-muted-foreground text-sm mb-4">
                   Non perdere l'occasione di partecipare a questo evento unico!
                 </p>
-                <Sheet>
-                  <SheetTrigger asChild>
-                    <Button size="lg" className="w-full" disabled={isHost}>
-                      {isHost ? "Sei l'organizzatore" : "Prenota Ora"}
-                    </Button>
-                  </SheetTrigger>
-                  <SheetContent>
-                    <SheetHeader>
-                      <SheetTitle>Prenota il tuo posto</SheetTitle>
-                      <SheetDescription>Completa il form per prenotare il tuo posto a questo evento.</SheetDescription>
-                    </SheetHeader>
-                    <BookingModal eventId={event._id} onClose={() => setIsBookingModalOpen(false)} />
-                  </SheetContent>
-                </Sheet>
+                <Button size="lg" className="w-full" disabled={isHost} onClick={handleBooking}>
+                  {isHost ? "Sei l'organizzatore" : "Prenota Ora"}
+                </Button>
               </CardContent>
             </Card>
           </div>

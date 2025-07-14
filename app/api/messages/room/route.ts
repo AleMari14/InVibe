@@ -13,8 +13,26 @@ export async function POST(request: NextRequest) {
 
     const { eventId, hostId, hostName, hostImage, hostEmail, eventTitle } = await request.json()
 
-    if (!eventId || !hostId) {
-      return NextResponse.json({ error: "Dati mancanti" }, { status: 400 })
+    console.log("Received data:", { eventId, hostId, hostName, hostImage, hostEmail, eventTitle })
+
+    if (!eventId) {
+      return NextResponse.json({ error: "ID evento mancante" }, { status: 400 })
+    }
+
+    if (!hostId) {
+      return NextResponse.json({ error: "ID host mancante" }, { status: 400 })
+    }
+
+    if (!hostName) {
+      return NextResponse.json({ error: "Nome host mancante" }, { status: 400 })
+    }
+
+    if (!hostEmail) {
+      return NextResponse.json({ error: "Email host mancante" }, { status: 400 })
+    }
+
+    if (!eventTitle) {
+      return NextResponse.json({ error: "Titolo evento mancante" }, { status: 400 })
     }
 
     const { db } = await connectToDatabase()
