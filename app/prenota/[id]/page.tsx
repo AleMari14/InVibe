@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
 import Image from "next/image"
-import { ArrowLeft, Calendar, MapPin, Users, User } from "lucide-react"
+import { ArrowLeft, Calendar, MapPin, Users, Euro, Loader2, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -27,7 +27,6 @@ interface Event {
   images: string[]
   category: string
   dateStart: string
-  dateEnd?: string
   totalSpots: number
   availableSpots: number
   host: {
@@ -38,6 +37,17 @@ interface Event {
   }
 }
 
+interface BookingForm {
+  firstName: string
+  lastName: string
+  email: string
+  phone: string
+  guests: number
+  specialRequests: string
+  acceptTerms: boolean
+  acceptPrivacy: boolean
+}
+
 export default function PrenotaPage() {
   const params = useParams()
   const router = useRouter()
@@ -45,9 +55,7 @@ export default function PrenotaPage() {
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-
-  // Form state
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState<BookingForm>({
     firstName: "",
     lastName: "",
     email: "",
@@ -68,10 +76,11 @@ export default function PrenotaPage() {
 
   useEffect(() => {
     if (session?.user) {
-      setFormData((prev) => ({
+      const names = session.user.name?.split(" ") || ["", ""]
+      setForm((prev) => ({
         ...prev,
-        firstName: session.user.name?.split(" ")[0] || "",
-        lastName: session.user.name?.split(" ").slice(1).join(" ") || "",
+        firstName: names[0] || "",
+        lastName: names.slice(1).join(" ") || "",
         email: session.user.email || "",
       }))
     }
@@ -93,8 +102,8 @@ export default function PrenotaPage() {
     }
   }
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+  const handleInputChange = (field: keyof BookingForm, value: string | number | boolean) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -105,13 +114,13 @@ export default function PrenotaPage() {
       return
     }
 
-    if (!formData.acceptTerms || !formData.acceptPrivacy) {
+    if (!form.acceptTerms || !form.acceptPrivacy) {
       toast.error("Devi accettare i termini e la privacy policy")
       return
     }
 
-    if (formData.guests < 1 || formData.guests > (event?.availableSpots || 0)) {
-      toast.error(`Numero di ospiti non valido (max ${event?.availableSpots})`)
+    if (form.guests > (event?.availableSpots || 0)) {
+      toast.error(`Massimo ${event?.availableSpots} posti disponibili`)
       return
     }
 
@@ -122,8 +131,14 @@ export default function PrenotaPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           eventId: event?._id,
-          ...formData,
-          totalPrice: (event?.price || 0) * formData.guests,
+          guests: form.guests,
+          specialRequests: form.specialRequests,
+          contactInfo: {
+            firstName: form.firstName,
+            lastName: form.lastName,
+            email: form.email,
+            phone: form.phone,
+          },
         }),
       })
 
@@ -132,12 +147,11 @@ export default function PrenotaPage() {
         throw new Error(errorData.error || "Errore nella prenotazione")
       }
 
-      const booking = await response.json()
       toast.success("Prenotazione completata con successo!")
-      router.push(`/prenotazioni`)
+      router.push("/prenotazioni")
     } catch (error: any) {
       console.error("Error creating booking:", error)
-      toast.error(error.message || "Errore nella prenotazione")
+      toast.error(error.message)
     } finally {
       setSubmitting(false)
     }
@@ -145,19 +159,10 @@ export default function PrenotaPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8">
-          <div className="animate-pulse space-y-6">
-            <div className="h-8 bg-muted rounded w-1/3"></div>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-2 space-y-6">
-                <div className="h-96 bg-muted rounded"></div>
-              </div>
-              <div className="space-y-4">
-                <div className="h-64 bg-muted rounded"></div>
-              </div>
-            </div>
-          </div>
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p className="text-muted-foreground">Caricamento evento...</p>
         </div>
       </div>
     )
@@ -167,21 +172,23 @@ export default function PrenotaPage() {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Evento non trovato</h1>
+          <h1 className="text-2xl font-bold mb-2">Evento non trovato</h1>
+          <p className="text-muted-foreground mb-4">L'evento che stai cercando non esiste.</p>
           <Button onClick={() => router.push("/")}>Torna alla Home</Button>
         </div>
       </div>
     )
   }
 
+  const totalPrice = event.price * form.guests
   const isHost = session?.user?.id === event.host._id
-  const totalPrice = event.price * formData.guests
 
   if (isHost) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-4">Non puoi prenotare il tuo evento</h1>
+          <h1 className="text-2xl font-bold mb-2">Non puoi prenotare il tuo evento</h1>
+          <p className="text-muted-foreground mb-4">Sei l'organizzatore di questo evento.</p>
           <Button onClick={() => router.back()}>Torna indietro</Button>
         </div>
       </div>
@@ -191,7 +198,7 @@ export default function PrenotaPage() {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="sticky top-0 z-50 bg-background/80 backdrop-blur-lg border-b">
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur-md border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => router.back()}>
@@ -207,24 +214,20 @@ export default function PrenotaPage() {
 
       <div className="container mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Form Section */}
+          {/* Form di prenotazione */}
           <div className="lg:col-span-2">
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Informazioni Personali */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <User className="h-5 w-5" />
-                    Informazioni Personali
-                  </CardTitle>
+                  <CardTitle>Informazioni personali</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="firstName">Nome *</Label>
                       <Input
                         id="firstName"
-                        value={formData.firstName}
+                        value={form.firstName}
                         onChange={(e) => handleInputChange("firstName", e.target.value)}
                         required
                       />
@@ -233,7 +236,7 @@ export default function PrenotaPage() {
                       <Label htmlFor="lastName">Cognome *</Label>
                       <Input
                         id="lastName"
-                        value={formData.lastName}
+                        value={form.lastName}
                         onChange={(e) => handleInputChange("lastName", e.target.value)}
                         required
                       />
@@ -244,31 +247,27 @@ export default function PrenotaPage() {
                     <Input
                       id="email"
                       type="email"
-                      value={formData.email}
+                      value={form.email}
                       onChange={(e) => handleInputChange("email", e.target.value)}
                       required
                     />
                   </div>
                   <div>
-                    <Label htmlFor="phone">Telefono</Label>
+                    <Label htmlFor="phone">Telefono *</Label>
                     <Input
                       id="phone"
                       type="tel"
-                      value={formData.phone}
+                      value={form.phone}
                       onChange={(e) => handleInputChange("phone", e.target.value)}
-                      placeholder="+39 123 456 7890"
+                      required
                     />
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Dettagli Prenotazione */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Users className="h-5 w-5" />
-                    Dettagli Prenotazione
-                  </CardTitle>
+                  <CardTitle>Dettagli prenotazione</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div>
@@ -278,92 +277,109 @@ export default function PrenotaPage() {
                       type="number"
                       min="1"
                       max={event.availableSpots}
-                      value={formData.guests}
+                      value={form.guests}
                       onChange={(e) => handleInputChange("guests", Number.parseInt(e.target.value) || 1)}
                       required
                     />
-                    <p className="text-sm text-muted-foreground mt-1">Posti disponibili: {event.availableSpots}</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Massimo {event.availableSpots} posti disponibili
+                    </p>
                   </div>
                   <div>
-                    <Label htmlFor="specialRequests">Richieste speciali</Label>
+                    <Label htmlFor="specialRequests">Richieste speciali (opzionale)</Label>
                     <Textarea
                       id="specialRequests"
-                      value={formData.specialRequests}
+                      value={form.specialRequests}
                       onChange={(e) => handleInputChange("specialRequests", e.target.value)}
-                      placeholder="Eventuali richieste particolari o note per l'organizzatore..."
+                      placeholder="Eventuali richieste particolari..."
                       rows={3}
                     />
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Termini e Privacy */}
               <Card>
-                <CardContent className="pt-6 space-y-4">
-                  <div className="flex items-start space-x-2">
+                <CardHeader>
+                  <CardTitle>Termini e condizioni</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
                     <Checkbox
                       id="terms"
-                      checked={formData.acceptTerms}
-                      onCheckedChange={(checked) => handleInputChange("acceptTerms", checked)}
+                      checked={form.acceptTerms}
+                      onCheckedChange={(checked) => handleInputChange("acceptTerms", !!checked)}
                     />
-                    <Label htmlFor="terms" className="text-sm leading-5">
+                    <Label htmlFor="terms" className="text-sm">
                       Accetto i{" "}
                       <a href="/termini" className="text-primary hover:underline">
-                        Termini e Condizioni
+                        termini e condizioni
                       </a>{" "}
-                      del servizio
+                      *
                     </Label>
                   </div>
-                  <div className="flex items-start space-x-2">
+                  <div className="flex items-center space-x-2">
                     <Checkbox
                       id="privacy"
-                      checked={formData.acceptPrivacy}
-                      onCheckedChange={(checked) => handleInputChange("acceptPrivacy", checked)}
+                      checked={form.acceptPrivacy}
+                      onCheckedChange={(checked) => handleInputChange("acceptPrivacy", !!checked)}
                     />
-                    <Label htmlFor="privacy" className="text-sm leading-5">
+                    <Label htmlFor="privacy" className="text-sm">
                       Accetto la{" "}
                       <a href="/privacy" className="text-primary hover:underline">
-                        Privacy Policy
+                        privacy policy
                       </a>{" "}
-                      e il trattamento dei miei dati personali
+                      *
                     </Label>
                   </div>
                 </CardContent>
               </Card>
 
-              {/* Submit Button */}
               <Button
                 type="submit"
                 size="lg"
                 className="w-full"
-                disabled={submitting || !formData.acceptTerms || !formData.acceptPrivacy}
+                disabled={submitting || !form.acceptTerms || !form.acceptPrivacy}
               >
-                {submitting ? "Elaborazione..." : `Conferma Prenotazione - €${totalPrice.toFixed(2)}`}
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Elaborazione...
+                  </>
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Conferma prenotazione
+                  </>
+                )}
               </Button>
             </form>
           </div>
 
-          {/* Event Summary */}
-          <div className="space-y-6">
-            <Card className="sticky top-24">
-              <CardContent className="p-0">
-                <div className="relative h-48">
-                  <Image
-                    src={getEventImageUrl(event.images[0], 400, 200) || "/placeholder.svg"}
-                    alt={event.title}
-                    fill
-                    className="object-cover rounded-t-lg"
-                  />
-                </div>
-                <div className="p-6 space-y-4">
-                  <div>
-                    <Badge variant="secondary" className="mb-2">
-                      {event.category}
-                    </Badge>
-                    <h3 className="font-bold text-lg">{event.title}</h3>
+          {/* Riepilogo evento */}
+          <div className="lg:col-span-1">
+            <div className="sticky top-24">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Riepilogo prenotazione</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="relative h-48 rounded-lg overflow-hidden">
+                    <Image
+                      src={getEventImageUrl(event.images[0], 400, 200) || "/placeholder.svg"}
+                      alt={event.title}
+                      fill
+                      className="object-cover"
+                    />
                   </div>
 
-                  <div className="space-y-3 text-sm">
+                  <div>
+                    <h3 className="font-semibold text-lg">{event.title}</h3>
+                    <Badge variant="secondary" className="mt-1">
+                      {event.category}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
                       <span>
@@ -381,7 +397,9 @@ export default function PrenotaPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-muted-foreground" />
-                      <span>{event.availableSpots} posti disponibili</span>
+                      <span>
+                        {form.guests} ospite{form.guests > 1 ? "i" : ""}
+                      </span>
                     </div>
                   </div>
 
@@ -390,27 +408,29 @@ export default function PrenotaPage() {
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span>Prezzo per persona:</span>
-                      <span>€{event.price.toFixed(2)}</span>
+                      <span>{event.price > 0 ? `€${event.price}` : "Gratuito"}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>Numero ospiti:</span>
-                      <span>{formData.guests}</span>
+                      <span>{form.guests}</span>
                     </div>
                     <Separator />
-                    <div className="flex justify-between font-bold text-lg">
+                    <div className="flex justify-between font-semibold text-lg">
                       <span>Totale:</span>
-                      <span>€{totalPrice.toFixed(2)}</span>
+                      <span className="flex items-center gap-1">
+                        <Euro className="h-4 w-4" />
+                        {totalPrice.toFixed(2)}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="pt-4 border-t">
-                    <p className="text-xs text-muted-foreground">
-                      Organizzato da <span className="font-medium">{event.host.name}</span>
-                    </p>
+                  <div className="text-xs text-muted-foreground">
+                    <p>La prenotazione sarà confermata dall'organizzatore.</p>
+                    <p className="mt-1">Riceverai una email di conferma.</p>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
       </div>
