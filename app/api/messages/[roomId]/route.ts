@@ -1,159 +1,129 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { connectToDatabase } from "@/lib/mongodb"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { ObjectId } from "mongodb"
+import { connectToDatabase } from "@/lib/mongodb"
 
 export async function GET(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { roomId } = params
-
-    if (!ObjectId.isValid(roomId)) {
-      return NextResponse.json({ error: "ID stanza non valido" }, { status: 400 })
-    }
-
     const { db } = await connectToDatabase()
 
-    // Verifica che l'utente sia partecipante della stanza
+    // Trova l'utente corrente
+    const currentUser = await db.collection("users").findOne({
+      email: session.user.email.toLowerCase(),
+    })
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    }
+
+    // Verifica che l'utente sia partecipante della room
     const room = await db.collection("chatRooms").findOne({
-      _id: new ObjectId(roomId),
-      "participants.id": session.user.id,
+      roomId,
+      "participants.userId": currentUser._id,
     })
 
     if (!room) {
-      return NextResponse.json({ error: "Stanza non trovata o accesso negato" }, { status: 404 })
+      return NextResponse.json({ error: "Room non trovata o accesso negato" }, { status: 404 })
     }
 
-    // Recupera i messaggi della stanza
-    const messages = await db
-      .collection("messages")
-      .find({ roomId: new ObjectId(roomId) })
-      .sort({ createdAt: 1 })
-      .toArray()
+    // Recupera i messaggi
+    const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
 
-    // Converti ObjectId in stringhe
+    // Serializza i messaggi
     const serializedMessages = messages.map((msg) => ({
       ...msg,
       _id: msg._id.toString(),
-      roomId: msg.roomId.toString(),
-      senderId: msg.senderId.toString(),
+      userId: msg.userId.toString(),
+      createdAt: msg.createdAt.toISOString(),
     }))
 
-    return NextResponse.json({ messages: serializedMessages })
-  } catch (error: any) {
+    return NextResponse.json({ messages: serializedMessages, room })
+  } catch (error) {
     console.error("Error fetching messages:", error)
-    return NextResponse.json({ error: "Errore nel caricamento dei messaggi" }, { status: 500 })
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { roomId } = params
-    const { content } = await request.json()
+    const { message } = await request.json()
 
-    if (!ObjectId.isValid(roomId)) {
-      return NextResponse.json({ error: "ID stanza non valido" }, { status: 400 })
-    }
-
-    if (!content || content.trim().length === 0) {
-      return NextResponse.json({ error: "Contenuto messaggio mancante" }, { status: 400 })
+    if (!message || message.trim() === "") {
+      return NextResponse.json({ error: "Messaggio vuoto" }, { status: 400 })
     }
 
     const { db } = await connectToDatabase()
 
-    // Verifica che l'utente sia partecipante della stanza
+    // Trova l'utente corrente
+    const currentUser = await db.collection("users").findOne({
+      email: session.user.email.toLowerCase(),
+    })
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    }
+
+    // Verifica che l'utente sia partecipante della room
     const room = await db.collection("chatRooms").findOne({
-      _id: new ObjectId(roomId),
-      "participants.id": session.user.id,
+      roomId,
+      "participants.userId": currentUser._id,
     })
 
     if (!room) {
-      return NextResponse.json({ error: "Stanza non trovata o accesso negato" }, { status: 404 })
+      return NextResponse.json({ error: "Room non trovata o accesso negato" }, { status: 404 })
     }
 
-    // Crea il messaggio
-    const messageData = {
-      roomId: new ObjectId(roomId),
-      senderId: new ObjectId(session.user.id),
-      senderName: session.user.name || "Utente",
-      senderImage: session.user.image || "",
-      content: content.trim(),
+    // Crea il nuovo messaggio
+    const newMessage = {
+      roomId,
+      userId: currentUser._id,
+      userName: currentUser.name,
+      userImage: currentUser.image || "",
+      message: message.trim(),
       createdAt: new Date(),
-      readBy: [new ObjectId(session.user.id)],
+      isRead: false,
     }
 
-    const result = await db.collection("messages").insertOne(messageData)
+    const result = await db.collection("messages").insertOne(newMessage)
 
-    // Aggiorna la stanza con l'ultimo messaggio
+    // Aggiorna la room con l'ultimo messaggio
     await db.collection("chatRooms").updateOne(
-      { _id: new ObjectId(roomId) },
+      { roomId },
       {
         $set: {
-          lastMessage: content.trim(),
-          lastMessageAt: new Date(),
+          lastMessage: {
+            message: message.trim(),
+            createdAt: new Date(),
+            userName: currentUser.name,
+          },
           updatedAt: new Date(),
         },
       },
     )
 
-    const newMessage = {
-      ...messageData,
+    // Serializza il messaggio per la risposta
+    const serializedMessage = {
+      ...newMessage,
       _id: result.insertedId.toString(),
-      roomId: roomId,
-      senderId: session.user.id,
+      userId: newMessage.userId.toString(),
+      createdAt: newMessage.createdAt.toISOString(),
     }
 
-    return NextResponse.json(newMessage)
-  } catch (error: any) {
+    return NextResponse.json({ message: serializedMessage })
+  } catch (error) {
     console.error("Error sending message:", error)
-    return NextResponse.json({ error: "Errore nell'invio del messaggio" }, { status: 500 })
-  }
-}
-
-export async function DELETE(request: NextRequest, { params }: { params: { roomId: string } }) {
-  try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
-    }
-
-    const { roomId } = params
-
-    if (!ObjectId.isValid(roomId)) {
-      return NextResponse.json({ error: "ID stanza non valido" }, { status: 400 })
-    }
-
-    const { db } = await connectToDatabase()
-
-    // Verifica che l'utente sia partecipante della stanza
-    const room = await db.collection("chatRooms").findOne({
-      _id: new ObjectId(roomId),
-      "participants.id": session.user.id,
-    })
-
-    if (!room) {
-      return NextResponse.json({ error: "Stanza non trovata o accesso negato" }, { status: 404 })
-    }
-
-    // Elimina tutti i messaggi della stanza
-    await db.collection("messages").deleteMany({ roomId: new ObjectId(roomId) })
-
-    // Elimina la stanza
-    await db.collection("chatRooms").deleteOne({ _id: new ObjectId(roomId) })
-
-    return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error("Error deleting chat room:", error)
-    return NextResponse.json({ error: "Errore nell'eliminazione della chat" }, { status: 500 })
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
