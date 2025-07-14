@@ -132,22 +132,24 @@ export default function EventoPage() {
       router.push("/auth/login")
       return
     }
-    if (!event || !event.host) {
+
+    if (!event || !event.host || !event.host._id) {
       toast.error("Informazioni host non disponibili")
       return
     }
 
+    // Debug: verifica che tutti i dati siano presenti
+    console.log("Event data:", {
+      eventId: event._id,
+      eventTitle: event.title,
+      hostId: event.host._id,
+      hostName: event.host.name,
+      hostImage: event.host.image,
+      hostEmail: event.host.email,
+    })
+
     setIsChatLoading(true)
     try {
-      console.log("Sending chat data:", {
-        eventId: event._id,
-        eventTitle: event.title,
-        hostId: event.host._id,
-        hostName: event.host.name,
-        hostImage: event.host.image,
-        hostEmail: event.host.email,
-      })
-
       const response = await fetch("/api/messages/room", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -156,13 +158,14 @@ export default function EventoPage() {
           eventTitle: event.title,
           hostId: event.host._id,
           hostName: event.host.name,
-          hostImage: event.host.image,
+          hostImage: event.host.image || "",
           hostEmail: event.host.email,
         }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
+        console.error("API Error:", errorData)
         throw new Error(errorData.error || "Errore nella creazione della chat")
       }
 
