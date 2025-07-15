@@ -93,6 +93,13 @@ export default function HomePage() {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const { unreadCount } = useNotifications()
 
+  // Variabili di default filtri (devono essere disponibili sia per fetch che per filtro frontend)
+  const isDefaultPrice = priceRange[0] === 50 && priceRange[1] === 500;
+  const isDefaultGuests = guestCount[0] === 2 && guestCount[1] === 10;
+  const isDefaultAmenities = !selectedAmenities || selectedAmenities.length === 0;
+  const isDefaultLocation = !filterLocation;
+  const isDefaultDate = !dateFrom && !dateTo;
+
   // Leggi i filtri da localStorage all'avvio
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -124,26 +131,24 @@ export default function HomePage() {
         params.append("lng", userLocation.lng.toString())
         params.append("radius", searchRadius.toString())
       }
-      // Applica filtri avanzati
-      if (priceRange) {
+      // Applica filtri avanzati SOLO se diversi dai default
+      if (!isDefaultPrice) {
         params.append("priceMin", priceRange[0].toString())
         params.append("priceMax", priceRange[1].toString())
       }
-      if (guestCount) {
+      if (!isDefaultGuests) {
         params.append("guestsMin", guestCount[0].toString())
         params.append("guestsMax", guestCount[1].toString())
       }
-      if (selectedAmenities && selectedAmenities.length > 0) {
+      if (!isDefaultAmenities) {
         params.append("amenities", selectedAmenities.join(","))
       }
-      if (filterLocation) {
+      if (!isDefaultLocation && filterLocation) {
         params.append("location", filterLocation)
       }
-      if (dateFrom) {
-        params.append("dateFrom", dateFrom)
-      }
-      if (dateTo) {
-        params.append("dateTo", dateTo)
+      if (!isDefaultDate) {
+        if (dateFrom) params.append("dateFrom", dateFrom)
+        if (dateTo) params.append("dateTo", dateTo)
       }
 
       const response = await fetch(`/api/events?${params}`)
@@ -174,7 +179,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedCategory, searchQuery, userLocation, searchRadius, priceRange, guestCount, selectedAmenities, filterLocation, dateFrom, dateTo])
+  }, [selectedCategory, searchQuery, userLocation, searchRadius, priceRange, guestCount, selectedAmenities, filterLocation, dateFrom, dateTo, isDefaultPrice, isDefaultGuests, isDefaultAmenities, isDefaultLocation, isDefaultDate])
 
   useEffect(() => {
     fetchEvents()
@@ -341,14 +346,13 @@ export default function HomePage() {
       (event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
         event.category.toLowerCase().includes(searchQuery.toLowerCase())) &&
-      event.price >= priceRange[0] &&
-      event.price <= priceRange[1] &&
-      event.totalSpots >= guestCount[0] &&
-      event.totalSpots <= guestCount[1] &&
-      (selectedAmenities.length === 0 || (event.amenities && selectedAmenities.every(a => event.amenities.includes(a)))) &&
-      (!dateFrom || new Date(event.dateStart) >= new Date(dateFrom)) &&
-      (!dateTo || new Date(event.dateStart) <= new Date(dateTo)) &&
-      (!filterLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
+      (isDefaultPrice || (event.price >= priceRange[0] && event.price <= priceRange[1])) &&
+      (isDefaultGuests || (event.totalSpots >= guestCount[0] && event.totalSpots <= guestCount[1])) &&
+      (isDefaultAmenities || (Array.isArray(event.amenities) ? selectedAmenities.every(a => event.amenities!.includes(a)) : selectedAmenities.length === 0)) &&
+      (isDefaultDate ||
+        (!dateFrom || new Date(event.dateStart) >= new Date(dateFrom)) &&
+        (!dateTo || new Date(event.dateStart) <= new Date(dateTo))) &&
+      (isDefaultLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
   )
 
   const cardVariants = {
