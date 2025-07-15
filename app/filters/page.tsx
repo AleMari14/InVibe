@@ -62,18 +62,17 @@ export default function FiltersPage() {
 
   // Riepilogo filtri attivi
   const activeFilters = [
-    ...(location ? [{ label: location, icon: <MapPin className="h-4 w-4 text-blue-400" /> }] : []),
     ...(dateFrom ? [{ label: `Dal ${dateFrom}`, icon: <Calendar className="h-4 w-4 text-green-400" /> }] : []),
     ...(dateTo ? [{ label: `Al ${dateTo}`, icon: <Calendar className="h-4 w-4 text-green-400" /> }] : []),
     ...(priceRange[0] !== 50 || priceRange[1] !== 500 ? [{ label: `€${priceRange[0]} - €${priceRange[1]}`, icon: <DollarSign className="h-4 w-4 text-yellow-400" /> }] : []),
     ...(guestCount[0] !== 2 || guestCount[1] !== 10 ? [{ label: `${guestCount[0]}-${guestCount[1]} ospiti`, icon: <Users className="h-4 w-4 text-purple-400" /> }] : []),
-    ...selectedAmenities.map(a => ({ label: a, icon: <Badge className="bg-pink-500 text-white">✓</Badge> })),
+    ...selectedAmenities.map(a => ({ label: a, icon: <Badge className="bg-pink-500 text-white animate-pulse">✓</Badge> })),
   ]
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-950 to-purple-900 text-white p-0 sm:p-0">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-900 to-purple-800 border-b border-blue-700 px-4 py-4 shadow-lg">
+      {/* Header sticky */}
+      <div className="sticky top-0 z-20 bg-gradient-to-r from-blue-900 to-purple-800 border-b border-blue-700 px-4 py-4 shadow-2xl backdrop-blur-md">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/">
@@ -81,7 +80,7 @@ export default function FiltersPage() {
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Filtri</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent drop-shadow-lg">Filtri</h1>
           </div>
           <Button variant="outline" onClick={clearFilters} className="border-blue-400 text-blue-300 hover:bg-blue-900/30">
             Cancella tutto
@@ -91,7 +90,7 @@ export default function FiltersPage() {
         {activeFilters.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-4">
             {activeFilters.map((f, i) => (
-              <Badge key={i} className="flex items-center gap-1 bg-blue-700/80 text-white px-3 py-1 rounded-full text-xs font-medium">
+              <Badge key={i} className="flex items-center gap-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg animate-fade-in">
                 {f.icon}
                 {f.label}
               </Badge>
@@ -101,26 +100,8 @@ export default function FiltersPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
-        {/* Location */}
-        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2 text-blue-300">
-              <MapPin className="h-5 w-5 text-blue-400" />
-              Località
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Input
-              placeholder="Città, regione o zona..."
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="bg-gray-800 border-blue-700 text-white placeholder:text-gray-400 focus:border-blue-400"
-            />
-          </CardContent>
-        </Card>
-
-        {/* Dates */}
-        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
+        {/* Date */}
+        <Card className="bg-white/10 border-blue-800 shadow-2xl rounded-2xl backdrop-blur-md">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-green-300">
               <Calendar className="h-5 w-5 text-green-400" />
@@ -142,7 +123,7 @@ export default function FiltersPage() {
         </Card>
 
         {/* Price Range */}
-        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
+        <Card className="bg-white/10 border-blue-800 shadow-2xl rounded-2xl backdrop-blur-md">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-yellow-300">
               <DollarSign className="h-5 w-5 text-yellow-400" />
@@ -168,7 +149,7 @@ export default function FiltersPage() {
         </Card>
 
         {/* Guest Count */}
-        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
+        <Card className="bg-white/10 border-blue-800 shadow-2xl rounded-2xl backdrop-blur-md">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2 text-purple-300">
               <Users className="h-5 w-5 text-purple-400" />
@@ -187,7 +168,7 @@ export default function FiltersPage() {
         </Card>
 
         {/* Amenities */}
-        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
+        <Card className="bg-white/10 border-blue-800 shadow-2xl rounded-2xl backdrop-blur-md">
           <CardHeader>
             <CardTitle className="text-lg text-pink-300">Servizi</CardTitle>
           </CardHeader>
@@ -199,14 +180,14 @@ export default function FiltersPage() {
                   type="button"
                   onClick={() => toggleAmenity(amenity)}
                   className={cn(
-                    "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium focus:outline-none focus:ring-2 focus:ring-pink-400",
+                    "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium focus:outline-none focus:ring-2 focus:ring-pink-400 duration-150",
                     selectedAmenities.includes(amenity)
-                      ? "border-pink-500 bg-pink-500/20 text-white shadow-md"
-                      : "border-gray-700 bg-gray-800 hover:border-pink-400 text-gray-300"
+                      ? "border-pink-500 bg-pink-500/30 text-white shadow-lg scale-105 animate-pulse"
+                      : "border-gray-700 bg-gray-800 hover:border-pink-400 text-gray-300 hover:scale-105"
                   )}
                   aria-pressed={selectedAmenities.includes(amenity)}
                 >
-                  <span className="text-lg">{selectedAmenities.includes(amenity) ? "✓" : ""}</span>
+                  <span className="text-lg transition-all duration-150">{selectedAmenities.includes(amenity) ? "✓" : ""}</span>
                   {amenity}
                 </button>
               ))}
@@ -219,10 +200,10 @@ export default function FiltersPage() {
           <Link href="/">
             <Button
               size="lg"
-              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-lg h-14 shadow-xl hover:scale-105 transition-transform duration-200"
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-lg h-14 shadow-2xl hover:scale-105 transition-transform duration-200 ring-2 ring-blue-400/40 hover:ring-purple-500/60 animate-glow"
               onClick={handleApplyFilters}
             >
-              Applica Filtri
+              <span className="drop-shadow-lg">Applica Filtri</span>
             </Button>
           </Link>
         </div>

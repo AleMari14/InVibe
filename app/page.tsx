@@ -85,7 +85,8 @@ export default function HomePage() {
   const [priceRange, setPriceRange] = useState<[number, number]>([50, 500])
   const [guestCount, setGuestCount] = useState<[number, number]>([2, 10])
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
-  const [filterLocation, setFilterLocation] = useState("")
+  // Rimuovo tutto ciò che riguarda filterLocation
+  // const [filterLocation, setFilterLocation] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const { data: session, status } = useSession()
@@ -97,7 +98,8 @@ export default function HomePage() {
   const isDefaultPrice = priceRange[0] === 50 && priceRange[1] === 500;
   const isDefaultGuests = guestCount[0] === 2 && guestCount[1] === 10;
   const isDefaultAmenities = !selectedAmenities || selectedAmenities.length === 0;
-  const isDefaultLocation = !filterLocation;
+  // Rimuovo tutto ciò che riguarda filterLocation
+  // const isDefaultLocation = !filterLocation;
   const isDefaultDate = !dateFrom && !dateTo;
 
   // Leggi i filtri da localStorage all'avvio
@@ -110,7 +112,7 @@ export default function HomePage() {
           if (filters.priceRange) setPriceRange(filters.priceRange)
           if (filters.guestCount) setGuestCount(filters.guestCount)
           if (filters.selectedAmenities) setSelectedAmenities(filters.selectedAmenities)
-          if (filters.location) setFilterLocation(filters.location)
+          // if (filters.location) setFilterLocation(filters.location)
           if (filters.dateFrom) setDateFrom(filters.dateFrom)
           if (filters.dateTo) setDateTo(filters.dateTo)
         } catch {}
@@ -143,9 +145,10 @@ export default function HomePage() {
       if (!isDefaultAmenities) {
         params.append("amenities", selectedAmenities.join(","))
       }
-      if (!isDefaultLocation && filterLocation) {
-        params.append("location", filterLocation)
-      }
+      // RIMOSSO: filtro location
+      // if (!isDefaultLocation && filterLocation) {
+      //   params.append("location", filterLocation)
+      // }
       if (!isDefaultDate) {
         if (dateFrom) params.append("dateFrom", dateFrom)
         if (dateTo) params.append("dateTo", dateTo)
@@ -179,7 +182,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedCategory, searchQuery, userLocation, searchRadius, priceRange, guestCount, selectedAmenities, filterLocation, dateFrom, dateTo, isDefaultPrice, isDefaultGuests, isDefaultAmenities, isDefaultLocation, isDefaultDate])
+  }, [selectedCategory, searchQuery, userLocation, searchRadius, priceRange, guestCount, selectedAmenities, dateFrom, dateTo, isDefaultPrice, isDefaultGuests, isDefaultAmenities, isDefaultDate])
 
   useEffect(() => {
     fetchEvents()
@@ -351,8 +354,9 @@ export default function HomePage() {
       (isDefaultAmenities || (Array.isArray(event.amenities) ? selectedAmenities.every(a => event.amenities!.includes(a)) : selectedAmenities.length === 0)) &&
       (isDefaultDate ||
         (!dateFrom || new Date(event.dateStart) >= new Date(dateFrom)) &&
-        (!dateTo || new Date(event.dateStart) <= new Date(dateTo))) &&
-      (isDefaultLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
+        (!dateTo || new Date(event.dateStart) <= new Date(dateTo)))
+      // RIMOSSO: filtro location
+      // (isDefaultLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
   )
 
   const cardVariants = {
