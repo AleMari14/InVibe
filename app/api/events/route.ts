@@ -28,7 +28,8 @@ export async function GET(request: NextRequest) {
     const userSession = session as any
 
     const category = searchParams.get("category")
-    const searchQuery = searchParams.get("search")
+    // RIMUOVO il filtro di ricerca testuale
+    // const searchQuery = searchParams.get("search")
     const lat = searchParams.get("lat")
     const lng = searchParams.get("lng")
     const radius = searchParams.get("radius") // in km
@@ -55,13 +56,14 @@ export async function GET(request: NextRequest) {
       query.category = category
     }
 
-    if (searchQuery) {
-      query.$or = [
-        { title: { $regex: searchQuery, $options: "i" } },
-        { description: { $regex: searchQuery, $options: "i" } },
-        { location: { $regex: searchQuery, $options: "i" } },
-      ]
-    }
+    // RIMUOVO il filtro di ricerca testuale
+    // if (searchQuery) {
+    //   query.$or = [
+    //     { title: { $regex: searchQuery, $options: "i" } },
+    //     { description: { $regex: searchQuery, $options: "i" } },
+    //     { location: { $regex: searchQuery, $options: "i" } },
+    //   ]
+    // }
 
     // Nuovi filtri avanzati
     if (priceMin || priceMax) {
