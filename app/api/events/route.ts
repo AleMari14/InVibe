@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { connectToDatabase } from "@/lib/mongodb"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { ObjectId } from "mongodb"
 import { z } from "zod"
@@ -25,20 +25,29 @@ export async function GET(request: NextRequest) {
     const { db } = await connectToDatabase()
     const { searchParams } = new URL(request.url)
     const session = await getServerSession(authOptions)
+    const userSession = session as any
 
     const category = searchParams.get("category")
     const searchQuery = searchParams.get("search")
     const lat = searchParams.get("lat")
     const lng = searchParams.get("lng")
     const radius = searchParams.get("radius") // in km
+    // Nuovi filtri
+    const priceMin = searchParams.get("priceMin")
+    const priceMax = searchParams.get("priceMax")
+    const guestsMin = searchParams.get("guestsMin")
+    const guestsMax = searchParams.get("guestsMax")
+    const amenities = searchParams.get("amenities") // comma separated
+    const dateFrom = searchParams.get("dateFrom")
+    const dateTo = searchParams.get("dateTo")
 
     const query: any = {}
 
-    if (session?.user?.id) {
+    if (userSession?.user?.id) {
       try {
-        query.hostId = { $ne: new ObjectId(session.user.id) }
+        query.hostId = { $ne: new ObjectId(userSession.user.id) }
       } catch (error) {
-        console.warn("Invalid user ID format for filtering:", session.user.id)
+        console.warn("Invalid user ID format for filtering:", userSession.user.id)
       }
     }
 
@@ -52,6 +61,29 @@ export async function GET(request: NextRequest) {
         { description: { $regex: searchQuery, $options: "i" } },
         { location: { $regex: searchQuery, $options: "i" } },
       ]
+    }
+
+    // Nuovi filtri avanzati
+    if (priceMin || priceMax) {
+      query.price = {}
+      if (priceMin) query.price.$gte = Number(priceMin)
+      if (priceMax) query.price.$lte = Number(priceMax)
+    }
+    if (guestsMin || guestsMax) {
+      query.totalSpots = {}
+      if (guestsMin) query.totalSpots.$gte = Number(guestsMin)
+      if (guestsMax) query.totalSpots.$lte = Number(guestsMax)
+    }
+    if (amenities) {
+      const amenitiesArr = amenities.split(",").map((a) => a.trim()).filter(Boolean)
+      if (amenitiesArr.length > 0) {
+        query.amenities = { $all: amenitiesArr }
+      }
+    }
+    if (dateFrom || dateTo) {
+      query.dateStart = {}
+      if (dateFrom) query.dateStart.$gte = new Date(dateFrom)
+      if (dateTo) query.dateStart.$lte = new Date(dateTo)
     }
 
     let sort: any = { createdAt: -1 }
@@ -88,7 +120,8 @@ export async function POST(request: NextRequest) {
   try {
     const { db } = await connectToDatabase();
     const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
+    const userSession = session as any
+    if (!userSession?.user?.id) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
     }
     const body = await request.json();
@@ -114,7 +147,7 @@ export async function POST(request: NextRequest) {
       totalSpots: data.totalSpots,
       availableSpots: data.totalSpots,
       images: data.images || [],
-      hostId: new ObjectId(session.user.id),
+      hostId: new ObjectId(userSession.user.id),
       verified: false,
       createdAt: new Date(),
       updatedAt: new Date(),

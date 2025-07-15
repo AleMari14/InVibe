@@ -10,6 +10,7 @@ import { Slider } from "@/components/ui/slider"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { cn } from "@/lib/utils"
 
 export default function FiltersPage() {
   const [priceRange, setPriceRange] = useState([50, 500])
@@ -44,73 +45,108 @@ export default function FiltersPage() {
     setLocation("")
     setDateFrom("")
     setDateTo("")
+    localStorage.removeItem("invibe-filters")
   }
 
+  const handleApplyFilters = () => {
+    const filters = {
+      priceRange,
+      guestCount,
+      selectedAmenities,
+      location,
+      dateFrom,
+      dateTo,
+    }
+    localStorage.setItem("invibe-filters", JSON.stringify(filters))
+  }
+
+  // Riepilogo filtri attivi
+  const activeFilters = [
+    ...(location ? [{ label: location, icon: <MapPin className="h-4 w-4 text-blue-400" /> }] : []),
+    ...(dateFrom ? [{ label: `Dal ${dateFrom}`, icon: <Calendar className="h-4 w-4 text-green-400" /> }] : []),
+    ...(dateTo ? [{ label: `Al ${dateTo}`, icon: <Calendar className="h-4 w-4 text-green-400" /> }] : []),
+    ...(priceRange[0] !== 50 || priceRange[1] !== 500 ? [{ label: `€${priceRange[0]} - €${priceRange[1]}`, icon: <DollarSign className="h-4 w-4 text-yellow-400" /> }] : []),
+    ...(guestCount[0] !== 2 || guestCount[1] !== 10 ? [{ label: `${guestCount[0]}-${guestCount[1]} ospiti`, icon: <Users className="h-4 w-4 text-purple-400" /> }] : []),
+    ...selectedAmenities.map(a => ({ label: a, icon: <Badge className="bg-pink-500 text-white">✓</Badge> })),
+  ]
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-950 to-purple-900 text-white p-0 sm:p-0">
       {/* Header */}
-      <div className="bg-white border-b px-4 py-3">
+      <div className="bg-gradient-to-r from-blue-900 to-purple-800 border-b border-blue-700 px-4 py-4 shadow-lg">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Link href="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
+              <Button variant="ghost" size="icon" className="text-white hover:bg-blue-800">
+                <ArrowLeft className="h-5 w-5" />
               </Button>
             </Link>
-            <h1 className="text-xl font-semibold">Filters</h1>
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">Filtri</h1>
           </div>
-          <Button variant="ghost" onClick={clearFilters}>
-            Clear All
+          <Button variant="outline" onClick={clearFilters} className="border-blue-400 text-blue-300 hover:bg-blue-900/30">
+            Cancella tutto
           </Button>
         </div>
+        {/* Badge filtri attivi */}
+        {activeFilters.length > 0 && (
+          <div className="flex flex-wrap gap-2 mt-4">
+            {activeFilters.map((f, i) => (
+              <Badge key={i} className="flex items-center gap-1 bg-blue-700/80 text-white px-3 py-1 rounded-full text-xs font-medium">
+                {f.icon}
+                {f.label}
+              </Badge>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div className="px-4 py-4 space-y-4">
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
         {/* Location */}
-        <Card>
+        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Location
+            <CardTitle className="text-lg flex items-center gap-2 text-blue-300">
+              <MapPin className="h-5 w-5 text-blue-400" />
+              Località
             </CardTitle>
           </CardHeader>
           <CardContent>
             <Input
-              placeholder="Enter city, state, or region"
+              placeholder="Città, regione o zona..."
               value={location}
               onChange={(e) => setLocation(e.target.value)}
+              className="bg-gray-800 border-blue-700 text-white placeholder:text-gray-400 focus:border-blue-400"
             />
           </CardContent>
         </Card>
 
         {/* Dates */}
-        <Card>
+        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Dates
+            <CardTitle className="text-lg flex items-center gap-2 text-green-300">
+              <Calendar className="h-5 w-5 text-green-400" />
+              Date
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="dateFrom">From</Label>
-                <Input id="dateFrom" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <Label htmlFor="dateFrom" className="text-gray-300">Dal</Label>
+                <Input id="dateFrom" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-gray-800 border-blue-700 text-white focus:border-green-400" />
               </div>
               <div>
-                <Label htmlFor="dateTo">To</Label>
-                <Input id="dateTo" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                <Label htmlFor="dateTo" className="text-gray-300">Al</Label>
+                <Input id="dateTo" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-gray-800 border-blue-700 text-white focus:border-green-400" />
               </div>
             </div>
           </CardContent>
         </Card>
 
         {/* Price Range */}
-        <Card>
+        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Price Range
+            <CardTitle className="text-lg flex items-center gap-2 text-yellow-300">
+              <DollarSign className="h-5 w-5 text-yellow-400" />
+              Prezzo (€)
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -124,78 +160,73 @@ export default function FiltersPage() {
                 className="w-full"
               />
             </div>
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>${priceRange[0]}</span>
-              <span>${priceRange[1]}+</span>
+            <div className="flex justify-between text-sm text-yellow-200">
+              <span>€{priceRange[0]}</span>
+              <span>€{priceRange[1]}+</span>
             </div>
           </CardContent>
         </Card>
 
         {/* Guest Count */}
-        <Card>
+        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Number of Guests
+            <CardTitle className="text-lg flex items-center gap-2 text-purple-300">
+              <Users className="h-5 w-5 text-purple-400" />
+              Ospiti
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="px-2">
               <Slider value={guestCount} onValueChange={setGuestCount} max={50} min={1} step={1} className="w-full" />
             </div>
-            <div className="flex justify-between text-sm text-gray-600">
-              <span>{guestCount[0]} guests</span>
-              <span>{guestCount[1]}+ guests</span>
+            <div className="flex justify-between text-sm text-purple-200">
+              <span>{guestCount[0]} ospiti</span>
+              <span>{guestCount[1]}+ ospiti</span>
             </div>
           </CardContent>
         </Card>
 
         {/* Amenities */}
-        <Card>
+        <Card className="bg-gray-900/80 border-blue-800 shadow-xl rounded-2xl">
           <CardHeader>
-            <CardTitle className="text-lg">Amenities</CardTitle>
+            <CardTitle className="text-lg text-pink-300">Servizi</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {amenities.map((amenity) => (
-                <div key={amenity} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={amenity}
-                    checked={selectedAmenities.includes(amenity)}
-                    onCheckedChange={() => toggleAmenity(amenity)}
-                  />
-                  <Label htmlFor={amenity} className="text-sm cursor-pointer">
-                    {amenity}
-                  </Label>
-                </div>
+                <button
+                  key={amenity}
+                  type="button"
+                  onClick={() => toggleAmenity(amenity)}
+                  className={cn(
+                    "flex items-center gap-2 px-3 py-2 rounded-lg border-2 transition-all text-sm font-medium focus:outline-none focus:ring-2 focus:ring-pink-400",
+                    selectedAmenities.includes(amenity)
+                      ? "border-pink-500 bg-pink-500/20 text-white shadow-md"
+                      : "border-gray-700 bg-gray-800 hover:border-pink-400 text-gray-300"
+                  )}
+                  aria-pressed={selectedAmenities.includes(amenity)}
+                >
+                  <span className="text-lg">{selectedAmenities.includes(amenity) ? "✓" : ""}</span>
+                  {amenity}
+                </button>
               ))}
             </div>
-
-            {selectedAmenities.length > 0 && (
-              <div className="mt-4">
-                <div className="text-sm font-medium mb-2">Selected:</div>
-                <div className="flex flex-wrap gap-1">
-                  {selectedAmenities.map((amenity) => (
-                    <Badge key={amenity} variant="secondary">
-                      {amenity}
-                    </Badge>
-                  ))}
-                </div>
-              </div>
-            )}
           </CardContent>
         </Card>
 
         {/* Apply Filters Button */}
-        <Link href="/">
-          <Button size="lg" className="w-full">
-            Apply Filters
-          </Button>
-        </Link>
+        <div className="pt-6">
+          <Link href="/">
+            <Button
+              size="lg"
+              className="w-full bg-gradient-to-r from-blue-500 to-purple-600 text-white font-bold text-lg h-14 shadow-xl hover:scale-105 transition-transform duration-200"
+              onClick={handleApplyFilters}
+            >
+              Applica Filtri
+            </Button>
+          </Link>
+        </div>
       </div>
-
-      {/* Bottom padding */}
-      <div className="h-4"></div>
     </div>
   )
 }

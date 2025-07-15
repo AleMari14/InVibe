@@ -68,6 +68,7 @@ interface Event {
     verified: boolean
   }
   verified: boolean
+  amenities?: string[] // Aggiunto per i filtri
 }
 
 export default function HomePage() {
@@ -80,10 +81,35 @@ export default function HomePage() {
   const [error, setError] = useState("")
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [searchRadius, setSearchRadius] = useState(50) // Default 50km
+  // Nuovi stati per filtri avanzati
+  const [priceRange, setPriceRange] = useState<[number, number]>([50, 500])
+  const [guestCount, setGuestCount] = useState<[number, number]>([2, 10])
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
+  const [filterLocation, setFilterLocation] = useState("")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const { data: session, status } = useSession()
   const router = useRouter()
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const { unreadCount } = useNotifications()
+
+  // Leggi i filtri da localStorage all'avvio
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("invibe-filters")
+      if (saved) {
+        try {
+          const filters = JSON.parse(saved)
+          if (filters.priceRange) setPriceRange(filters.priceRange)
+          if (filters.guestCount) setGuestCount(filters.guestCount)
+          if (filters.selectedAmenities) setSelectedAmenities(filters.selectedAmenities)
+          if (filters.location) setFilterLocation(filters.location)
+          if (filters.dateFrom) setDateFrom(filters.dateFrom)
+          if (filters.dateTo) setDateTo(filters.dateTo)
+        } catch {}
+      }
+    }
+  }, [])
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -97,6 +123,27 @@ export default function HomePage() {
         params.append("lat", userLocation.lat.toString())
         params.append("lng", userLocation.lng.toString())
         params.append("radius", searchRadius.toString())
+      }
+      // Applica filtri avanzati
+      if (priceRange) {
+        params.append("priceMin", priceRange[0].toString())
+        params.append("priceMax", priceRange[1].toString())
+      }
+      if (guestCount) {
+        params.append("guestsMin", guestCount[0].toString())
+        params.append("guestsMax", guestCount[1].toString())
+      }
+      if (selectedAmenities && selectedAmenities.length > 0) {
+        params.append("amenities", selectedAmenities.join(","))
+      }
+      if (filterLocation) {
+        params.append("location", filterLocation)
+      }
+      if (dateFrom) {
+        params.append("dateFrom", dateFrom)
+      }
+      if (dateTo) {
+        params.append("dateTo", dateTo)
       }
 
       const response = await fetch(`/api/events?${params}`)
@@ -127,7 +174,7 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedCategory, searchQuery, userLocation, searchRadius])
+  }, [selectedCategory, searchQuery, userLocation, searchRadius, priceRange, guestCount, selectedAmenities, filterLocation, dateFrom, dateTo])
 
   useEffect(() => {
     fetchEvents()
@@ -288,11 +335,20 @@ export default function HomePage() {
     </Sheet>
   )
 
+  // Filtraggio frontend aggiuntivo (se serve)
   const filteredEvents = events.filter(
     (event) =>
-      event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      event.category.toLowerCase().includes(searchQuery.toLowerCase()),
+      (event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.location.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        event.category.toLowerCase().includes(searchQuery.toLowerCase())) &&
+      event.price >= priceRange[0] &&
+      event.price <= priceRange[1] &&
+      event.totalSpots >= guestCount[0] &&
+      event.totalSpots <= guestCount[1] &&
+      (selectedAmenities.length === 0 || (event.amenities && selectedAmenities.every(a => event.amenities.includes(a)))) &&
+      (!dateFrom || new Date(event.dateStart) >= new Date(dateFrom)) &&
+      (!dateTo || new Date(event.dateStart) <= new Date(dateTo)) &&
+      (!filterLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
   )
 
   const cardVariants = {
