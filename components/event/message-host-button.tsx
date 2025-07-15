@@ -31,7 +31,7 @@ export function MessageHostButton({
   const handleMessageHost = async () => {
     console.log("MessageHost params:", { hostId, hostName, hostEmail, eventId, eventTitle })
 
-    if (!hostEmail || !eventId) {
+    if (!hostEmail || !eventId || !hostId || !hostName || !eventTitle) {
       toast.error("Informazioni host mancanti")
       return
     }
@@ -53,7 +53,7 @@ export function MessageHostButton({
       console.log("Creating/finding chat room...")
 
       // Verifica che tutti i parametri necessari siano definiti
-      if (!hostId || !hostEmail || !hostName || !eventId || !eventTitle) {
+      if (!hostEmail || !hostName || !eventId || !eventTitle) {
         toast.error("Informazioni mancanti per creare la chat")
         return
       }
@@ -65,7 +65,7 @@ export function MessageHostButton({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          hostId: hostId.trim(), // aggiunto hostId
+          hostId: hostId.trim(),
           hostEmail: hostEmail.trim(),
           hostName: hostName.trim(),
           eventId: eventId.trim(),

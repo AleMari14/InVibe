@@ -35,21 +35,21 @@ interface Event {
   description: string
   location: string
   price: number
-  rating: number
-  reviewCount: number
+  rating?: number
+  reviewCount?: number
   images: string[]
   category: string
   dateStart: string
   dateEnd?: string
   totalSpots: number
   availableSpots: number
-  verified: boolean
-  host: {
+  verified?: boolean
+  host?: {
     _id: string
     name: string
     image: string
     email: string
-  }
+  } | null
   createdAt: string
 }
 
@@ -83,6 +83,7 @@ export default function EventoPage() {
       const response = await fetch(`/api/events/${id}`)
       if (!response.ok) throw new Error("Evento non trovato")
       const data = await response.json()
+      console.log("Event data received:", data)
       setEvent(data)
     } catch (error) {
       console.error("Error fetching event:", error)
@@ -94,8 +95,6 @@ export default function EventoPage() {
   }
 
   const checkIfFavorite = async () => {
-    // This logic can be improved by fetching all favorites at once
-    // For now, we check one by one
     try {
       const res = await fetch("/api/favorites")
       if (!res.ok) return
@@ -134,7 +133,23 @@ export default function EventoPage() {
       router.push("/auth/login")
       return
     }
-    if (!event || !event.host) return
+
+    if (!event) {
+      toast.error("Evento non disponibile")
+      return
+    }
+
+    if (!event.host) {
+      toast.error("Informazioni host non disponibili per questo evento")
+      return
+    }
+
+    if (!event.host._id || !event.host.email || !event.host.name) {
+      toast.error("Dati host incompleti")
+      return
+    }
+
+    console.log("Host data:", event.host)
 
     setIsChatLoading(true)
     try {
@@ -146,18 +161,20 @@ export default function EventoPage() {
           eventTitle: event.title,
           hostId: event.host._id,
           hostName: event.host.name,
-          hostImage: event.host.image,
+          hostImage: event.host.image || "",
           hostEmail: event.host.email,
         }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
+        console.error("API Error:", errorData)
         throw new Error(errorData.error || "Errore nella creazione della chat")
       }
 
       const { roomId } = await response.json()
       router.push(`/messaggi/${roomId}`)
+      toast.success("Chat aperta!")
     } catch (error: any) {
       console.error("Error creating chat:", error)
       toast.error(error.message)
@@ -181,6 +198,14 @@ export default function EventoPage() {
     }
   }
 
+  const handleBooking = () => {
+    if (!session) {
+      router.push("/auth/login")
+      return
+    }
+    router.push(`/prenota/${event?._id}`)
+  }
+
   if (loading) {
     return <EventSkeleton />
   }
@@ -197,13 +222,13 @@ export default function EventoPage() {
     )
   }
 
-  const isHost = session?.user?.id === event.host._id
+  const isHost = session?.user?.id === event.host?._id
 
   return (
     <div className="bg-background text-foreground pb-20">
       <div className="relative h-64 md:h-80">
         <Image
-          src={getEventImageUrl(event.images[0], 800, 320) || "/placeholder.svg"}
+          src={getEventImageUrl(event.images?.[0], 800, 320) || "/placeholder.svg"}
           alt={event.title}
           fill
           className="object-cover"
@@ -333,26 +358,38 @@ export default function EventoPage() {
                 <CardTitle>Organizzato da</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-center gap-4">
-                  <OptimizedAvatar src={event.host.image} alt={event.host.name} size={48} />
-                  <div>
-                    <h3 className="font-semibold">{event.host.name}</h3>
-                    <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>{(event.rating || 0).toFixed(1)}</span>
-                      <span>({event.reviewCount || 0} recensioni)</span>
+                {event.host ? (
+                  <>
+                    <div className="flex items-center gap-4">
+                      <OptimizedAvatar src={event.host.image} alt={event.host.name} size={48} />
+                      <div>
+                        <h3 className="font-semibold">{event.host.name}</h3>
+                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                          <span>{(event.rating || 0).toFixed(1)}</span>
+                          <span>({event.reviewCount || 0} recensioni)</span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-                {!isHost && (
-                  <Button className="w-full mt-4" onClick={handleContactHost} disabled={isChatLoading}>
-                    {isChatLoading ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <MessageSquare className="mr-2 h-4 w-4" />
+                    {!isHost && (
+                      <Button className="w-full mt-4" onClick={handleContactHost} disabled={isChatLoading}>
+                        {isChatLoading ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                        )}
+                        Contatta l'host
+                      </Button>
                     )}
-                    Contatta l'host
-                  </Button>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground text-sm">Informazioni host non disponibili</p>
+                    <Button className="w-full mt-4" disabled>
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Contatta l'host
+                    </Button>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -364,7 +401,7 @@ export default function EventoPage() {
                 <p className="text-muted-foreground text-sm mb-4">
                   Non perdere l'occasione di partecipare a questo evento unico!
                 </p>
-                <Button size="lg" className="w-full" disabled={isHost}>
+                <Button size="lg" className="w-full" disabled={isHost} onClick={handleBooking}>
                   {isHost ? "Sei l'organizzatore" : "Prenota Ora"}
                 </Button>
               </CardContent>
