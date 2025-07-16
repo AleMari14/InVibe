@@ -10,6 +10,9 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom, 0px), 2.5rem);
+  }
 }
 
 @layer base {
