@@ -56,7 +56,7 @@ export function EditProfileDialog({ user, open, onOpenChange, onProfileUpdate }:
             Apporta modifiche al tuo profilo qui. Clicca su salva quando hai finito.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <div className="grid gap-4 py-4 pb-8">
+        <div className="grid gap-4 py-4 pb-16">
           <div className="grid grid-cols-4 items-center gap-4">
             <Label htmlFor="name" className="text-right">
               Nome
