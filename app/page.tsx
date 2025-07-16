@@ -449,10 +449,8 @@ export default function HomePage() {
                 placeholder="Cerca eventi, luoghi, esperienze..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-12 pr-20 h-12 text-sm bg-white/90 backdrop-blur-sm border-2 border-white/30 focus:border-blue-300 focus:bg-white rounded-xl shadow-lg 
-                focus:shadow-xl transition-all duration-300 placeholder:text-gray-400 text-black"
+                className="pl-12 pr-20 h-12 text-sm bg-white/90 backdrop-blur-sm border-2 border-white/30 focus:border-blue-300 focus:bg-white rounded-xl shadow-lg focus:shadow-xl transition-all duration-300 placeholder:text-gray-400 text-black"
               />
-
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
                 <Link href="/filtri">
                   <Button
