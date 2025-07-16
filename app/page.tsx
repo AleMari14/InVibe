@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label"
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import {
   Search,
   Filter,
@@ -35,7 +35,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { useSession } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 import { Slider } from "@/components/ui/slider"
@@ -91,8 +91,10 @@ export default function HomePage() {
   const [dateTo, setDateTo] = useState("")
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams();
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const { unreadCount } = useNotifications()
+  const resultsRef = useRef<HTMLDivElement>(null);
 
   // Variabili di default filtri (devono essere disponibili sia per fetch che per filtro frontend)
   const isDefaultPrice = priceRange[0] === 50 && priceRange[1] === 500;
@@ -102,9 +104,10 @@ export default function HomePage() {
   // const isDefaultLocation = !filterLocation;
   const isDefaultDate = !dateFrom && !dateTo;
 
-  // Leggi i filtri da localStorage all'avvio
+  // Leggi i filtri da localStorage e dalla query string all'avvio
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Prima: localStorage
       const saved = localStorage.getItem("invibe-filters")
       if (saved) {
         try {
@@ -112,13 +115,37 @@ export default function HomePage() {
           if (filters.priceRange) setPriceRange(filters.priceRange)
           if (filters.guestCount) setGuestCount(filters.guestCount)
           if (filters.selectedAmenities) setSelectedAmenities(filters.selectedAmenities)
-          // if (filters.location) setFilterLocation(filters.location)
           if (filters.dateFrom) setDateFrom(filters.dateFrom)
           if (filters.dateTo) setDateTo(filters.dateTo)
         } catch {}
       }
+      // Poi: query string
+      if (searchParams) {
+        const category = searchParams.get("category")
+        const search = searchParams.get("search")
+        const priceMin = searchParams.get("priceMin")
+        const priceMax = searchParams.get("priceMax")
+        const guestsMin = searchParams.get("guestsMin")
+        const guestsMax = searchParams.get("guestsMax")
+        const amenities = searchParams.get("amenities")
+        const dateFromQ = searchParams.get("dateFrom")
+        const dateToQ = searchParams.get("dateTo")
+        if (category) setSelectedCategory(category)
+        if (search) setSearchQuery(search)
+        if (priceMin && priceMax) setPriceRange([Number(priceMin), Number(priceMax)])
+        if (guestsMin && guestsMax) setGuestCount([Number(guestsMin), Number(guestsMax)])
+        if (amenities) setSelectedAmenities(amenities.split(","))
+        if (dateFromQ) setDateFrom(dateFromQ)
+        if (dateToQ) setDateTo(dateToQ)
+      }
     }
-  }, [])
+  }, [searchParams])
+
+  useEffect(() => {
+    if (resultsRef.current) {
+      resultsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [searchQuery, selectedCategory, priceRange, guestCount, selectedAmenities, dateFrom, dateTo, userLocation, searchRadius]);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -777,7 +804,7 @@ export default function HomePage() {
         )}
 
         {/* Events Grid */}
-        <div>
+        <div ref={resultsRef}>
           <h2 className="text-lg font-semibold mb-4">Eventi Disponibili</h2>
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
