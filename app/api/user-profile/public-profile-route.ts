@@ -46,4 +46,4 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     return NextResponse.json({ error: "Errore nel caricamento del profilo", details: error.message }, { status: 500 })
   }
-} 
+}
