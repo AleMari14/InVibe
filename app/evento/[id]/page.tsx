@@ -309,7 +309,11 @@ export default function EventoPage() {
                     <div className="flex items-center gap-4">
                       <OptimizedAvatar src={event.host.image} alt={event.host.name} size={48} />
                       <div>
-                        <h3 className="font-semibold">{event.host.name}</h3>
+                        <h3 className="font-semibold">
+                          <Link href={`/user/${String(event.host._id)}`} className="hover:underline text-primary">
+                            {event.host.name}
+                          </Link>
+                        </h3>
                         <div className="flex items-center gap-1 text-sm text-muted-foreground">
                           <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
                           <span>{(event.rating || 0).toFixed(1)}</span>
