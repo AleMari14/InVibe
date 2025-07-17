@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { MessageHostButton } from "@/components/event/message-host-button"
 
 interface Event {
   _id: string
@@ -128,61 +129,6 @@ export default function EventoPage() {
     }
   }
 
-  const handleContactHost = async () => {
-    if (!session) {
-      router.push("/auth/login")
-      return
-    }
-
-    if (!event) {
-      toast.error("Evento non disponibile")
-      return
-    }
-
-    if (!event.host) {
-      toast.error("Informazioni host non disponibili per questo evento")
-      return
-    }
-
-    if (!event.host._id || !event.host.email || !event.host.name) {
-      toast.error("Dati host incompleti")
-      return
-    }
-
-    console.log("Host data:", event.host)
-
-    setIsChatLoading(true)
-    try {
-      const response = await fetch("/api/messages/room", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          eventId: event._id,
-          eventTitle: event.title,
-          hostId: event.host._id,
-          hostName: event.host.name,
-          hostImage: event.host.image || "",
-          hostEmail: event.host.email,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("API Error:", errorData)
-        throw new Error(errorData.error || "Errore nella creazione della chat")
-      }
-
-      const { roomId } = await response.json()
-      router.push(`/messaggi/${roomId}`)
-      toast.success("Chat aperta!")
-    } catch (error: any) {
-      console.error("Error creating chat:", error)
-      toast.error(error.message)
-    } finally {
-      setIsChatLoading(false)
-    }
-  }
-
   const handleShare = () => {
     if (navigator.share) {
       navigator
@@ -222,7 +168,7 @@ export default function EventoPage() {
     )
   }
 
-  const isHost = session?.user?.id === event.host?._id
+  const isHost = !!(session?.user && 'id' in session.user && event.host && session.user.id === event.host._id)
 
   return (
     <div className="bg-background text-foreground pb-20">
@@ -372,14 +318,14 @@ export default function EventoPage() {
                       </div>
                     </div>
                     {!isHost && (
-                      <Button className="w-full mt-4" onClick={handleContactHost} disabled={isChatLoading}>
-                        {isChatLoading ? (
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <MessageSquare className="mr-2 h-4 w-4" />
-                        )}
-                        Contatta l'host
-                      </Button>
+                      <MessageHostButton
+                        hostId={String(event.host._id)}
+                        hostName={event.host.name}
+                        hostEmail={event.host.email}
+                        eventId={String(event._id)}
+                        eventTitle={event.title}
+                        className="w-full mt-4"
+                      />
                     )}
                   </>
                 ) : (
