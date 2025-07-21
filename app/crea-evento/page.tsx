@@ -55,13 +55,13 @@ type EventFormData = z.infer<typeof eventSchema>
 const categories = [
   { id: "casa", name: "Casa/Appartamento", icon: "🏠" },
   { id: "viaggio", name: "Viaggio", icon: "✈️" },
-  { id: "evento", name: "Evento Speciale", icon: "🎉" },
-  { id: "esperienza", name: "Esperienza Unica", icon: "🌟" },
+  //{ id: "evento", name: "Evento Speciale", icon: "🎉" },
+ // { id: "esperienza", name: "Esperienza Unica", icon: "🌟" },
   { id: "festa", name: "Festa", icon: "🥳" },
-  { id: "musica", name: "Musica/Concerto", icon: "🎵" },
-  { id: "sport", name: "Sport", icon: "⚽" },
+ // { id: "musica", name: "Musica/Concerto", icon: "🎵" },
+  /*{ id: "sport", name: "Sport", icon: "⚽" },
   { id: "arte", name: "Arte/Cultura", icon: "🎨" },
-  { id: "cibo", name: "Cibo/Degustazione", icon: "🍔" },
+  { id: "cibo", name: "Cibo/Degustazione", icon: "🍔" },*/
 ]
 
 export default function CreateEventPage() {

@@ -95,6 +95,7 @@ export default function HomePage() {
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const { unreadCount } = useNotifications()
   const resultsRef = useRef<HTMLDivElement>(null);
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
 
   // Variabili di default filtri (devono essere disponibili sia per fetch che per filtro frontend)
   const isDefaultPrice = priceRange[0] === 50 && priceRange[1] === 500;
@@ -141,11 +142,49 @@ export default function HomePage() {
     }
   }, [searchParams])
 
+  // Attiva hasAppliedFilter solo su interazione utente
+  const handleSetSearchQuery = (value: string) => {
+    setSearchQuery(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetSelectedCategory = (value: string) => {
+    setSelectedCategory(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetPriceRange = (value: [number, number]) => {
+    setPriceRange(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetGuestCount = (value: [number, number]) => {
+    setGuestCount(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetSelectedAmenities = (value: string[]) => {
+    setSelectedAmenities(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetDateFrom = (value: string) => {
+    setDateFrom(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetDateTo = (value: string) => {
+    setDateTo(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetUserLocation = (value: { lat: number; lng: number } | null) => {
+    setUserLocation(value);
+    setHasAppliedFilter(true);
+  };
+  const handleSetSearchRadius = (value: number) => {
+    setSearchRadius(value);
+    setHasAppliedFilter(true);
+  };
+
   useEffect(() => {
-    if (resultsRef.current) {
+    if (hasAppliedFilter && resultsRef.current) {
       resultsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
     }
-  }, [searchQuery, selectedCategory, priceRange, guestCount, selectedAmenities, dateFrom, dateTo, userLocation, searchRadius]);
+  }, [searchQuery, selectedCategory, priceRange, guestCount, selectedAmenities, dateFrom, dateTo, userLocation, searchRadius, hasAppliedFilter]);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -448,7 +487,7 @@ export default function HomePage() {
               <Input
                 placeholder="Cerca eventi, luoghi, esperienze..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => handleSetSearchQuery(e.target.value)}
                 className="pl-12 pr-20 h-12 text-sm bg-white/90 backdrop-blur-sm border-2 border-white/30 focus:border-blue-300 focus:bg-white rounded-xl shadow-lg focus:shadow-xl transition-all duration-300 placeholder:text-gray-400 text-black"
               />
               <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
@@ -476,7 +515,7 @@ export default function HomePage() {
                     ? "bg-gradient-to-r from-blue-600 to-purple-500 text-white shadow-lg"
                     : "hover:bg-blue-50 hover:text-blue-600"
                 }`}
-                onClick={() => setSelectedCategory("all")}
+                onClick={() => handleSetSelectedCategory("all")}
               >
                 Tutti
               </Button>
@@ -491,7 +530,7 @@ export default function HomePage() {
                       ? `bg-gradient-to-r ${category.gradient} text-white shadow-lg`
                       : "hover:bg-blue-50 hover:text-blue-600"
                   }`}
-                  onClick={() => setSelectedCategory(category.id)}
+                  onClick={() => handleSetSelectedCategory(category.id)}
                 >
                   <span className="mr-1">{category.icon}</span>
                   {category.name}
@@ -551,7 +590,7 @@ export default function HomePage() {
                           defaultValue={[searchRadius]}
                           max={200}
                           step={10}
-                          onValueChange={(value) => setSearchRadius(value[0])}
+                          onValueChange={(value) => handleSetSearchRadius(value[0])}
                         />
                       </div>
                       <Button onClick={clearLocationFilter} variant="destructive" className="w-full">
