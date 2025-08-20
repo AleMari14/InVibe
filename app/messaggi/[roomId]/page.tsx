@@ -61,6 +61,7 @@ export default function ChatRoomPage() {
   const [isConnected, setIsConnected] = useState(false)
   const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   const initialMessage = searchParams.get("initialMessage")
 
@@ -70,6 +71,15 @@ export default function ChatRoomPage() {
       router.replace(`/messaggi/${roomId}`, { scroll: false })
     }
   }, [initialMessage, roomId, router])
+
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior,
+      })
+    }
+  }, [])
 
   const fetchChatRoomDetails = useCallback(async () => {
     if (!roomId) return
@@ -98,13 +108,15 @@ export default function ChatRoomPage() {
       }
       const data = await response.json()
       setMessages(data.messages || [])
+      // Scroll immediato dopo il caricamento dei messaggi
+      setTimeout(() => scrollToBottom("auto"), 100)
     } catch (error: any) {
       console.error("Error fetching messages:", error)
       toast.error(error.message)
     } finally {
       setLoading(false)
     }
-  }, [roomId])
+  }, [roomId, scrollToBottom])
 
   useEffect(() => {
     fetchChatRoomDetails()
@@ -134,7 +146,6 @@ export default function ChatRoomPage() {
     socket.on("connect_error", (err) => {
       console.error("Socket.IO connection error:", err.message)
       setIsConnected(false)
-      toast.error("Impossibile connettersi alla chat in tempo reale. I messaggi potrebbero non essere istantanei.")
     })
 
     socket.on("disconnect", () => {
@@ -163,9 +174,12 @@ export default function ChatRoomPage() {
     }
   }, [session, roomId])
 
+  // Scroll automatico quando arrivano nuovi messaggi
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+    if (messages.length > 0) {
+      scrollToBottom()
+    }
+  }, [messages, scrollToBottom])
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
@@ -241,7 +255,7 @@ export default function ChatRoomPage() {
 
   if (loading || !chatRoom) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
         <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
@@ -251,21 +265,24 @@ export default function ChatRoomPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
-      {/* Header */}
-      <header className="flex items-center p-3 border-b bg-white dark:bg-gray-800 dark:border-gray-700 sticky top-0 z-10">
+      {/* Header fisso */}
+      <header className="flex items-center p-4 border-b bg-white dark:bg-gray-800 dark:border-gray-700 sticky top-0 z-10 shadow-sm">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <div className="flex items-center gap-3 ml-2">
+        <div className="flex items-center gap-3 ml-2 flex-1">
           <OptimizedAvatar src={otherParticipant?.image} alt={otherParticipant?.name || ""} size={40} />
-          <div className="flex-1">
-            <h2 className="font-bold text-sm">{otherParticipant?.name}</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Riguardo: {chatRoom.eventTitle}</p>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-sm truncate">{otherParticipant?.name}</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Riguardo: {chatRoom.eventTitle}</p>
           </div>
         </div>
-        <div className="ml-auto flex items-center gap-2">
+        <div className="flex items-center gap-2">
           {/* Indicatore connessione */}
-          <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
+          <div
+            className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
+            title={isConnected ? "Connesso" : "Disconnesso"}
+          />
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
@@ -290,51 +307,80 @@ export default function ChatRoomPage() {
         </div>
       </header>
 
-      {/* Messages */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
-        {messages.map((msg) => (
-          <div
-            key={msg._id}
-            className={`flex items-end gap-2 ${msg.senderId === session?.user?.email ? "justify-end" : "justify-start"}`}
-          >
-            {msg.senderId !== session?.user?.email && (
-              <OptimizedAvatar src={msg.senderImage || otherParticipant?.image} alt={msg.senderName} size={32} />
-            )}
+      {/* Container messaggi con scroll */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        style={{ paddingBottom: "100px" }} // Spazio per l'input fisso
+      >
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+            <p className="text-lg font-medium">Nessun messaggio ancora</p>
+            <p className="text-sm">Inizia la conversazione!</p>
+          </div>
+        ) : (
+          messages.map((msg) => (
             <div
-              className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
-                msg.senderId === session?.user?.email
-                  ? "bg-blue-500 text-white rounded-br-lg"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg"
+              key={msg._id}
+              className={`flex items-end gap-2 ${
+                msg.senderId === session?.user?.email ? "justify-end" : "justify-start"
               }`}
             >
-              <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+              {msg.senderId !== session?.user?.email && (
+                <OptimizedAvatar src={msg.senderImage || otherParticipant?.image} alt={msg.senderName} size={32} />
+              )}
+              <div
+                className={`max-w-xs md:max-w-md p-3 rounded-2xl shadow-sm ${
+                  msg.senderId === session?.user?.email
+                    ? "bg-blue-500 text-white rounded-br-lg"
+                    : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg border border-gray-200 dark:border-gray-600"
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                <p
+                  className={`text-xs mt-1 ${
+                    msg.senderId === session?.user?.email ? "text-blue-100" : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
+                  {new Date(msg.createdAt).toLocaleTimeString("it-IT", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))
+        )}
         <div ref={messagesEndRef} />
-      </main>
+      </div>
 
       {/* Input fisso in basso */}
-      <footer className="fixed bottom-16 left-0 right-0 p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 z-20">
+      <div className="fixed bottom-16 left-0 right-0 p-4 bg-white dark:bg-gray-800 border-t dark:border-gray-700 z-20 shadow-lg">
         <form onSubmit={handleSendMessage} className="flex items-center gap-2 max-w-md mx-auto">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Scrivi un messaggio..."
-            className="flex-1 bg-gray-100 dark:bg-gray-700 border-none focus-visible:ring-0"
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500"
             autoComplete="off"
             disabled={isSending}
+            maxLength={500}
           />
-          <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={isSending || !newMessage.trim()}
+            className="bg-blue-500 hover:bg-blue-600"
+          >
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>
         {!isConnected && (
-          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1 text-center">
+          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 text-center">
             Modalità offline - i messaggi potrebbero non essere istantanei
           </p>
         )}
-      </footer>
+      </div>
     </div>
   )
 }
