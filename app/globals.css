@@ -68,26 +68,22 @@
   }
 }
 
-/* Miglioramenti per la visibilità delle card nel tema scuro */
-.dark .event-card {
-  @apply bg-card/90 backdrop-blur-sm border border-border/50;
+/* Custom scrollbar styles */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
-.dark .event-card:hover {
-  @apply bg-card border-border;
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-/* Stili per le chat */
-.chat-message {
-  @apply transition-all duration-200;
+/* Smooth animations */
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-in-out;
 }
 
-.chat-input {
-  @apply transition-all duration-200;
-}
-
-/* Animazioni per i messaggi */
-@keyframes messageSlideIn {
+@keyframes fadeIn {
   from {
     opacity: 0;
     transform: translateY(10px);
@@ -98,28 +94,133 @@
   }
 }
 
-.message-enter {
-  animation: messageSlideIn 0.3s ease-out;
+/* Loading spinner */
+.animate-spin {
+  animation: spin 1s linear infinite;
 }
 
-/* Stili per il polling indicator */
-.polling-indicator {
-  @apply animate-pulse;
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-/* Miglioramenti per la scrollbar */
-.chat-messages::-webkit-scrollbar {
-  width: 4px;
+/* Custom focus styles */
+.focus-visible\:ring-2:focus-visible {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 2px hsl(var(--ring));
 }
 
-.chat-messages::-webkit-scrollbar-track {
-  @apply bg-transparent;
+/* Message bubble animations */
+.message-bubble {
+  animation: slideIn 0.2s ease-out;
 }
 
-.chat-messages::-webkit-scrollbar-thumb {
-  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.chat-messages::-webkit-scrollbar-thumb:hover {
-  @apply bg-gray-400 dark:bg-gray-500;
+/* Chat input focus */
+.chat-input:focus {
+  box-shadow: 0 0 0 2px hsl(var(--primary) / 0.2);
+  border-color: hsl(var(--primary));
+}
+
+/* Hover effects for chat rooms */
+.chat-room-item:hover {
+  background-color: hsl(var(--accent) / 0.5);
+  transition: background-color 0.2s ease-in-out;
+}
+
+/* Status indicators */
+.status-online {
+  background-color: #10b981;
+}
+
+.status-offline {
+  background-color: #6b7280;
+}
+
+/* Message status */
+.message-sent {
+  opacity: 0.7;
+}
+
+.message-delivered {
+  opacity: 1;
+}
+
+/* Typing indicator */
+.typing-indicator {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .mobile-chat-header {
+    padding: 0.75rem;
+  }
+
+  .mobile-message-input {
+    padding: 0.5rem;
+  }
+}
+
+/* Dark mode specific styles */
+.dark .message-bubble-sent {
+  background-color: hsl(var(--primary));
+  color: hsl(var(--primary-foreground));
+}
+
+.dark .message-bubble-received {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+}
+
+/* Connection status indicator */
+.connection-status {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 50;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.connection-status.connected {
+  background-color: #10b981;
+  color: white;
+}
+
+.connection-status.disconnected {
+  background-color: #ef4444;
+  color: white;
+}
+
+.connection-status.connecting {
+  background-color: #f59e0b;
+  color: white;
 }

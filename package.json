@@ -55,6 +55,7 @@
     "crypto": "latest",
     "date-fns": "latest",
     "embla-carousel-react": "latest",
+    "express": "latest",
     "framer-motion": "latest",
     "gcp-metadata": "latest",
     "http": "latest",

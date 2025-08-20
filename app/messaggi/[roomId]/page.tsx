@@ -8,6 +8,7 @@ import { Send, ArrowLeft, Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { io, type Socket } from "socket.io-client"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -57,8 +58,8 @@ export default function ChatRoomPage() {
   const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
+  const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const initialMessage = searchParams.get("initialMessage")
 
@@ -88,7 +89,6 @@ export default function ChatRoomPage() {
 
   const fetchMessages = useCallback(async () => {
     if (!roomId) return
-    setLoading(true)
     try {
       const response = await fetch(`/api/messages/${roomId}`)
       if (!response.ok) {
@@ -108,38 +108,91 @@ export default function ChatRoomPage() {
   useEffect(() => {
     fetchChatRoomDetails()
     fetchMessages()
+  }, [fetchChatRoomDetails, fetchMessages])
 
-    // Polling per i messaggi ogni 3 secondi
-    pollingIntervalRef.current = setInterval(() => {
-      fetchMessages()
-    }, 3000)
+  useEffect(() => {
+    if (!session || !roomId) return
+
+    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+    const socket = io(socketUrl, {
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+    })
+    socketRef.current = socket
+
+    socket.on("connect", () => {
+      console.log("Socket.IO connected successfully:", socket.id)
+      socket.emit("joinRoom", roomId)
+    })
+
+    socket.on("connect_error", (err) => {
+      console.error("Socket.IO connection error:", err.message)
+      toast.error("Impossibile connettersi alla chat in tempo reale. I messaggi potrebbero non essere istantanei.")
+    })
+
+    socket.on("receiveMessage", (message: Message) => {
+      setMessages((prevMessages) => {
+        // Evita duplicati
+        const exists = prevMessages.some((msg) => msg._id === message._id)
+        if (exists) return prevMessages
+        return [...prevMessages, message]
+      })
+    })
+
+    socket.on("messageError", (data) => {
+      toast.error(data.error)
+      setIsSending(false)
+    })
 
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
+      if (socketRef.current) {
+        console.log("Disconnecting Socket.IO")
+        socketRef.current.disconnect()
       }
     }
-  }, [fetchChatRoomDetails, fetchMessages])
+  }, [session, roomId])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || isSending) return
+    if (!newMessage.trim() || !session?.user || isSending) {
+      return
+    }
 
     const messageContent = newMessage.trim()
     setNewMessage("")
     setIsSending(true)
 
+    if (socketRef.current?.connected) {
+      // Invia tramite WebSocket
+      const messageData = {
+        roomId,
+        senderId: session.user.email,
+        senderName: session.user.name || "Utente",
+        senderImage: session.user.image,
+        content: messageContent,
+      }
+
+      socketRef.current.emit("sendMessage", messageData)
+      setIsSending(false)
+    } else {
+      // Fallback: invia tramite API REST
+      sendMessageViaAPI(messageContent)
+    }
+  }
+
+  const sendMessageViaAPI = async (content: string) => {
     try {
       const response = await fetch(`/api/messages/${roomId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: messageContent }),
+        body: JSON.stringify({ content }),
       })
 
       if (!response.ok) {
@@ -148,16 +201,15 @@ export default function ChatRoomPage() {
       }
 
       const sentMessage = await response.json()
-      setMessages((prev) => [...prev, sentMessage])
-
-      // Aggiorna i messaggi dopo l'invio
-      setTimeout(() => {
-        fetchMessages()
-      }, 500)
+      setMessages((prev) => {
+        const exists = prev.some((msg) => msg._id === sentMessage._id)
+        if (exists) return prev
+        return [...prev, sentMessage]
+      })
     } catch (error: any) {
       console.error("Error sending message:", error)
       toast.error(error.message)
-      setNewMessage(messageContent)
+      setNewMessage(content)
     } finally {
       setIsSending(false)
     }
@@ -234,7 +286,7 @@ export default function ChatRoomPage() {
             className={`flex items-end gap-2 ${msg.senderId === session?.user?.email ? "justify-end" : "justify-start"}`}
           >
             {msg.senderId !== session?.user?.email && (
-              <OptimizedAvatar src={msg.senderImage} alt={msg.senderName} size={32} />
+              <OptimizedAvatar src={msg.senderImage || otherParticipant?.image} alt={msg.senderName} size={32} />
             )}
             <div
               className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
@@ -258,11 +310,17 @@ export default function ChatRoomPage() {
             placeholder="Scrivi un messaggio..."
             className="flex-1 bg-gray-100 dark:bg-gray-700 border-none focus-visible:ring-0"
             autoComplete="off"
+            disabled={isSending}
           />
           <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>
+        {!socketRef.current?.connected && (
+          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1 text-center">
+            Connessione in tempo reale non disponibile - usando modalità compatibilità
+          </p>
+        )}
       </footer>
     </div>
   )

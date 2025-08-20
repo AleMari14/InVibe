@@ -1,353 +1,164 @@
 "use client"
-
-import type React from "react"
-
 import { useState, useEffect } from "react"
-import Link from "next/link"
 import { useSession } from "next-auth/react"
-import { ArrowLeft, MessageSquare, Search, Loader2, MoreVertical, Trash2, Archive } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { useRouter } from "next/navigation"
+import { MessageCircle, Loader2, Search } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
-import { motion } from "framer-motion"
-import { format } from "date-fns"
-import { it } from "date-fns/locale"
+import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
 
 interface ChatRoom {
   _id: string
-  roomId: string
-  participants: Array<{
-    email: string
-    name: string
-    image?: string
-  }>
-  initialEvent?: {
-    eventId: string
-    eventTitle: string
-  }
-  lastMessage: {
-    content: string
-    senderId: string
-    createdAt: string
-  } | null
-  unreadCount: number
-  archived: boolean
+  eventTitle: string
+  lastMessage: string
+  lastMessageAt: string | null
   otherUser: {
-    email: string
     name: string
+    email: string
     image?: string
   }
+  unreadCount: number
 }
 
 export default function MessaggiPage() {
   const { data: session } = useSession()
-  const [activeTab, setActiveTab] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
+  const router = useRouter()
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [roomToDelete, setRoomToDelete] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
 
   useEffect(() => {
-    if (session?.user?.email) {
+    if (session) {
       fetchChatRooms()
     }
   }, [session])
 
   const fetchChatRooms = async () => {
     try {
-      setIsLoading(true)
-      console.log("Fetching chat rooms...")
-
+      setLoading(true)
       const response = await fetch("/api/messages/rooms")
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Errore nel caricamento delle chat")
+        throw new Error("Errore nel caricamento delle chat")
       }
-
       const data = await response.json()
-      console.log("Chat rooms received:", data.rooms?.length || 0)
-
-      // Rimuovi duplicati basati su roomId
-      const uniqueRooms =
-        data.rooms?.reduce((acc: ChatRoom[], room: ChatRoom) => {
-          const exists = acc.find((r) => r.roomId === room.roomId)
-          if (!exists) {
-            acc.push(room)
-          }
-          return acc
-        }, []) || []
-
-      setChatRooms(uniqueRooms)
-      setUnreadCount(uniqueRooms.reduce((acc: number, room: ChatRoom) => acc + room.unreadCount, 0))
-    } catch (error) {
+      setChatRooms(data.rooms || [])
+    } catch (error: any) {
       console.error("Error fetching chat rooms:", error)
-      toast.error("Errore nel caricamento delle chat")
+      toast.error(error.message)
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const markAllAsRead = async () => {
-    try {
-      const response = await fetch("/api/messages/read-all", {
-        method: "POST",
+  const filteredRooms = chatRooms.filter(
+    (room) =>
+      room.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      room.eventTitle.toLowerCase().includes(searchQuery.toLowerCase()),
+  )
+
+  const formatTime = (dateString: string | null) => {
+    if (!dateString) return ""
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+    if (diffInHours < 24) {
+      return date.toLocaleTimeString("it-IT", {
+        hour: "2-digit",
+        minute: "2-digit",
       })
-      if (!response.ok) throw new Error("Errore nell'aggiornamento dei messaggi")
-      setUnreadCount(0)
-      setChatRooms((rooms) => rooms.map((room) => ({ ...room, unreadCount: 0 })))
-      toast.success("Tutti i messaggi sono stati segnati come letti")
-    } catch (error) {
-      toast.error("Errore nell'aggiornamento dei messaggi")
-    }
-  }
-
-  const deleteChat = async (roomId: string) => {
-    try {
-      const response = await fetch(`/api/messages/room/${roomId}`, {
-        method: "DELETE",
+    } else {
+      return date.toLocaleDateString("it-IT", {
+        day: "numeric",
+        month: "short",
       })
-
-      if (!response.ok) {
-        throw new Error("Errore nell'eliminazione della chat")
-      }
-
-      setChatRooms((rooms) => rooms.filter((room) => room.roomId !== roomId))
-      toast.success("Chat eliminata con successo")
-    } catch (error) {
-      console.error("Error deleting chat:", error)
-      toast.error("Errore nell'eliminazione della chat")
     }
   }
 
-  const archiveChat = async (roomId: string) => {
-    try {
-      const response = await fetch(`/api/messages/room/${roomId}/archive`, {
-        method: "POST",
-      })
-
-      if (!response.ok) {
-        throw new Error("Errore nell'archiviazione della chat")
-      }
-
-      setChatRooms((rooms) =>
-        rooms.map((room) => (room.roomId === roomId ? { ...room, archived: !room.archived } : room)),
-      )
-      toast.success("Chat archiviata con successo")
-    } catch (error) {
-      console.error("Error archiving chat:", error)
-      toast.error("Errore nell'archiviazione della chat")
-    }
+  const handleRoomClick = (roomId: string) => {
+    router.push(`/messaggi/${roomId}`)
   }
 
-  const handleDeleteClick = (roomId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setRoomToDelete(roomId)
-    setDeleteDialogOpen(true)
-  }
-
-  const handleArchiveClick = (roomId: string, e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    archiveChat(roomId)
-  }
-
-  const confirmDelete = () => {
-    if (roomToDelete) {
-      deleteChat(roomToDelete)
-      setRoomToDelete(null)
-    }
-    setDeleteDialogOpen(false)
-  }
-
-  const filteredRooms = chatRooms.filter((room) => {
-    const matchesSearch =
-      room.initialEvent?.eventTitle?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      room.otherUser.name.toLowerCase().includes(searchQuery.toLowerCase())
-
-    if (activeTab === "unread") return matchesSearch && room.unreadCount > 0
-    if (activeTab === "archived") return matchesSearch && room.archived
-    return matchesSearch && !room.archived
-  })
-
-  if (isLoading) {
+  if (!session) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center pb-20">
-        <Loader2 className="h-8 w-8 animate-spin" />
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+          <p className="text-gray-600 dark:text-gray-400">Effettua l'accesso per vedere i tuoi messaggi</p>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      {/* Header */}
-      <div className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-3">
-            <Link href="/">
-              <Button variant="ghost" size="icon">
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-            </Link>
-            <div className="flex items-center gap-2">
-              <MessageSquare className="h-5 w-5 text-blue-500" />
-              <h1 className="text-xl font-semibold bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                Messaggi
-              </h1>
-              {unreadCount > 0 && <Badge className="bg-red-500 text-white text-xs">{unreadCount}</Badge>}
-            </div>
-          </div>
-          {unreadCount > 0 && (
-            <Button variant="ghost" size="sm" onClick={markAllAsRead}>
-              Segna tutti come letti
-            </Button>
-          )}
-        </div>
-
-        {/* Search */}
-        <div className="relative mb-3">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-gray-900">
+      <header className="bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-4">
+        <h1 className="text-2xl font-bold mb-4">Messaggi</h1>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
-            placeholder="Cerca nei messaggi..."
+            placeholder="Cerca conversazioni..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-10 bg-gray-100 dark:bg-gray-700 border-none"
           />
         </div>
+      </header>
 
-        {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 bg-muted">
-            <TabsTrigger value="all">Tutti</TabsTrigger>
-            <TabsTrigger value="unread">Non letti</TabsTrigger>
-            <TabsTrigger value="archived">Archiviati</TabsTrigger>
-          </TabsList>
-        </Tabs>
-      </div>
-
-      {/* Messages List */}
-      <ScrollArea className="h-[calc(100vh-12rem)]">
-        <div className="p-4 space-y-4">
-          {filteredRooms.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              <MessageSquare className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-              <p className="text-lg font-medium mb-2">
-                {chatRooms.length === 0 ? "Nessuna chat ancora" : "Nessun messaggio trovato"}
+      <main className="flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+        ) : filteredRooms.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-600 dark:text-gray-400 mb-2">
+                {searchQuery ? "Nessuna conversazione trovata" : "Nessuna conversazione ancora"}
               </p>
-              <p className="text-sm">
-                {chatRooms.length === 0
-                  ? "Le tue conversazioni appariranno qui quando inizierai a chattare con altri utenti"
-                  : "Prova a modificare i filtri di ricerca"}
-              </p>
+              {!searchQuery && (
+                <p className="text-sm text-gray-500 dark:text-gray-500">
+                  Inizia a chattare con gli host degli eventi che ti interessano!
+                </p>
+              )}
             </div>
-          ) : (
-            filteredRooms.map((room) => (
-              <Link key={room.roomId} href={`/messaggi/${room.roomId}`}>
-                <motion.div
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="flex items-center gap-4 p-3 rounded-lg border border-border group hover:bg-muted/50 transition-colors"
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={room.otherUser.image || "/placeholder.svg"} />
-                    <AvatarFallback>{room.otherUser.name?.charAt(0)?.toUpperCase() || "?"}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
+          </div>
+        ) : (
+          <div className="divide-y dark:divide-gray-700">
+            {filteredRooms.map((room) => (
+              <Button
+                key={room._id}
+                variant="ghost"
+                className="w-full h-auto p-4 justify-start hover:bg-gray-100 dark:hover:bg-gray-800"
+                onClick={() => handleRoomClick(room._id)}
+              >
+                <div className="flex items-center gap-3 w-full">
+                  <OptimizedAvatar src={room.otherUser.image} alt={room.otherUser.name} size={48} />
+                  <div className="flex-1 min-w-0 text-left">
                     <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-medium truncate">{room.otherUser.name || "Utente"}</h3>
-                      {room.lastMessage && (
-                        <span className="text-xs text-muted-foreground">
-                          {format(new Date(room.lastMessage.createdAt), "HH:mm", { locale: it })}
-                        </span>
-                      )}
+                      <h3 className="font-semibold text-sm truncate">{room.otherUser.name}</h3>
+                      <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                        {formatTime(room.lastMessageAt)}
+                      </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm text-muted-foreground truncate">
-                        {room.lastMessage ? room.lastMessage.content : "Nessun messaggio ancora"}
-                      </p>
-                      {room.unreadCount > 0 && (
-                        <Badge className="bg-blue-500 text-white text-xs">{room.unreadCount}</Badge>
-                      )}
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1 truncate">{room.eventTitle}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-500 truncate">
+                      {room.lastMessage || "Nessun messaggio ancora"}
+                    </p>
+                  </div>
+                  {room.unreadCount > 0 && (
+                    <div className="bg-blue-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center ml-2">
+                      {room.unreadCount}
                     </div>
-                    {room.initialEvent && (
-                      <p className="text-xs text-muted-foreground truncate mt-1">
-                        Evento: {room.initialEvent.eventTitle}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Chat Actions */}
-                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                          }}
-                        >
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                        <DropdownMenuItem onClick={(e) => handleArchiveClick(room.roomId, e)}>
-                          <Archive className="h-4 w-4 mr-2" />
-                          {room.archived ? "Disarchivia" : "Archivia"}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={(e) => handleDeleteClick(room.roomId, e)}
-                          className="text-red-600 focus:text-red-600"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Elimina
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </motion.div>
-              </Link>
-            ))
-          )}
-        </div>
-      </ScrollArea>
-
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Elimina chat</AlertDialogTitle>
-            <AlertDialogDescription>
-              Sei sicuro di voler eliminare questa chat? Questa azione non può essere annullata e tutti i messaggi
-              verranno persi.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Annulla</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-red-600 hover:bg-red-700">
-              Elimina
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                  )}
+                </div>
+              </Button>
+            ))}
+          </div>
+        )}
+      </main>
     </div>
   )
 }
