@@ -52,12 +52,6 @@ export function MessageHostButton({
     try {
       console.log("Creating/finding chat room...")
 
-      // Verifica che tutti i parametri necessari siano definiti
-      if (!hostEmail || !hostName || !eventId || !eventTitle) {
-        toast.error("Informazioni mancanti per creare la chat")
-        return
-      }
-
       // Crea o trova la chat room
       const response = await fetch("/api/messages/room", {
         method: "POST",
@@ -81,7 +75,7 @@ export function MessageHostButton({
       const { roomId, isNewRoom } = await response.json()
       console.log("Chat room ready:", roomId, "New room:", isNewRoom)
 
-      // Prepara il messaggio iniziale come parametro URL invece di inviarlo
+      // Prepara il messaggio iniziale come parametro URL
       const initialMessage = encodeURIComponent(
         `Ciao ${hostName}! 👋\n\nSono interessato/a al tuo evento "${eventTitle}".\n\nPotresti darmi maggiori informazioni? Grazie! 😊`,
       )

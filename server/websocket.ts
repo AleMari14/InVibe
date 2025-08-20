@@ -1,76 +1,96 @@
-import type { Server, Socket } from "socket.io"
-import clientPromise from "../lib/mongodb"
+import { Server as SocketIOServer } from "socket.io"
+import type { Server as HTTPServer } from "http"
+import { connectToDatabase } from "../lib/mongodb"
 import { ObjectId } from "mongodb"
 
-interface SocketMessage {
-  content: string
-  roomId: string
-  senderId: string
-  senderName: string
-  senderImage?: string
-}
+export function initializeWebSocket(server: HTTPServer) {
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: process.env.NEXTAUTH_URL || "http://localhost:3000",
+      methods: ["GET", "POST"],
+      credentials: true,
+    },
+  })
 
-export function setupSocketIO(io: Server) {
-  io.on("connection", (socket: Socket) => {
-    console.log(`[Socket.IO] Client connected: ${socket.id}`)
+  io.on("connection", (socket) => {
+    console.log(`Socket connected: ${socket.id}`)
 
-    socket.on("joinRoom", (roomId: string) => {
-      if (!roomId || typeof roomId !== "string") {
-        console.error(`[Socket.IO] Invalid roomId received for joinRoom: ${roomId}`)
-        return
-      }
+    socket.on("joinRoom", (roomId) => {
+      console.log(`Socket ${socket.id} joining room: ${roomId}`)
       socket.join(roomId)
-      console.log(`[Socket.IO] Socket ${socket.id} joined room ${roomId}`)
     })
 
-    socket.on("leaveRoom", (roomId: string) => {
-      if (!roomId || typeof roomId !== "string") {
-        console.error(`[Socket.IO] Invalid roomId received for leaveRoom: ${roomId}`)
-        return
-      }
-      socket.leave(roomId)
-      console.log(`[Socket.IO] Socket ${socket.id} left room ${roomId}`)
-    })
-
-    socket.on("sendMessage", async (message: SocketMessage) => {
+    socket.on("sendMessage", async (messageData) => {
       try {
-        if (!message || !ObjectId.isValid(message.roomId) || !ObjectId.isValid(message.senderId)) {
-          console.error("[Socket.IO] Invalid message data received:", message)
-          socket.emit("messageError", { error: "Dati del messaggio non validi." })
+        console.log("Received message:", messageData)
+        const { roomId, senderId, senderName, senderImage, content } = messageData
+
+        if (!roomId || !senderId || !content) {
+          socket.emit("messageError", { error: "Dati messaggio incompleti" })
           return
         }
 
-        const client = await clientPromise
-        const db = client.db("invibe")
+        const { db } = await connectToDatabase()
 
-        const messageDocument = {
-          roomId: new ObjectId(message.roomId),
-          senderId: new ObjectId(message.senderId),
-          senderName: message.senderName,
-          senderImage: message.senderImage,
-          content: message.content,
+        // Verifica che la room esista
+        const room = await db.collection("chatRooms").findOne({
+          _id: new ObjectId(roomId),
+        })
+
+        if (!room) {
+          socket.emit("messageError", { error: "Room non trovata" })
+          return
+        }
+
+        // Crea il messaggio
+        const message = {
+          roomId: new ObjectId(roomId),
+          senderId: senderId,
+          senderName: senderName || "Utente",
+          senderImage: senderImage || null,
+          content: content.trim(),
           createdAt: new Date(),
-          readBy: [new ObjectId(message.senderId)],
+          readBy: [senderId],
         }
 
-        const result = await db.collection("messages").insertOne(messageDocument)
+        const result = await db.collection("messages").insertOne(message)
 
+        // Aggiorna la room con l'ultimo messaggio
+        await db.collection("chatRooms").updateOne(
+          { _id: new ObjectId(roomId) },
+          {
+            $set: {
+              lastMessage: content.trim(),
+              lastMessageAt: new Date(),
+              updatedAt: new Date(),
+            },
+          },
+        )
+
+        // Prepara il messaggio per l'invio
         const messageToSend = {
-          ...messageDocument,
           _id: result.insertedId.toString(),
-          roomId: message.roomId, // Invia l'ID come stringa al client
-          senderId: message.senderId,
+          roomId: roomId,
+          senderId: senderId,
+          senderName: senderName || "Utente",
+          senderImage: senderImage || null,
+          content: content.trim(),
+          createdAt: message.createdAt.toISOString(),
         }
 
-        io.to(message.roomId).emit("receiveMessage", messageToSend)
+        // Invia il messaggio a tutti i client nella room
+        io.to(roomId).emit("receiveMessage", messageToSend)
+        console.log(`Message sent to room ${roomId}:`, messageToSend)
       } catch (error) {
-        console.error("[Socket.IO] Error handling message:", error)
-        socket.emit("messageError", { error: "Impossibile inviare il messaggio." })
+        console.error("Error handling sendMessage:", error)
+        socket.emit("messageError", { error: "Errore nell'invio del messaggio" })
       }
     })
 
-    socket.on("disconnect", (reason) => {
-      console.log(`[Socket.IO] Client disconnected: ${socket.id}, reason: ${reason}`)
+    socket.on("disconnect", () => {
+      console.log(`Socket disconnected: ${socket.id}`)
     })
   })
+
+  return io
 }

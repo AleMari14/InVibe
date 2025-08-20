@@ -91,19 +91,19 @@ export default function HomePage() {
   const [dateTo, setDateTo] = useState("")
   const { data: session, status } = useSession()
   const router = useRouter()
-  const searchParams = useSearchParams();
+  const searchParams = useSearchParams()
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const { unreadCount } = useNotifications()
-  const resultsRef = useRef<HTMLDivElement>(null);
-  const [hasAppliedFilter, setHasAppliedFilter] = useState(false);
+  const resultsRef = useRef<HTMLDivElement>(null)
+  const [hasAppliedFilter, setHasAppliedFilter] = useState(false)
 
   // Variabili di default filtri (devono essere disponibili sia per fetch che per filtro frontend)
-  const isDefaultPrice = priceRange[0] === 50 && priceRange[1] === 500;
-  const isDefaultGuests = guestCount[0] === 2 && guestCount[1] === 10;
-  const isDefaultAmenities = !selectedAmenities || selectedAmenities.length === 0;
+  const isDefaultPrice = priceRange[0] === 50 && priceRange[1] === 500
+  const isDefaultGuests = guestCount[0] === 2 && guestCount[1] === 10
+  const isDefaultAmenities = !selectedAmenities || selectedAmenities.length === 0
   // Rimuovo tutto ciò che riguarda filterLocation
   // const isDefaultLocation = !filterLocation;
-  const isDefaultDate = !dateFrom && !dateTo;
+  const isDefaultDate = !dateFrom && !dateTo
 
   // Leggi i filtri da localStorage e dalla query string all'avvio
   useEffect(() => {
@@ -144,47 +144,58 @@ export default function HomePage() {
 
   // Attiva hasAppliedFilter solo su interazione utente
   const handleSetSearchQuery = (value: string) => {
-    setSearchQuery(value);
-    setHasAppliedFilter(true);
-  };
+    setSearchQuery(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetSelectedCategory = (value: string) => {
-    setSelectedCategory(value);
-    setHasAppliedFilter(true);
-  };
+    setSelectedCategory(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetPriceRange = (value: [number, number]) => {
-    setPriceRange(value);
-    setHasAppliedFilter(true);
-  };
+    setPriceRange(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetGuestCount = (value: [number, number]) => {
-    setGuestCount(value);
-    setHasAppliedFilter(true);
-  };
+    setGuestCount(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetSelectedAmenities = (value: string[]) => {
-    setSelectedAmenities(value);
-    setHasAppliedFilter(true);
-  };
+    setSelectedAmenities(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetDateFrom = (value: string) => {
-    setDateFrom(value);
-    setHasAppliedFilter(true);
-  };
+    setDateFrom(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetDateTo = (value: string) => {
-    setDateTo(value);
-    setHasAppliedFilter(true);
-  };
+    setDateTo(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetUserLocation = (value: { lat: number; lng: number } | null) => {
-    setUserLocation(value);
-    setHasAppliedFilter(true);
-  };
+    setUserLocation(value)
+    setHasAppliedFilter(true)
+  }
   const handleSetSearchRadius = (value: number) => {
-    setSearchRadius(value);
-    setHasAppliedFilter(true);
-  };
+    setSearchRadius(value)
+    setHasAppliedFilter(true)
+  }
 
   useEffect(() => {
     if (hasAppliedFilter && resultsRef.current) {
-      resultsRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      resultsRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
     }
-  }, [searchQuery, selectedCategory, priceRange, guestCount, selectedAmenities, dateFrom, dateTo, userLocation, searchRadius, hasAppliedFilter]);
+  }, [
+    searchQuery,
+    selectedCategory,
+    priceRange,
+    guestCount,
+    selectedAmenities,
+    dateFrom,
+    dateTo,
+    userLocation,
+    searchRadius,
+    hasAppliedFilter,
+  ])
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -248,7 +259,21 @@ export default function HomePage() {
     } finally {
       setLoading(false)
     }
-  }, [selectedCategory, searchQuery, userLocation, searchRadius, priceRange, guestCount, selectedAmenities, dateFrom, dateTo, isDefaultPrice, isDefaultGuests, isDefaultAmenities, isDefaultDate])
+  }, [
+    selectedCategory,
+    searchQuery,
+    userLocation,
+    searchRadius,
+    priceRange,
+    guestCount,
+    selectedAmenities,
+    dateFrom,
+    dateTo,
+    isDefaultPrice,
+    isDefaultGuests,
+    isDefaultAmenities,
+    isDefaultDate,
+  ])
 
   useEffect(() => {
     fetchEvents()
@@ -417,12 +442,15 @@ export default function HomePage() {
         event.category.toLowerCase().includes(searchQuery.toLowerCase())) &&
       (isDefaultPrice || (event.price >= priceRange[0] && event.price <= priceRange[1])) &&
       (isDefaultGuests || (event.totalSpots >= guestCount[0] && event.totalSpots <= guestCount[1])) &&
-      (isDefaultAmenities || (Array.isArray(event.amenities) ? selectedAmenities.every(a => event.amenities!.includes(a)) : selectedAmenities.length === 0)) &&
+      (isDefaultAmenities ||
+        (Array.isArray(event.amenities)
+          ? selectedAmenities.every((a) => event.amenities!.includes(a))
+          : selectedAmenities.length === 0)) &&
       (isDefaultDate ||
-        (!dateFrom || new Date(event.dateStart) >= new Date(dateFrom)) &&
-        (!dateTo || new Date(event.dateStart) <= new Date(dateTo)))
-      // RIMOSSO: filtro location
-      // (isDefaultLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
+        ((!dateFrom || new Date(event.dateStart) >= new Date(dateFrom)) &&
+          (!dateTo || new Date(event.dateStart) <= new Date(dateTo)))),
+    // RIMOSSO: filtro location
+    // (isDefaultLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
   )
 
   const cardVariants = {
@@ -805,7 +833,7 @@ export default function HomePage() {
                   className="min-w-[280px] sm:min-w-[300px] cursor-pointer"
                   onClick={() => handleEventClick(event._id)}
                 >
-                  <Card className="overflow-hidden border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                  <Card className="overflow-hidden border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-card/80 backdrop-blur-sm">
                     <div className="relative aspect-[4/3] overflow-hidden">
                       <Image
                         src={getEventImageUrl(event.images?.[0], event.category, 300, 225) || "/placeholder.svg"}
@@ -875,7 +903,7 @@ export default function HomePage() {
                     whileHover={{ y: -4 }}
                   >
                     <Card
-                      className="overflow-hidden border-0 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group h-full flex flex-col"
+                      className="overflow-hidden border border-border/50 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group h-full flex flex-col bg-card/80 backdrop-blur-sm hover:bg-card/90"
                       onClick={() => handleEventClick(event._id)}
                     >
                       <div className="relative aspect-[4/3] overflow-hidden">
