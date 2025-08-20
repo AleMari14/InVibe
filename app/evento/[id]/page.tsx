@@ -29,6 +29,7 @@ import { toast } from "sonner"
 import { getEventImageUrl } from "@/lib/image-utils"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import { MessageHostButton } from "@/components/event/message-host-button"
+import { ReviewSection } from "@/components/event/review-section"
 
 interface Event {
   _id: string
@@ -62,7 +63,6 @@ export default function EventoPage() {
   const [loading, setLoading] = useState(true)
   const [isFavorite, setIsFavorite] = useState(false)
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false)
-  const [isChatLoading, setIsChatLoading] = useState(false)
 
   const id = params.id as string
 
@@ -168,7 +168,7 @@ export default function EventoPage() {
     )
   }
 
-  const isHost = !!(session?.user && 'id' in session.user && event.host && session.user.id === event.host._id)
+  const isHost = !!(session?.user && "id" in session.user && event.host && session.user.id === event.host._id)
 
   return (
     <div className="bg-background text-foreground pb-20">
@@ -217,6 +217,23 @@ export default function EventoPage() {
               <MapPin className="h-4 w-4" />
               <span>{event.location}</span>
             </div>
+            {/* Rating Display */}
+            {event.rating && event.reviewCount && event.reviewCount > 0 && (
+              <div className="flex items-center gap-2 mt-3">
+                <div className="flex items-center gap-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star
+                      key={i}
+                      className={`h-4 w-4 ${
+                        i < Math.floor(event.rating || 0) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <span className="text-sm font-medium">{event.rating.toFixed(1)}</span>
+                <span className="text-sm text-muted-foreground">({event.reviewCount} recensioni)</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -296,6 +313,9 @@ export default function EventoPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Reviews Section */}
+            <ReviewSection eventId={event._id} />
           </div>
 
           <div className="space-y-6">

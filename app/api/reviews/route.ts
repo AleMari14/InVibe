@@ -1,37 +1,41 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/database"
+import clientPromise from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
-    }
-
     const { searchParams } = new URL(request.url)
-    const type = searchParams.get("type") // "received" or "given"
-    const userId = searchParams.get("userId")
     const eventId = searchParams.get("eventId")
     const checkUser = searchParams.get("checkUser") === "true"
 
-    const { db } = await connectToDatabase()
-
-    // Get current user
-    const currentUser = await db.collection("users").findOne({ email: session.user.email })
-    if (!currentUser) {
-      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+    if (!eventId) {
+      return NextResponse.json({ error: "Event ID richiesto" }, { status: 400 })
     }
 
-    // Check if user can review specific event
-    if (checkUser && eventId) {
+    const client = await clientPromise
+    const db = client.db("invibe")
+
+    // Se checkUser è true, verifica se l'utente può recensire
+    if (checkUser) {
+      const session = await getServerSession(authOptions)
+      if (!session?.user?.email) {
+        return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
+      }
+
+      const currentUser = await db.collection("users").findOne({ email: session.user.email })
+      if (!currentUser) {
+        return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
+      }
+
+      // Controlla se ha già recensito
       const hasReviewed = await db.collection("reviews").findOne({
         eventId: new ObjectId(eventId),
         userId: currentUser._id,
       })
 
+      // Controlla se ha una prenotazione confermata
       const hasBooking = await db.collection("bookings").findOne({
         eventId: new ObjectId(eventId),
         userId: currentUser._id,
@@ -44,35 +48,11 @@ export async function GET(request: NextRequest) {
       })
     }
 
-    const targetUserId = userId || currentUser._id.toString()
-
-    let query: any = {}
-
-    if (type === "received") {
-      // Reviews received by the user (as host)
-      query = { hostId: new ObjectId(targetUserId) }
-    } else if (type === "given") {
-      // Reviews given by the user
-      query = { userId: new ObjectId(targetUserId) }
-    } else {
-      // All reviews related to the user
-      query = {
-        $or: [{ hostId: new ObjectId(targetUserId) }, { userId: new ObjectId(targetUserId) }],
-      }
-    }
-
+    // Recupera tutte le recensioni per l'evento
     const reviews = await db
       .collection("reviews")
       .aggregate([
-        { $match: query },
-        {
-          $lookup: {
-            from: "events",
-            localField: "eventId",
-            foreignField: "_id",
-            as: "event",
-          },
-        },
+        { $match: { eventId: new ObjectId(eventId) } },
         {
           $lookup: {
             from: "users",
@@ -89,20 +69,28 @@ export async function GET(request: NextRequest) {
             as: "host",
           },
         },
-        { $unwind: "$event" },
+        {
+          $lookup: {
+            from: "events",
+            localField: "eventId",
+            foreignField: "_id",
+            as: "event",
+          },
+        },
         { $unwind: "$reviewer" },
         { $unwind: "$host" },
+        { $unwind: "$event" },
         {
           $project: {
             rating: 1,
             comment: 1,
             createdAt: 1,
-            "event.title": 1,
-            "event._id": 1,
             "reviewer.name": 1,
             "reviewer.image": 1,
             "host.name": 1,
             "host.image": 1,
+            "event.title": 1,
+            "event._id": 1,
           },
         },
         { $sort: { createdAt: -1 } },
@@ -124,21 +112,28 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { eventId, hostId, rating, comment } = body
+    const { eventId, rating, comment } = body
 
-    if (!eventId || !hostId || !rating || rating < 1 || rating > 5) {
+    if (!eventId || !rating || rating < 1 || rating > 5) {
       return NextResponse.json({ error: "Dati mancanti o non validi" }, { status: 400 })
     }
 
-    const { db } = await connectToDatabase()
+    const client = await clientPromise
+    const db = client.db("invibe")
 
-    // Get current user
+    // Trova l'utente corrente
     const currentUser = await db.collection("users").findOne({ email: session.user.email })
     if (!currentUser) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
-    // Check if user has already reviewed this event
+    // Trova l'evento
+    const event = await db.collection("events").findOne({ _id: new ObjectId(eventId) })
+    if (!event) {
+      return NextResponse.json({ error: "Evento non trovato" }, { status: 404 })
+    }
+
+    // Controlla se l'utente ha già recensito questo evento
     const existingReview = await db.collection("reviews").findOne({
       eventId: new ObjectId(eventId),
       userId: currentUser._id,
@@ -148,7 +143,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Hai già recensito questo evento" }, { status: 400 })
     }
 
-    // Check if user participated in the event
+    // Controlla se l'utente ha partecipato all'evento
     const booking = await db.collection("bookings").findOne({
       eventId: new ObjectId(eventId),
       userId: currentUser._id,
@@ -159,11 +154,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Puoi recensire solo eventi a cui hai partecipato" }, { status: 400 })
     }
 
-    // Create review
+    // Crea la recensione
     const review = {
       eventId: new ObjectId(eventId),
       userId: currentUser._id,
-      hostId: new ObjectId(hostId),
+      hostId: event.hostId,
       rating: Number.parseInt(rating),
       comment: comment || "",
       createdAt: new Date(),
@@ -171,16 +166,13 @@ export async function POST(request: NextRequest) {
 
     const result = await db.collection("reviews").insertOne(review)
 
-    // Update host rating
-    const hostReviews = await db
-      .collection("reviews")
-      .find({ hostId: new ObjectId(hostId) })
-      .toArray()
+    // Aggiorna il rating dell'host
+    const hostReviews = await db.collection("reviews").find({ hostId: event.hostId }).toArray()
 
     const avgRating = hostReviews.reduce((sum, r) => sum + r.rating, 0) / hostReviews.length
 
     await db.collection("users").updateOne(
-      { _id: new ObjectId(hostId) },
+      { _id: event.hostId },
       {
         $set: {
           rating: Math.round(avgRating * 10) / 10,
@@ -189,7 +181,7 @@ export async function POST(request: NextRequest) {
       },
     )
 
-    // Update event rating
+    // Aggiorna il rating dell'evento
     const eventReviews = await db
       .collection("reviews")
       .find({ eventId: new ObjectId(eventId) })
