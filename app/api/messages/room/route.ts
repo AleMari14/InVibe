@@ -28,21 +28,10 @@ export async function POST(request: Request) {
 
     const { db } = await connectToDatabase()
 
-    // Crea un roomId univoco basato sui due utenti e l'evento (ordinati alfabeticamente per consistenza)
-    const participants = [session.user.email, hostEmail].sort()
-    const roomIdString = `${participants[0]}_${participants[1]}_${eventId}`
-
-    // Cerca se esiste già una chat room tra questi due utenti per questo evento
+    // Prima cerca se esiste già una chat room tra questi due utenti per questo evento
     const existingRoom = await db.collection("chatRooms").findOne({
-      $or: [
-        {
-          "participants.email": { $all: [session.user.email, hostEmail] },
-          eventId: eventId,
-        },
-        {
-          roomId: roomIdString,
-        },
-      ],
+      eventId: eventId,
+      $and: [{ "participants.email": session.user.email }, { "participants.email": hostEmail }],
     })
 
     if (existingRoom) {
@@ -53,9 +42,11 @@ export async function POST(request: Request) {
       })
     }
 
+    // Recupera le informazioni complete dell'host dal database
+    const hostUser = await db.collection("users").findOne({ email: hostEmail })
+
     // Crea una nuova chat room
     const newRoom = {
-      roomId: roomIdString,
       participants: [
         {
           id: session.user.id,
@@ -67,7 +58,7 @@ export async function POST(request: Request) {
           id: hostId,
           email: hostEmail,
           name: hostName,
-          image: null, // Sarà aggiornata quando l'host accederà
+          image: hostUser?.image || null,
         },
       ],
       eventId: eventId,

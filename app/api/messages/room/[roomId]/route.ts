@@ -13,7 +13,7 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
 
     const { roomId } = params
 
-    if (!ObjectId.isValid(roomId)) {
+    if (!roomId || !ObjectId.isValid(roomId)) {
       return NextResponse.json({ error: "ID room non valido" }, { status: 400 })
     }
 
@@ -33,11 +33,7 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
 
     return NextResponse.json({
       _id: room._id.toString(),
-      participants: room.participants.map((p: any) => ({
-        id: p.id || p.email,
-        name: p.name,
-        image: p.image,
-      })),
+      participants: room.participants,
       eventTitle: room.eventTitle || "Evento",
       otherUser: otherParticipant || {
         name: "Utente Sconosciuto",
@@ -60,7 +56,7 @@ export async function DELETE(request: Request, { params }: { params: { roomId: s
 
     const { roomId } = params
 
-    if (!ObjectId.isValid(roomId)) {
+    if (!roomId || !ObjectId.isValid(roomId)) {
       return NextResponse.json({ error: "ID room non valido" }, { status: 400 })
     }
 

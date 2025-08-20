@@ -68,150 +68,58 @@
   }
 }
 
-/* Custom scrollbar styles */
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+/* Miglioramenti per la visibilità delle card nel tema scuro */
+.dark .event-card {
+  @apply bg-card/90 backdrop-blur-sm border border-border/50;
 }
 
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
+.dark .event-card:hover {
+  @apply bg-card border-border;
 }
 
-/* Smooth scrolling for horizontal scroll */
-.scroll-smooth {
-  scroll-behavior: smooth;
+/* Stili per le chat */
+.chat-message {
+  @apply transition-all duration-200;
 }
 
-/* Custom animations */
-@keyframes shimmer {
-  0% {
-    background-position: -200px 0;
+.chat-input {
+  @apply transition-all duration-200;
+}
+
+/* Animazioni per i messaggi */
+@keyframes messageSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
   }
-  100% {
-    background-position: calc(200px + 100%) 0;
-  }
-}
-
-.animate-shimmer {
-  animation: shimmer 2s infinite linear;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  background-size: 200px 100%;
-}
-
-/* Line clamp utilities */
-.line-clamp-1 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-}
-
-.line-clamp-2 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.line-clamp-3 {
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-/* Gradient text */
-.gradient-text {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-/* Glass effect */
-.glass {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-}
-
-/* Custom focus styles */
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2;
-}
-
-/* Improved button hover effects */
-.btn-hover {
-  @apply transition-all duration-200 ease-in-out transform hover:scale-105 active:scale-95;
-}
-
-/* Card hover effects */
-.card-hover {
-  @apply transition-all duration-300 ease-in-out hover:shadow-lg hover:-translate-y-1;
-}
-
-/* Loading spinner */
-.spinner {
-  @apply animate-spin rounded-full border-2 border-gray-300 border-t-primary;
-}
-
-/* Pulse animation for loading states */
-.pulse-loading {
-  @apply animate-pulse bg-gray-200 dark:bg-gray-700 rounded;
-}
-
-/* Custom gradient backgrounds */
-.gradient-bg-1 {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-}
-
-.gradient-bg-2 {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-}
-
-.gradient-bg-3 {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-}
-
-/* Achievement rarity glows */
-.glow-common {
-  box-shadow: 0 0 20px rgba(156, 163, 175, 0.3);
-}
-
-.glow-rare {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.4);
-}
-
-.glow-epic {
-  box-shadow: 0 0 20px rgba(147, 51, 234, 0.4);
-}
-
-.glow-legendary {
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
-}
-
-/* Mobile optimizations */
-@media (max-width: 768px) {
-  .mobile-padding {
-    @apply px-4 py-2;
-  }
-
-  .mobile-text {
-    @apply text-sm;
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-  .high-contrast {
-    @apply border-2 border-black dark:border-white;
-  }
+.message-enter {
+  animation: messageSlideIn 0.3s ease-out;
 }
 
-/* Reduced motion support */
-@media (prefers-reduced-motion: reduce) {
-  .motion-reduce {
-    @apply transition-none animate-none;
-  }
+/* Stili per il polling indicator */
+.polling-indicator {
+  @apply animate-pulse;
+}
+
+/* Miglioramenti per la scrollbar */
+.chat-messages::-webkit-scrollbar {
+  width: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+  @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+  @apply bg-gray-400 dark:bg-gray-500;
 }

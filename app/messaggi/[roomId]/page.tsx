@@ -8,7 +8,6 @@ import { Send, ArrowLeft, Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
-import { io, type Socket } from "socket.io-client"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -35,6 +34,7 @@ interface Message {
 interface Participant {
   id: string
   name: string
+  email: string
   image?: string
 }
 
@@ -42,6 +42,7 @@ interface ChatRoom {
   _id: string
   participants: Participant[]
   eventTitle: string
+  otherUser: Participant
 }
 
 export default function ChatRoomPage() {
@@ -56,8 +57,8 @@ export default function ChatRoomPage() {
   const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
-  const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   const initialMessage = searchParams.get("initialMessage")
 
@@ -107,65 +108,59 @@ export default function ChatRoomPage() {
   useEffect(() => {
     fetchChatRoomDetails()
     fetchMessages()
-  }, [fetchChatRoomDetails, fetchMessages])
 
-  useEffect(() => {
-    if (!session || !roomId) return
-
-    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
-    const socket = io(socketUrl, {
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    })
-    socketRef.current = socket
-
-    socket.on("connect", () => {
-      console.log("Socket.IO connected successfully:", socket.id)
-      socket.emit("joinRoom", roomId)
-    })
-
-    socket.on("connect_error", (err) => {
-      console.error("Socket.IO connection error:", err.message)
-      toast.error("Impossibile connettersi alla chat in tempo reale.")
-    })
-
-    socket.on("receiveMessage", (message: Message) => {
-      setMessages((prevMessages) => [...prevMessages, message])
-    })
-
-    socket.on("messageError", (data) => {
-      toast.error(data.error)
-    })
+    // Polling per i messaggi ogni 3 secondi
+    pollingIntervalRef.current = setInterval(() => {
+      fetchMessages()
+    }, 3000)
 
     return () => {
-      if (socketRef.current) {
-        console.log("Disconnecting Socket.IO")
-        socketRef.current.disconnect()
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
       }
     }
-  }, [session, roomId])
+  }, [fetchChatRoomDetails, fetchMessages])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || !session?.user || !socketRef.current?.connected) {
-      toast.warning("Messaggio vuoto o connessione assente.")
-      return
-    }
+    if (!newMessage.trim() || isSending) return
 
-    const messageData = {
-      roomId,
-      senderId: session.user.id,
-      senderName: session.user.name || "Utente",
-      senderImage: session.user.image,
-      content: newMessage.trim(),
-    }
-
-    socketRef.current.emit("sendMessage", messageData)
+    const messageContent = newMessage.trim()
     setNewMessage("")
+    setIsSending(true)
+
+    try {
+      const response = await fetch(`/api/messages/${roomId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content: messageContent }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nell'invio del messaggio")
+      }
+
+      const sentMessage = await response.json()
+      setMessages((prev) => [...prev, sentMessage])
+
+      // Aggiorna i messaggi dopo l'invio
+      setTimeout(() => {
+        fetchMessages()
+      }, 500)
+    } catch (error: any) {
+      console.error("Error sending message:", error)
+      toast.error(error.message)
+      setNewMessage(messageContent)
+    } finally {
+      setIsSending(false)
+    }
   }
 
   const handleDeleteChat = async () => {
@@ -192,7 +187,7 @@ export default function ChatRoomPage() {
     )
   }
 
-  const otherParticipant = chatRoom.participants.find((p) => p.id !== session?.user?.id)
+  const otherParticipant = chatRoom.otherUser
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
@@ -236,14 +231,14 @@ export default function ChatRoomPage() {
         {messages.map((msg) => (
           <div
             key={msg._id}
-            className={`flex items-end gap-2 ${msg.senderId === session?.user?.id ? "justify-end" : "justify-start"}`}
+            className={`flex items-end gap-2 ${msg.senderId === session?.user?.email ? "justify-end" : "justify-start"}`}
           >
-            {msg.senderId !== session?.user?.id && (
+            {msg.senderId !== session?.user?.email && (
               <OptimizedAvatar src={msg.senderImage} alt={msg.senderName} size={32} />
             )}
             <div
               className={`max-w-xs md:max-w-md p-3 rounded-2xl ${
-                msg.senderId === session?.user?.id
+                msg.senderId === session?.user?.email
                   ? "bg-blue-500 text-white rounded-br-lg"
                   : "bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg"
               }`}
@@ -264,7 +259,7 @@ export default function ChatRoomPage() {
             className="flex-1 bg-gray-100 dark:bg-gray-700 border-none focus-visible:ring-0"
             autoComplete="off"
           />
-          <Button type="submit" size="icon" disabled={isSending || !socketRef.current?.connected}>
+          <Button type="submit" size="icon" disabled={isSending || !newMessage.trim()}>
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>
