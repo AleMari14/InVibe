@@ -1,81 +1,80 @@
 import { Server as SocketIOServer } from "socket.io"
 import type { Server as HTTPServer } from "http"
-import { connectToDatabase } from "../lib/mongodb"
-import { ObjectId } from "mongodb"
+import clientPromise from "../lib/mongodb"
 
 export function initializeWebSocket(server: HTTPServer) {
   const io = new SocketIOServer(server, {
     cors: {
-      origin: process.env.NODE_ENV === "production" ? false : ["http://localhost:3000"],
+      origin: ["http://localhost:3000", "https://invibe.vercel.app"],
       methods: ["GET", "POST"],
+      credentials: true,
     },
+    transports: ["websocket", "polling"],
   })
 
   io.on("connection", (socket) => {
     console.log("User connected:", socket.id)
 
     socket.on("joinRoom", (roomId) => {
-      console.log(`User ${socket.id} joining room: ${roomId}`)
       socket.join(roomId)
+      console.log(`User ${socket.id} joined room ${roomId}`)
     })
 
     socket.on("sendMessage", async (messageData) => {
       try {
         const { roomId, senderId, senderName, senderImage, content } = messageData
 
-        if (!roomId || !senderId || !content) {
-          socket.emit("messageError", { error: "Dati messaggio incompleti" })
-          return
-        }
+        const client = await clientPromise
+        const db = client.db("invibe")
 
-        const { db } = await connectToDatabase()
-
-        // Verifica che la room esista
-        const room = await db.collection("chatRooms").findOne({
-          _id: new ObjectId(roomId),
-          "participants.email": senderId,
-        })
-
-        if (!room) {
-          socket.emit("messageError", { error: "Room non trovata" })
-          return
-        }
-
-        // Crea il messaggio
+        // Salva il messaggio nel database
         const message = {
-          roomId: new ObjectId(roomId),
-          senderId: senderId,
-          senderName: senderName,
-          senderImage: senderImage,
-          content: content.trim(),
+          roomId,
+          senderId,
+          senderName,
+          senderImage,
+          content,
           createdAt: new Date(),
-          readBy: [senderId],
+          readBy: [senderId], // Il mittente ha già "letto" il messaggio
         }
 
         const result = await db.collection("messages").insertOne(message)
+        const savedMessage = { ...message, _id: result.insertedId }
 
-        // Aggiorna la room con l'ultimo messaggio
-        await db.collection("chatRooms").updateOne(
-          { _id: new ObjectId(roomId) },
-          {
-            $set: {
-              lastMessage: content.trim(),
-              lastMessageAt: new Date(),
-              updatedAt: new Date(),
-            },
-          },
-        )
+        // Invia il messaggio a tutti nella room
+        io.to(roomId).emit("receiveMessage", savedMessage)
 
-        // Formatta il messaggio per il client
-        const formattedMessage = {
-          ...message,
-          _id: result.insertedId.toString(),
-          roomId: roomId,
-          createdAt: message.createdAt.toISOString(),
+        // Trova la chat room per ottenere i partecipanti
+        const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
+        if (chatRoom) {
+          // Trova il destinatario (l'altro partecipante)
+          const recipient = chatRoom.participants.find((p: any) => p.email !== senderId)
+
+          if (recipient) {
+            // Crea notifica per il destinatario
+            const notification = {
+              userId: recipient.email,
+              type: "message",
+              title: "Nuovo messaggio",
+              message: `${senderName}: ${content.substring(0, 50)}${content.length > 50 ? "..." : ""}`,
+              eventId: chatRoom.eventId,
+              fromUserId: senderId,
+              fromUserName: senderName,
+              read: false,
+              createdAt: new Date(),
+            }
+
+            await db.collection("notifications").insertOne(notification)
+
+            // Emetti notifica in tempo reale
+            io.emit("newNotification", {
+              userId: recipient.email,
+              notification,
+            })
+          }
         }
 
-        // Invia il messaggio a tutti i client nella room
-        io.to(roomId).emit("receiveMessage", formattedMessage)
+        console.log("Message saved and sent:", savedMessage._id)
       } catch (error) {
         console.error("Error sending message:", error)
         socket.emit("messageError", { error: "Errore nell'invio del messaggio" })

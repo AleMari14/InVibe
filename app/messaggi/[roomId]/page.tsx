@@ -58,6 +58,7 @@ export default function ChatRoomPage() {
   const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
   const [loading, setLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
   const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -113,27 +114,36 @@ export default function ChatRoomPage() {
   useEffect(() => {
     if (!session || !roomId) return
 
-    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001"
+    console.log("Connecting to WebSocket:", socketUrl)
+
     const socket = io(socketUrl, {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       timeout: 20000,
+      transports: ["websocket", "polling"],
     })
     socketRef.current = socket
 
     socket.on("connect", () => {
       console.log("Socket.IO connected successfully:", socket.id)
+      setIsConnected(true)
       socket.emit("joinRoom", roomId)
     })
 
     socket.on("connect_error", (err) => {
       console.error("Socket.IO connection error:", err.message)
+      setIsConnected(false)
       toast.error("Impossibile connettersi alla chat in tempo reale. I messaggi potrebbero non essere istantanei.")
+    })
+
+    socket.on("disconnect", () => {
+      console.log("Socket.IO disconnected")
+      setIsConnected(false)
     })
 
     socket.on("receiveMessage", (message: Message) => {
       setMessages((prevMessages) => {
-        // Evita duplicati
         const exists = prevMessages.some((msg) => msg._id === message._id)
         if (exists) return prevMessages
         return [...prevMessages, message]
@@ -168,7 +178,6 @@ export default function ChatRoomPage() {
     setIsSending(true)
 
     if (socketRef.current?.connected) {
-      // Invia tramite WebSocket
       const messageData = {
         roomId,
         senderId: session.user.email,
@@ -180,7 +189,6 @@ export default function ChatRoomPage() {
       socketRef.current.emit("sendMessage", messageData)
       setIsSending(false)
     } else {
-      // Fallback: invia tramite API REST
       sendMessageViaAPI(messageContent)
     }
   }
@@ -243,6 +251,7 @@ export default function ChatRoomPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
+      {/* Header */}
       <header className="flex items-center p-3 border-b bg-white dark:bg-gray-800 dark:border-gray-700 sticky top-0 z-10">
         <Button variant="ghost" size="icon" onClick={() => router.back()}>
           <ArrowLeft className="h-5 w-5" />
@@ -254,7 +263,9 @@ export default function ChatRoomPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400">Riguardo: {chatRoom.eventTitle}</p>
           </div>
         </div>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {/* Indicatore connessione */}
+          <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`} />
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
@@ -279,7 +290,8 @@ export default function ChatRoomPage() {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto p-4 space-y-4">
+      {/* Messages */}
+      <main className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
         {messages.map((msg) => (
           <div
             key={msg._id}
@@ -302,8 +314,9 @@ export default function ChatRoomPage() {
         <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 sticky bottom-0">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+      {/* Input fisso in basso */}
+      <footer className="fixed bottom-16 left-0 right-0 p-3 border-t bg-white dark:bg-gray-800 dark:border-gray-700 z-20">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-2 max-w-md mx-auto">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
@@ -316,9 +329,9 @@ export default function ChatRoomPage() {
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>
-        {!socketRef.current?.connected && (
+        {!isConnected && (
           <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-1 text-center">
-            Connessione in tempo reale non disponibile - usando modalità compatibilità
+            Modalità offline - i messaggi potrebbero non essere istantanei
           </p>
         )}
       </footer>

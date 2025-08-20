@@ -78,11 +78,12 @@ export function MessageHostButton({
         throw new Error("ID room non ricevuto dal server")
       }
 
-      // Naviga alla chat con messaggio iniziale se fornito
-      const url = initialMessage
-        ? `/messaggi/${roomId}?initialMessage=${encodeURIComponent(initialMessage)}`
-        : `/messaggi/${roomId}`
+      // Messaggio iniziale predefinito se non fornito
+      const defaultMessage = `Ciao ${hostName}! 👋\n\nSono interessato/a al tuo evento "${eventTitle}".\n\nPotresti darmi maggiori informazioni? Grazie! 😊`
+      const messageToSend = initialMessage || defaultMessage
 
+      // Naviga alla chat con messaggio iniziale
+      const url = `/messaggi/${roomId}?initialMessage=${encodeURIComponent(messageToSend)}`
       router.push(url)
 
       if (isNewRoom) {

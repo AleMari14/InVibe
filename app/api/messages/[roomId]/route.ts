@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
+import clientPromise from "@/lib/mongodb"
 
 export async function GET(request: Request, { params }: { params: { roomId: string } }) {
   try {
@@ -12,39 +11,34 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
     }
 
     const { roomId } = params
+    const client = await clientPromise
+    const db = client.db("invibe")
 
-    if (!roomId || !ObjectId.isValid(roomId)) {
-      return NextResponse.json({ error: "ID room non valido" }, { status: 400 })
+    // Verifica che l'utente sia autorizzato ad accedere a questa chat
+    const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
+    if (!chatRoom) {
+      return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
     }
 
-    const { db } = await connectToDatabase()
-
-    // Verifica che l'utente sia partecipante della room
-    const room = await db.collection("chatRooms").findOne({
-      _id: new ObjectId(roomId),
-      "participants.email": session.user.email,
-    })
-
-    if (!room) {
-      return NextResponse.json({ error: "Room non trovata" }, { status: 404 })
+    const isParticipant = chatRoom.participants.some((p: any) => p.email === session.user.email)
+    if (!isParticipant) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
     }
 
     // Recupera i messaggi
-    const messages = await db
-      .collection("messages")
-      .find({ roomId: new ObjectId(roomId) })
-      .sort({ createdAt: 1 })
-      .toArray()
+    const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
 
-    // Converte gli ObjectId in stringhe per il client
-    const formattedMessages = messages.map((msg) => ({
-      ...msg,
-      _id: msg._id.toString(),
-      roomId: msg.roomId.toString(),
-      createdAt: msg.createdAt.toISOString(),
-    }))
+    // Segna i messaggi come letti dall'utente corrente
+    await db.collection("messages").updateMany(
+      {
+        roomId,
+        senderId: { $ne: session.user.email },
+        readBy: { $ne: session.user.email },
+      },
+      { $addToSet: { readBy: session.user.email } },
+    )
 
-    return NextResponse.json({ messages: formattedMessages })
+    return NextResponse.json({ messages })
   } catch (error) {
     console.error("Error fetching messages:", error)
     return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
@@ -58,65 +52,64 @@ export async function POST(request: Request, { params }: { params: { roomId: str
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const { roomId } = params
     const { content } = await request.json()
-
-    if (!roomId || !ObjectId.isValid(roomId)) {
-      return NextResponse.json({ error: "ID room non valido" }, { status: 400 })
+    if (!content?.trim()) {
+      return NextResponse.json({ error: "Contenuto messaggio richiesto" }, { status: 400 })
     }
 
-    if (!content || !content.trim()) {
-      return NextResponse.json({ error: "Contenuto messaggio vuoto" }, { status: 400 })
+    const { roomId } = params
+    const client = await clientPromise
+    const db = client.db("invibe")
+
+    // Verifica che la chat room esista
+    const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
+    if (!chatRoom) {
+      return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
     }
 
-    const { db } = await connectToDatabase()
-
-    // Verifica che l'utente sia partecipante della room
-    const room = await db.collection("chatRooms").findOne({
-      _id: new ObjectId(roomId),
-      "participants.email": session.user.email,
-    })
-
-    if (!room) {
-      return NextResponse.json({ error: "Room non trovata" }, { status: 404 })
+    const isParticipant = chatRoom.participants.some((p: any) => p.email === session.user.email)
+    if (!isParticipant) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
     }
 
     // Crea il messaggio
     const message = {
-      roomId: new ObjectId(roomId),
+      roomId,
       senderId: session.user.email,
       senderName: session.user.name || "Utente",
-      senderImage: session.user.image || null,
+      senderImage: session.user.image,
       content: content.trim(),
       createdAt: new Date(),
       readBy: [session.user.email],
     }
 
     const result = await db.collection("messages").insertOne(message)
+    const savedMessage = { ...message, _id: result.insertedId }
 
-    // Aggiorna la room con l'ultimo messaggio
-    await db.collection("chatRooms").updateOne(
-      { _id: new ObjectId(roomId) },
-      {
-        $set: {
-          lastMessage: content.trim(),
-          lastMessageAt: new Date(),
-          updatedAt: new Date(),
-        },
-      },
-    )
+    // Aggiorna l'ultimo messaggio nella chat room
+    await db.collection("chatRooms").updateOne({ _id: roomId }, { $set: { lastMessageAt: new Date() } })
 
-    // Restituisce il messaggio formattato
-    const formattedMessage = {
-      ...message,
-      _id: result.insertedId.toString(),
-      roomId: roomId,
-      createdAt: message.createdAt.toISOString(),
+    // Crea notifica per l'altro utente
+    const recipient = chatRoom.participants.find((p: any) => p.email !== session.user.email)
+    if (recipient) {
+      const notification = {
+        userId: recipient.email,
+        type: "message",
+        title: "Nuovo messaggio",
+        message: `${session.user.name}: ${content.substring(0, 50)}${content.length > 50 ? "..." : ""}`,
+        eventId: chatRoom.eventId,
+        fromUserId: session.user.email,
+        fromUserName: session.user.name,
+        read: false,
+        createdAt: new Date(),
+      }
+
+      await db.collection("notifications").insertOne(notification)
     }
 
-    return NextResponse.json(formattedMessage)
+    return NextResponse.json(savedMessage)
   } catch (error) {
-    console.error("Error creating message:", error)
+    console.error("Error sending message:", error)
     return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }

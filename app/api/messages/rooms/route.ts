@@ -1,49 +1,54 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { connectToDatabase } from "@/lib/mongodb"
+import clientPromise from "@/lib/mongodb"
 
-export const dynamic = "force-dynamic"
-
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions)
-
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
-    const { db } = await connectToDatabase()
+    const client = await clientPromise
+    const db = client.db("invibe")
 
-    // Recupera tutte le chat room dell'utente
-    const rooms = await db
+    // Trova tutte le chat rooms dell'utente
+    const chatRooms = await db
       .collection("chatRooms")
       .find({
         "participants.email": session.user.email,
-        archived: { $ne: true },
       })
-      .sort({ updatedAt: -1 })
+      .sort({ lastMessageAt: -1 })
       .toArray()
 
-    // Formatta le room per il client
-    const formattedRooms = rooms.map((room) => {
-      const otherParticipant = room.participants.find((p: any) => p.email !== session.user.email)
+    const roomsWithDetails = await Promise.all(
+      chatRooms.map(async (room) => {
+        // Trova l'ultimo messaggio
+        const lastMessage = await db.collection("messages").findOne({ roomId: room._id }, { sort: { createdAt: -1 } })
 
-      return {
-        _id: room._id.toString(),
-        eventTitle: room.eventTitle || "Evento",
-        lastMessage: room.lastMessage || "",
-        lastMessageAt: room.lastMessageAt ? room.lastMessageAt.toISOString() : null,
-        otherUser: {
-          name: otherParticipant?.name || "Utente Sconosciuto",
-          email: otherParticipant?.email || "",
-          image: otherParticipant?.image || null,
-        },
-        unreadCount: 0, // TODO: implementare conteggio messaggi non letti
-      }
-    })
+        // Conta i messaggi non letti
+        const unreadCount = await db.collection("messages").countDocuments({
+          roomId: room._id,
+          senderId: { $ne: session.user.email },
+          readBy: { $ne: session.user.email },
+        })
 
-    return NextResponse.json({ rooms: formattedRooms })
+        // Trova l'altro utente
+        const otherUser = room.participants.find((p: any) => p.email !== session.user.email)
+
+        return {
+          _id: room._id,
+          eventTitle: room.eventTitle,
+          lastMessage: lastMessage?.content || "",
+          lastMessageAt: lastMessage?.createdAt || room.createdAt,
+          otherUser: otherUser || { name: "Utente sconosciuto", email: "", image: null },
+          unreadCount,
+        }
+      }),
+    )
+
+    return NextResponse.json({ rooms: roomsWithDetails })
   } catch (error) {
     console.error("Error fetching chat rooms:", error)
     return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })

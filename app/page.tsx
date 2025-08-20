@@ -68,7 +68,7 @@ interface Event {
     verified: boolean
   }
   verified: boolean
-  amenities?: string[] // Aggiunto per i filtri
+  amenities?: string[]
 }
 
 export default function HomePage() {
@@ -80,13 +80,10 @@ export default function HomePage() {
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [error, setError] = useState("")
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [searchRadius, setSearchRadius] = useState(50) // Default 50km
-  // Nuovi stati per filtri avanzati
+  const [searchRadius, setSearchRadius] = useState(50)
   const [priceRange, setPriceRange] = useState<[number, number]>([50, 500])
   const [guestCount, setGuestCount] = useState<[number, number]>([2, 10])
   const [selectedAmenities, setSelectedAmenities] = useState<string[]>([])
-  // Rimuovo tutto ciò che riguarda filterLocation
-  // const [filterLocation, setFilterLocation] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const { data: session, status } = useSession()
@@ -97,18 +94,13 @@ export default function HomePage() {
   const resultsRef = useRef<HTMLDivElement>(null)
   const [hasAppliedFilter, setHasAppliedFilter] = useState(false)
 
-  // Variabili di default filtri (devono essere disponibili sia per fetch che per filtro frontend)
   const isDefaultPrice = priceRange[0] === 50 && priceRange[1] === 500
   const isDefaultGuests = guestCount[0] === 2 && guestCount[1] === 10
   const isDefaultAmenities = !selectedAmenities || selectedAmenities.length === 0
-  // Rimuovo tutto ciò che riguarda filterLocation
-  // const isDefaultLocation = !filterLocation;
   const isDefaultDate = !dateFrom && !dateTo
 
-  // Leggi i filtri da localStorage e dalla query string all'avvio
   useEffect(() => {
     if (typeof window !== "undefined") {
-      // Prima: localStorage
       const saved = localStorage.getItem("invibe-filters")
       if (saved) {
         try {
@@ -120,7 +112,6 @@ export default function HomePage() {
           if (filters.dateTo) setDateTo(filters.dateTo)
         } catch {}
       }
-      // Poi: query string
       if (searchParams) {
         const category = searchParams.get("category")
         const search = searchParams.get("search")
@@ -142,7 +133,6 @@ export default function HomePage() {
     }
   }, [searchParams])
 
-  // Attiva hasAppliedFilter solo su interazione utente
   const handleSetSearchQuery = (value: string) => {
     setSearchQuery(value)
     setHasAppliedFilter(true)
@@ -210,7 +200,6 @@ export default function HomePage() {
         params.append("lng", userLocation.lng.toString())
         params.append("radius", searchRadius.toString())
       }
-      // Applica filtri avanzati SOLO se diversi dai default
       if (!isDefaultPrice) {
         params.append("priceMin", priceRange[0].toString())
         params.append("priceMax", priceRange[1].toString())
@@ -222,10 +211,6 @@ export default function HomePage() {
       if (!isDefaultAmenities) {
         params.append("amenities", selectedAmenities.join(","))
       }
-      // RIMOSSO: filtro location
-      // if (!isDefaultLocation && filterLocation) {
-      //   params.append("location", filterLocation)
-      // }
       if (!isDefaultDate) {
         if (dateFrom) params.append("dateFrom", dateFrom)
         if (dateTo) params.append("dateTo", dateTo)
@@ -316,7 +301,6 @@ export default function HomePage() {
       const response = await fetch("/api/favorites")
       if (response.ok) {
         const data = await response.json()
-        // Corretto: ora legge da data.favorites
         if (Array.isArray(data.favorites)) {
           setFavorites(data.favorites.map((event: Event) => event._id))
         }
@@ -335,7 +319,6 @@ export default function HomePage() {
     }
 
     const isCurrentlyFavorite = favorites.includes(eventId)
-    // Optimistic update
     if (isCurrentlyFavorite) {
       setFavorites((prev) => prev.filter((id) => id !== eventId))
       toast.success("Rimosso dai preferiti")
@@ -352,7 +335,6 @@ export default function HomePage() {
       })
 
       if (!response.ok) {
-        // Revert optimistic update on failure
         if (isCurrentlyFavorite) {
           setFavorites((prev) => [...prev, eventId])
         } else {
@@ -434,7 +416,6 @@ export default function HomePage() {
     </Sheet>
   )
 
-  // Filtraggio frontend aggiuntivo (se serve)
   const filteredEvents = events.filter(
     (event) =>
       (event.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -449,8 +430,6 @@ export default function HomePage() {
       (isDefaultDate ||
         ((!dateFrom || new Date(event.dateStart) >= new Date(dateFrom)) &&
           (!dateTo || new Date(event.dateStart) <= new Date(dateTo)))),
-    // RIMOSSO: filtro location
-    // (isDefaultLocation || event.location.toLowerCase().includes(filterLocation.toLowerCase()))
   )
 
   const cardVariants = {
@@ -833,7 +812,7 @@ export default function HomePage() {
                   className="min-w-[280px] sm:min-w-[300px] cursor-pointer"
                   onClick={() => handleEventClick(event._id)}
                 >
-                  <Card className="overflow-hidden border border-border/50 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-card/80 backdrop-blur-sm">
+                  <Card className="overflow-hidden border-2 border-border/30 dark:border-gray-600 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-card/90 backdrop-blur-sm hover:bg-card dark:bg-gray-800/90 dark:hover:bg-gray-800">
                     <div className="relative aspect-[4/3] overflow-hidden">
                       <Image
                         src={getEventImageUrl(event.images?.[0], event.category, 300, 225) || "/placeholder.svg"}
@@ -903,7 +882,7 @@ export default function HomePage() {
                     whileHover={{ y: -4 }}
                   >
                     <Card
-                      className="overflow-hidden border border-border/50 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group h-full flex flex-col bg-card/80 backdrop-blur-sm hover:bg-card/90"
+                      className="overflow-hidden border-2 border-border/30 dark:border-gray-600 shadow-md hover:shadow-xl transition-all duration-300 cursor-pointer group h-full flex flex-col bg-card/90 backdrop-blur-sm hover:bg-card dark:bg-gray-800/90 dark:hover:bg-gray-800"
                       onClick={() => handleEventClick(event._id)}
                     >
                       <div className="relative aspect-[4/3] overflow-hidden">
