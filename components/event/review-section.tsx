@@ -210,7 +210,7 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
                 ) : (
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm font-medium mb-2 block">Valutazione</label>
+                      <label className="text-sm font-medium mb-2 block">Valutazione *</label>
                       <div className="flex items-center gap-1">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <button
@@ -222,7 +222,7 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
                             className="p-1 hover:scale-110 transition-transform"
                           >
                             <Star
-                              className={`h-6 w-6 ${
+                              className={`h-8 w-8 ${
                                 star <= (hoveredStar || rating)
                                   ? "fill-yellow-400 text-yellow-400"
                                   : "text-gray-300 hover:text-yellow-400"
@@ -231,16 +231,27 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
                           </button>
                         ))}
                       </div>
+                      {rating > 0 && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          {rating === 1 && "Molto deludente"}
+                          {rating === 2 && "Deludente"}
+                          {rating === 3 && "Nella media"}
+                          {rating === 4 && "Buono"}
+                          {rating === 5 && "Eccellente"}
+                        </p>
+                      )}
                     </div>
 
                     <div>
                       <label className="text-sm font-medium mb-2 block">Commento (opzionale)</label>
                       <Textarea
-                        placeholder="Condividi la tua esperienza..."
+                        placeholder="Condividi la tua esperienza con questo evento..."
                         value={comment}
                         onChange={(e) => setComment(e.target.value)}
                         rows={3}
+                        maxLength={500}
                       />
+                      <p className="text-xs text-muted-foreground mt-1">{comment.length}/500 caratteri</p>
                     </div>
 
                     <div className="flex gap-2">
@@ -258,6 +269,7 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
                           setShowReviewForm(false)
                           setRating(0)
                           setComment("")
+                          setHoveredStar(0)
                         }}
                       >
                         Annulla
@@ -269,16 +281,18 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
             )}
 
             {hasReviewed && (
-              <div className="text-center py-4 text-sm text-muted-foreground">Hai già recensito questo evento</div>
+              <div className="text-center py-4 text-sm text-muted-foreground bg-muted/20 rounded-lg">
+                ✅ Hai già recensito questo evento
+              </div>
             )}
 
             {/* Reviews List */}
             {reviews.length > 0 ? (
               <div className="space-y-4">
                 <Separator />
-                <h4 className="font-semibold">Tutte le recensioni</h4>
+                <h4 className="font-semibold">Tutte le recensioni ({reviews.length})</h4>
                 {reviews.map((review) => (
-                  <div key={review._id} className="border rounded-lg p-4 space-y-3">
+                  <div key={review._id} className="border rounded-lg p-4 space-y-3 bg-card/50">
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">
                         <OptimizedAvatar src={review.reviewer.image} alt={review.reviewer.name} size={40} />
@@ -301,7 +315,11 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
                         ))}
                       </div>
                     </div>
-                    {review.comment && <p className="text-sm text-muted-foreground pl-12">{review.comment}</p>}
+                    {review.comment && (
+                      <p className="text-sm text-muted-foreground pl-12 bg-muted/30 p-3 rounded-md italic">
+                        "{review.comment}"
+                      </p>
+                    )}
                   </div>
                 ))}
               </div>

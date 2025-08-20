@@ -126,8 +126,8 @@ export default function MessaggiPage() {
 
   if (!session) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-background to-muted/20">
-        <Card className="p-8 max-w-md mx-4">
+      <div className="flex items-center justify-center h-screen bg-gradient-to-br from-background to-muted/20 px-4">
+        <Card className="p-8 w-full max-w-md">
           <CardContent className="text-center space-y-4">
             <div className="w-16 h-16 bg-primary/10 rounded-full flex items-center justify-center mx-auto">
               <MessageCircle className="h-8 w-8 text-primary" />
@@ -144,8 +144,8 @@ export default function MessaggiPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10">
-      <div className="container mx-auto px-4 py-6 max-w-4xl">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/10 px-4">
+      <div className="w-full max-w-6xl mx-auto py-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent mb-2">

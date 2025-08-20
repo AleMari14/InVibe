@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import clientPromise from "@/lib/mongodb"
+import { connectToDatabase } from "@/lib/database"
 import { ObjectId } from "mongodb"
 
 export async function GET(request: NextRequest) {
@@ -14,8 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Event ID richiesto" }, { status: 400 })
     }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
     // Se checkUser è true, verifica se l'utente può recensire
     if (checkUser) {
@@ -118,8 +117,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Dati mancanti o non validi" }, { status: 400 })
     }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
     // Trova l'utente corrente
     const currentUser = await db.collection("users").findOne({ email: session.user.email })

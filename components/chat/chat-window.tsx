@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import { useNotifications } from "@/hooks/use-notifications"
+import { io, type Socket } from "socket.io-client"
 
 interface Message {
   _id: string
@@ -39,17 +40,22 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
   const [newMessage, setNewMessage] = useState("")
   const [isLoading, setIsLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const socketRef = useRef<Socket | null>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (roomId) {
       fetchMessages()
-      startPolling()
+      initializeSocket()
     }
 
     return () => {
+      if (socketRef.current) {
+        socketRef.current.disconnect()
+      }
       if (pollingIntervalRef.current) {
         clearInterval(pollingIntervalRef.current)
       }
@@ -67,7 +73,69 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
     scrollToBottom()
   }, [messages])
 
+  const initializeSocket = () => {
+    try {
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+      socketRef.current = io(wsUrl, {
+        transports: ["websocket", "polling"],
+        timeout: 5000,
+      })
+
+      socketRef.current.on("connect", () => {
+        console.log("WebSocket connected")
+        setIsConnected(true)
+        socketRef.current?.emit("join-room", roomId)
+
+        // Stop polling when WebSocket is connected
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+        }
+      })
+
+      socketRef.current.on("disconnect", () => {
+        console.log("WebSocket disconnected")
+        setIsConnected(false)
+        // Start polling as fallback
+        startPolling()
+      })
+
+      socketRef.current.on("connect_error", (error) => {
+        console.log("WebSocket connection error:", error)
+        setIsConnected(false)
+        // Start polling as fallback
+        startPolling()
+      })
+
+      socketRef.current.on("new-message", (message: Message) => {
+        setMessages((prev) => {
+          // Avoid duplicates
+          if (prev.some((m) => m._id === message._id)) {
+            return prev
+          }
+          return [...prev, message]
+        })
+        refreshNotifications()
+      })
+
+      // Fallback to polling if WebSocket doesn't connect within 3 seconds
+      setTimeout(() => {
+        if (!socketRef.current?.connected) {
+          console.log("WebSocket failed to connect, using polling fallback")
+          startPolling()
+        }
+      }, 3000)
+    } catch (error) {
+      console.error("Socket initialization error:", error)
+      setIsConnected(false)
+      startPolling()
+    }
+  }
+
   const startPolling = () => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+    }
+
     pollingIntervalRef.current = setInterval(() => {
       fetchMessages(true)
     }, 3000) // Polling ogni 3 secondi
@@ -132,12 +200,19 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
       }
 
       const sentMessage = await response.json()
-      setMessages((prev) => [...prev, sentMessage])
+
+      // If WebSocket is connected, the message will be received via socket
+      // Otherwise, add it manually
+      if (!isConnected) {
+        setMessages((prev) => [...prev, sentMessage])
+      }
 
       // Aggiorna il counter delle notifiche
       setTimeout(() => {
         refreshNotifications()
-        fetchMessages(true)
+        if (!isConnected) {
+          fetchMessages(true)
+        }
       }, 500)
     } catch (error) {
       console.error("Error sending message:", error)
@@ -186,8 +261,25 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
 
   return (
     <div className="flex flex-col h-full">
+      {/* Connection Status */}
+      <div className="flex items-center justify-center py-2 px-4 bg-muted/20">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {isConnected ? (
+            <>
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span>Connesso - messaggi in tempo reale</span>
+            </>
+          ) : (
+            <>
+              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
+              <span>Modalità fallback - aggiornamento automatico</span>
+            </>
+          )}
+        </div>
+      </div>
+
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4 pb-24" ref={scrollAreaRef}>
+      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef} style={{ paddingBottom: "120px" }}>
         <div className="space-y-4">
           {messages.length === 0 ? (
             <div className="text-center text-muted-foreground py-8">
@@ -235,8 +327,8 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
         </div>
       </ScrollArea>
 
-      {/* Message Input - Posizionato sopra la navbar */}
-      <div className="fixed bottom-20 left-0 right-0 border-t bg-card/95 backdrop-blur-md p-4 z-20">
+      {/* Message Input - Fixed at bottom */}
+      <div className="fixed bottom-16 left-0 right-0 border-t bg-card/95 backdrop-blur-md p-4 z-20">
         <form onSubmit={sendMessage} className="flex gap-2 max-w-4xl mx-auto">
           <Input
             value={newMessage}
