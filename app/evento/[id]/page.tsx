@@ -1,430 +1,328 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { useParams, useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { notFound } from "next/navigation"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ObjectId } from "mongodb"
 import Image from "next/image"
-import Link from "next/link"
-import {
-  ArrowLeft,
-  MapPin,
-  Calendar,
-  Users,
-  Euro,
-  Star,
-  Heart,
-  Share2,
-  MessageSquare,
-  Loader2,
-  ShieldCheck,
-  Clock,
-  Tag,
-  Info,
-} from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
-import { toast } from "sonner"
-import { getEventImageUrl } from "@/lib/image-utils"
-import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Separator } from "@/components/ui/separator"
+import { BookingModal } from "@/components/booking-modal"
 import { MessageHostButton } from "@/components/event/message-host-button"
-import { ReviewSection } from "@/components/event/review-section"
+// import { ReviewSection } from "@/components/event/review-section"
+import { CalendarDays, Clock, MapPin, Users, Heart, Share2, Star, Edit, Trash2 } from "lucide-react"
+import Link from "next/link"
 
 interface Event {
   _id: string
   title: string
   description: string
+  date: string
+  time: string
   location: string
   price: number
+  maxParticipants: number
+  currentParticipants: number
+  images: string[]
+  hostId: string
+  hostName: string
+  hostImage?: string
+  category: string
+  amenities: string[]
+  createdAt: string
   rating?: number
   reviewCount?: number
-  images: string[]
-  category: string
-  dateStart: string
-  dateEnd?: string
-  totalSpots: number
-  availableSpots: number
-  verified?: boolean
-  host?: {
-    _id: string
-    name: string
-    image: string
-    email: string
-  } | null
-  createdAt: string
 }
 
-export default function EventoPage() {
-  const params = useParams()
-  const router = useRouter()
-  const { data: session } = useSession()
-  const [event, setEvent] = useState<Event | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [isFavorite, setIsFavorite] = useState(false)
-  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false)
+async function getEvent(id: string): Promise<Event | null> {
+  try {
+    const { db } = await connectToDatabase()
+    const event = await db.collection("events").findOne({ _id: new ObjectId(id) })
 
-  const id = params.id as string
+    if (!event) return null
 
-  useEffect(() => {
-    if (id) {
-      fetchEvent()
+    return {
+      _id: event._id.toString(),
+      title: event.title,
+      description: event.description,
+      date: event.date,
+      time: event.time,
+      location: event.location,
+      price: event.price,
+      maxParticipants: event.maxParticipants,
+      currentParticipants: event.currentParticipants || 0,
+      images: event.images || [],
+      hostId: event.hostId,
+      hostName: event.hostName,
+      hostImage: event.hostImage,
+      category: event.category,
+      amenities: event.amenities || [],
+      createdAt: event.createdAt,
+      rating: event.rating || 0,
+      reviewCount: event.reviewCount || 0,
     }
-  }, [id])
-
-  useEffect(() => {
-    if (session && event) {
-      checkIfFavorite()
-    }
-  }, [session, event])
-
-  const fetchEvent = async () => {
-    try {
-      setLoading(true)
-      const response = await fetch(`/api/events/${id}`)
-      if (!response.ok) throw new Error("Evento non trovato")
-      const data = await response.json()
-      console.log("Event data received:", data)
-      setEvent(data)
-    } catch (error) {
-      console.error("Error fetching event:", error)
-      toast.error("Impossibile caricare l'evento.")
-      router.push("/")
-    } finally {
-      setLoading(false)
-    }
+  } catch (error) {
+    console.error("Error fetching event:", error)
+    return null
   }
+}
 
-  const checkIfFavorite = async () => {
-    try {
-      const res = await fetch("/api/favorites")
-      if (!res.ok) return
-      const { favorites } = await res.json()
-      setIsFavorite(favorites.some((fav: Event) => fav._id === event?._id))
-    } catch (error) {
-      console.error("Error checking favorite status", error)
-    }
-  }
-
-  const handleToggleFavorite = async () => {
-    if (!session) {
-      router.push("/auth/login")
-      return
-    }
-    setIsFavoriteLoading(true)
-    try {
-      const response = await fetch("/api/favorites", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ eventId: event?._id }),
-      })
-      if (!response.ok) throw new Error("Errore nell'operazione")
-      const data = await response.json()
-      setIsFavorite(data.isFavorite)
-      toast.success(data.isFavorite ? "Aggiunto ai preferiti!" : "Rimosso dai preferiti.")
-    } catch (error: any) {
-      toast.error(error.message || "Qualcosa è andato storto.")
-    } finally {
-      setIsFavoriteLoading(false)
-    }
-  }
-
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator
-        .share({
-          title: event?.title,
-          text: `Dai un'occhiata a questo evento: ${event?.title}`,
-          url: window.location.href,
-        })
-        .catch((error) => console.log("Error sharing", error))
-    } else {
-      navigator.clipboard.writeText(window.location.href)
-      toast.success("Link copiato negli appunti!")
-    }
-  }
-
-  const handleBooking = () => {
-    if (!session) {
-      router.push("/auth/login")
-      return
-    }
-    router.push(`/prenota/${event?._id}`)
-  }
-
-  if (loading) {
-    return <EventSkeleton />
-  }
+export default async function EventDetailPage({ params }: { params: { id: string } }) {
+  const session = await getServerSession(authOptions)
+  const event = await getEvent(params.id)
 
   if (!event) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-foreground">
-        <h1 className="text-2xl font-bold">Evento non trovato</h1>
-        <p className="text-muted-foreground">L'evento che stai cercando non esiste o è stato rimosso.</p>
-        <Button asChild className="mt-4">
-          <Link href="/">Torna alla Home</Link>
-        </Button>
-      </div>
-    )
+    notFound()
   }
 
-  const isHost = !!(session?.user && "id" in session.user && event.host && session.user.id === event.host._id)
+  const isHost = session?.user?.id === event.hostId
+  const eventDate = new Date(event.date)
+  const isEventPassed = eventDate < new Date()
 
   return (
-    <div className="bg-background text-foreground pb-20">
-      <div className="relative h-64 md:h-80">
-        <Image
-          src={getEventImageUrl(event.images?.[0], 800, 320) || "/placeholder.svg"}
-          alt={event.title}
-          fill
-          className="object-cover"
-          priority
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
-        <div className="absolute top-4 left-4">
-          <Button variant="ghost" size="icon" className="rounded-full bg-background/50" onClick={() => router.back()}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-        </div>
-        <div className="absolute top-4 right-4 flex gap-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full bg-background/50"
-            onClick={handleToggleFavorite}
-            disabled={isFavoriteLoading || isHost}
-          >
-            {isFavoriteLoading ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <Heart className={`h-5 w-5 ${isFavorite ? "fill-red-500 text-red-500" : ""}`} />
-            )}
-          </Button>
-          <Button variant="ghost" size="icon" className="rounded-full bg-background/50" onClick={handleShare}>
-            <Share2 className="h-5 w-5" />
-          </Button>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 -mt-16 relative">
-        <Card className="bg-card/80 backdrop-blur-lg border-border/50 shadow-xl">
-          <CardContent className="p-6">
-            <Badge variant="secondary" className="mb-2">
-              {event.category}
-            </Badge>
-            <h1 className="text-3xl font-bold text-foreground">{event.title}</h1>
-            <div className="flex items-center gap-2 mt-2 text-muted-foreground">
-              <MapPin className="h-4 w-4" />
-              <span>{event.location}</span>
-            </div>
-            {/* Rating Display */}
-            {event.rating && event.reviewCount && event.reviewCount > 0 && (
-              <div className="flex items-center gap-2 mt-3">
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-4 w-4 ${
-                        i < Math.floor(event.rating || 0) ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                      }`}
-                    />
-                  ))}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="container mx-auto px-4 py-8 max-w-6xl">
+        {/* Header con immagini */}
+        <div className="relative mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 h-96">
+            {event.images.length > 0 ? (
+              <>
+                <div className="md:col-span-1 lg:col-span-2 relative rounded-xl overflow-hidden">
+                  <Image
+                    src={event.images[0] || "/placeholder.svg"}
+                    alt={event.title}
+                    fill
+                    className="object-cover"
+                    priority
+                  />
                 </div>
-                <span className="text-sm font-medium">{event.rating.toFixed(1)}</span>
-                <span className="text-sm text-muted-foreground">({event.reviewCount} recensioni)</span>
+                {event.images.slice(1, 3).map((image, index) => (
+                  <div key={index} className="relative rounded-xl overflow-hidden">
+                    <Image
+                      src={image || "/placeholder.svg"}
+                      alt={`${event.title} ${index + 2}`}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                ))}
+              </>
+            ) : (
+              <div className="md:col-span-2 lg:col-span-3 bg-gradient-to-br from-blue-100 to-purple-100 dark:from-blue-900 dark:to-purple-900 rounded-xl flex items-center justify-center">
+                <div className="text-center">
+                  <CalendarDays className="h-16 w-16 text-blue-500 mx-auto mb-4" />
+                  <p className="text-lg font-medium text-gray-600 dark:text-gray-300">Nessuna immagine disponibile</p>
+                </div>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-          <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Info className="h-5 w-5 text-primary" />
-                  Descrizione
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap text-muted-foreground">{event.description}</p>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Dettagli Evento</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4 text-sm">
-                <div className="flex items-center gap-3">
-                  <Calendar className="h-5 w-5 text-primary" />
-                  <div>
-                    <span className="font-semibold">Data e Ora</span>
-                    <p className="text-muted-foreground">
-                      {new Date(event.dateStart).toLocaleDateString("it-IT", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-primary" />
-                  <div>
-                    <span className="font-semibold">Orario Inizio</span>
-                    <p className="text-muted-foreground">
-                      {new Date(event.dateStart).toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Users className="h-5 w-5 text-primary" />
-                  <div>
-                    <span className="font-semibold">Posti</span>
-                    <p className="text-muted-foreground">
-                      {event.availableSpots} / {event.totalSpots} disponibili
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Euro className="h-5 w-5 text-primary" />
-                  <div>
-                    <span className="font-semibold">Prezzo</span>
-                    <p className="text-muted-foreground">{event.price > 0 ? `€${event.price}` : "Gratuito"}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Tag className="h-5 w-5 text-primary" />
-                  <div>
-                    <span className="font-semibold">Categoria</span>
-                    <p className="text-muted-foreground capitalize">{event.category}</p>
-                  </div>
-                </div>
-                {event.verified && (
-                  <div className="flex items-center gap-3">
-                    <ShieldCheck className="h-5 w-5 text-green-500" />
-                    <div>
-                      <span className="font-semibold">Verificato</span>
-                      <p className="text-muted-foreground">Host affidabile</p>
-                    </div>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Reviews Section */}
-            <ReviewSection eventId={event._id} />
           </div>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Organizzato da</CardTitle>
-              </CardHeader>
-              <CardContent>
-                {event.host ? (
-                  <>
-                    <div className="flex items-center gap-4">
-                      <OptimizedAvatar src={event.host.image} alt={event.host.name} size={48} />
-                      <div>
-                        <h3 className="font-semibold">
-                          <Link href={`/user/${String(event.host._id)}`} className="hover:underline text-primary">
-                            {event.host.name}
-                          </Link>
-                        </h3>
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                          <span>{(event.rating || 0).toFixed(1)}</span>
-                          <span>({event.reviewCount || 0} recensioni)</span>
-                        </div>
-                      </div>
-                    </div>
-                    {!isHost && (
-                      <MessageHostButton
-                        hostId={String(event.host._id)}
-                        hostName={event.host.name}
-                        hostEmail={event.host.email}
-                        eventId={String(event._id)}
-                        eventTitle={event.title}
-                        className="w-full mt-4"
-                      />
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center py-4">
-                    <p className="text-muted-foreground text-sm">Informazioni host non disponibili</p>
-                    <Button className="w-full mt-4" disabled>
-                      <MessageSquare className="mr-2 h-4 w-4" />
-                      Contatta l'host
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader>
-                <CardTitle>Prenota il tuo posto</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground text-sm mb-4">
-                  Non perdere l'occasione di partecipare a questo evento unico!
-                </p>
-                <Button size="lg" className="w-full" disabled={isHost} onClick={handleBooking}>
-                  {isHost ? "Sei l'organizzatore" : "Prenota Ora"}
+          {/* Azioni rapide */}
+          <div className="absolute top-4 right-4 flex gap-2">
+            <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white">
+              <Heart className="h-4 w-4" />
+            </Button>
+            <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white">
+              <Share2 className="h-4 w-4" />
+            </Button>
+            {isHost && (
+              <>
+                <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white" asChild>
+                  <Link href={`/evento/${event._id}/edit`}>
+                    <Edit className="h-4 w-4" />
+                  </Link>
                 </Button>
-              </CardContent>
-            </Card>
+                <Button size="sm" variant="destructive" className="bg-red-500/90 hover:bg-red-500">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
         </div>
-      </div>
-    </div>
-  )
-}
 
-function EventSkeleton() {
-  return (
-    <div className="bg-background text-foreground pb-20">
-      <div className="relative h-64 md:h-80 bg-muted animate-pulse" />
-      <div className="container mx-auto px-4 -mt-16 relative">
-        <Card className="bg-card/80 backdrop-blur-lg border-border/50 shadow-xl">
-          <CardContent className="p-6">
-            <Skeleton className="h-4 w-24 mb-2" />
-            <Skeleton className="h-8 w-3/4" />
-            <div className="flex items-center gap-2 mt-2">
-              <Skeleton className="h-4 w-4 rounded-full" />
-              <Skeleton className="h-4 w-1/2" />
-            </div>
-          </CardContent>
-        </Card>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Contenuto principale */}
           <div className="lg:col-span-2 space-y-6">
-            <Card>
-              <CardHeader>
-                <Skeleton className="h-6 w-40" />
+            {/* Informazioni evento */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader className="pb-4">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-2">
+                    <Badge variant="secondary" className="w-fit">
+                      {event.category}
+                    </Badge>
+                    <CardTitle className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                      {event.title}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center">
+                        {[...Array(5)].map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-4 w-4 ${
+                              i < Math.floor(event.rating || 0) ? "text-yellow-400 fill-current" : "text-gray-300"
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
+                        {event.rating?.toFixed(1) || "0.0"} ({event.reviewCount || 0} recensioni)
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">€{event.price}</div>
+                    <div className="text-sm text-gray-500">per persona</div>
+                  </div>
+                </div>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
+              <CardContent className="space-y-6">
+                {/* Dettagli evento */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <CalendarDays className="h-5 w-5 text-blue-500" />
+                    <div>
+                      <div className="font-medium">Data</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {new Date(event.date).toLocaleDateString("it-IT", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <Clock className="h-5 w-5 text-green-500" />
+                    <div>
+                      <div className="font-medium">Orario</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">{event.time}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <MapPin className="h-5 w-5 text-red-500" />
+                    <div>
+                      <div className="font-medium">Luogo</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">{event.location}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <Users className="h-5 w-5 text-purple-500" />
+                    <div>
+                      <div className="font-medium">Partecipanti</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                        {event.currentParticipants}/{event.maxParticipants}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Descrizione */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Descrizione</h3>
+                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                    {event.description}
+                  </p>
+                </div>
+
+                {/* Servizi inclusi */}
+                {event.amenities.length > 0 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <h3 className="text-lg font-semibold mb-3">Servizi Inclusi</h3>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                        {event.amenities.map((amenity, index) => (
+                          <Badge key={index} variant="outline" className="justify-center py-2">
+                            {amenity}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
+
+            {/* Sezione recensioni - COMMENTATA */}
+            {/* <ReviewSection eventId={event._id} /> */}
           </div>
+
+          {/* Sidebar */}
           <div className="space-y-6">
-            <Card>
+            {/* Card prenotazione */}
+            <Card className="border-0 shadow-lg sticky top-4">
               <CardHeader>
-                <Skeleton className="h-6 w-32" />
+                <CardTitle className="text-center">{isEventPassed ? "Evento Terminato" : "Prenota Ora"}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">€{event.price}</div>
+                  <div className="text-sm text-gray-500">per persona</div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Posti disponibili:</span>
+                    <span className="font-medium">{event.maxParticipants - event.currentParticipants}</span>
+                  </div>
+                  <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                    <div
+                      className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                      style={{
+                        width: `${(event.currentParticipants / event.maxParticipants) * 100}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {!isEventPassed && !isHost && (
+                  <BookingModal
+                    eventId={event._id}
+                    eventTitle={event.title}
+                    eventPrice={event.price}
+                    eventDate={event.date}
+                    eventTime={event.time}
+                    availableSpots={event.maxParticipants - event.currentParticipants}
+                  />
+                )}
+
+                {!isHost && (
+                  <MessageHostButton hostId={event.hostId} hostName={event.hostName} eventTitle={event.title} />
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Card host */}
+            <Card className="border-0 shadow-lg">
+              <CardHeader>
+                <CardTitle className="text-lg">Organizzatore</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-4">
-                  <Skeleton className="h-12 w-12 rounded-full" />
-                  <div className="space-y-2">
-                    <Skeleton className="h-4 w-24" />
-                    <Skeleton className="h-3 w-20" />
+                  <Avatar className="h-12 w-12">
+                    <AvatarImage src={event.hostImage || "/placeholder.svg"} alt={event.hostName} />
+                    <AvatarFallback>
+                      {event.hostName
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1">
+                    <div className="font-medium">{event.hostName}</div>
+                    <div className="text-sm text-gray-500">Organizzatore</div>
                   </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link href={`/user/${event.hostId}`}>Profilo</Link>
+                  </Button>
                 </div>
-                <Skeleton className="h-10 w-full mt-4" />
               </CardContent>
             </Card>
           </div>

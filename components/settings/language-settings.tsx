@@ -1,79 +1,96 @@
 "use client"
 
 import { useState } from "react"
-import { Globe } from "lucide-react"
+import { Globe, Check } from "lucide-react"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { toast } from "sonner"
 import { motion } from "framer-motion"
+import { toast } from "sonner"
+import { useLanguage } from "@/contexts/language-context"
 
-interface Language {
-  code: string
-  name: string
-  flag: string
-}
+const languages = [
+  { code: "it", name: "Italiano", flag: "🇮🇹" },
+  { code: "en", name: "English", flag: "🇺🇸" },
+  { code: "es", name: "Español", flag: "🇪🇸" },
+]
 
 export function LanguageSettings() {
-  const [selectedLanguage, setSelectedLanguage] = useState("it")
-  const [isLoading, setIsLoading] = useState(false)
+  const { language, setLanguage, t } = useLanguage()
+  const [selectedLanguage, setSelectedLanguage] = useState(language)
+  const [saving, setSaving] = useState(false)
 
-  const languages: Language[] = [
-    { code: "it", name: "Italiano", flag: "🇮🇹" },
-    { code: "en", name: "English", flag: "🇬🇧" },
-    { code: "es", name: "Español", flag: "🇪🇸" },
-  ]
+  const handleSave = async () => {
+    if (selectedLanguage === language) return
 
-  const handleLanguageChange = async (value: string) => {
-    setIsLoading(true)
     try {
-      setSelectedLanguage(value)
-      // Simuliamo una chiamata API
-      await new Promise((resolve) => setTimeout(resolve, 600))
+      setSaving(true)
 
-      // Salviamo la preferenza nel localStorage
-      localStorage.setItem("preferred-language", value)
+      // Simula un salvataggio (potresti voler salvare la preferenza sul server)
+      await new Promise((resolve) => setTimeout(resolve, 500))
 
-      toast.success("Lingua aggiornata con successo", {
-        description: `La lingua è stata impostata su ${languages.find((l) => l.code === value)?.name}`,
-        icon: languages.find((l) => l.code === value)?.flag,
-      })
+      setLanguage(selectedLanguage as "it" | "en" | "es")
+
+      const languageName = languages.find((lang) => lang.code === selectedLanguage)?.name
+      toast.success(`Lingua cambiata in ${languageName}`)
     } catch (error) {
-      toast.error("Errore durante l'aggiornamento della lingua")
+      console.error("Error saving language:", error)
+      toast.error("Errore nel salvataggio della lingua")
     } finally {
-      setIsLoading(false)
+      setSaving(false)
     }
   }
 
   return (
-    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
-      <Card className="border-border bg-card/80 backdrop-blur-sm shadow-lg">
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.2 }}
+    >
+      <Card>
         <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Globe className="h-5 w-5 text-blue-500" />
-            <span className="bg-gradient-to-r from-blue-500 to-indigo-600 bg-clip-text text-transparent">Lingua</span>
+          <CardTitle className="flex items-center gap-2">
+            <Globe className="h-5 w-5 text-primary" />
+            {t("language")}
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <RadioGroup value={selectedLanguage} onValueChange={handleLanguageChange} className="grid grid-cols-3 gap-4">
-            {languages.map((language) => (
-              <div key={language.code}>
-                <RadioGroupItem
-                  value={language.code}
-                  id={`lang-${language.code}`}
-                  className="peer sr-only"
-                  disabled={isLoading}
-                />
+        <CardContent className="space-y-4">
+          <RadioGroup value={selectedLanguage} onValueChange={setSelectedLanguage} className="space-y-3">
+            {languages.map((lang) => (
+              <div key={lang.code} className="flex items-center space-x-3">
+                <RadioGroupItem value={lang.code} id={lang.code} />
                 <Label
-                  htmlFor={`lang-${language.code}`}
-                  className="flex flex-col items-center justify-between rounded-md border-2 border-muted bg-popover p-4 hover:bg-accent hover:text-accent-foreground peer-data-[state=checked]:border-blue-500 [&:has([data-state=checked])]:border-blue-500 transition-all duration-200 cursor-pointer"
+                  htmlFor={lang.code}
+                  className="flex items-center gap-3 cursor-pointer flex-1 p-3 rounded-lg hover:bg-muted/50 transition-colors"
                 >
-                  <span className="text-2xl mb-2">{language.flag}</span>
-                  {language.name}
+                  <span className="text-2xl">{lang.flag}</span>
+                  <div className="flex-1">
+                    <div className="font-medium">{lang.name}</div>
+                  </div>
+                  {language === lang.code && <Check className="h-4 w-4 text-primary" />}
                 </Label>
               </div>
             ))}
           </RadioGroup>
+
+          {selectedLanguage !== language && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="pt-4 border-t">
+              <Button onClick={handleSave} disabled={saving} className="w-full">
+                {saving ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    Salvando...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4 mr-2" />
+                    {t("save_changes")}
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          )}
         </CardContent>
       </Card>
     </motion.div>
