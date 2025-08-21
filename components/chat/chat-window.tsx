@@ -1,73 +1,62 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { Send, Loader2 } from "lucide-react"
+import { Send, ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Card, CardHeader } from "@/components/ui/card"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
-import { useNotifications } from "@/hooks/use-notifications"
+import { Badge } from "@/components/ui/badge"
+import { motion, AnimatePresence } from "framer-motion"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 import { io, type Socket } from "socket.io-client"
 
 interface Message {
   _id: string
-  roomId: string
   content: string
   senderId: string
   senderName: string
   senderImage?: string
   createdAt: string
-  readBy: string[]
+}
+
+interface ChatUser {
+  _id: string
+  name: string
+  image?: string
 }
 
 interface ChatWindowProps {
   roomId: string
-  otherUser: {
-    name: string
-    email: string
-    image?: string
-  }
-  onClose?: () => void
-  initialMessage?: string
+  otherUser: ChatUser
+  eventTitle?: string
 }
 
-export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatWindowProps) {
+export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
   const { data: session } = useSession()
-  const { refresh: refreshNotifications } = useNotifications()
+  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(true)
-  const [isSending, setIsSending] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
+  const [socket, setSocket] = useState<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const socketRef = useRef<Socket | null>(null)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (roomId) {
-      fetchMessages()
-      initializeSocket()
-    }
+    fetchMessages()
+    initializeSocket()
+    markMessagesAsRead()
 
     return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
-      }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
+      if (socket) {
+        socket.disconnect()
       }
     }
   }, [roomId])
-
-  useEffect(() => {
-    // Pre-compila il messaggio iniziale se fornito
-    if (initialMessage && !newMessage) {
-      setNewMessage(initialMessage)
-    }
-  }, [initialMessage])
 
   useEffect(() => {
     scrollToBottom()
@@ -76,114 +65,88 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
   const initializeSocket = () => {
     try {
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
-      socketRef.current = io(wsUrl, {
+      const newSocket = io(wsUrl, {
         transports: ["websocket", "polling"],
         timeout: 5000,
       })
 
-      socketRef.current.on("connect", () => {
-        console.log("WebSocket connected")
+      newSocket.on("connect", () => {
+        console.log("Connected to WebSocket")
         setIsConnected(true)
-        socketRef.current?.emit("join-room", roomId)
-
-        // Stop polling when WebSocket is connected
-        if (pollingIntervalRef.current) {
-          clearInterval(pollingIntervalRef.current)
-        }
+        newSocket.emit("join-room", roomId)
       })
 
-      socketRef.current.on("disconnect", () => {
-        console.log("WebSocket disconnected")
+      newSocket.on("disconnect", () => {
+        console.log("Disconnected from WebSocket")
         setIsConnected(false)
-        // Start polling as fallback
+      })
+
+      newSocket.on("connect_error", (error) => {
+        console.error("WebSocket connection error:", error)
+        setIsConnected(false)
+        // Fallback to polling every 3 seconds
         startPolling()
       })
 
-      socketRef.current.on("connect_error", (error) => {
-        console.log("WebSocket connection error:", error)
-        setIsConnected(false)
-        // Start polling as fallback
-        startPolling()
+      newSocket.on("new-message", (message: Message) => {
+        setMessages((prev) => [...prev, message])
+        scrollToBottom()
       })
 
-      socketRef.current.on("new-message", (message: Message) => {
-        setMessages((prev) => {
-          // Avoid duplicates
-          if (prev.some((m) => m._id === message._id)) {
-            return prev
-          }
-          return [...prev, message]
-        })
-        refreshNotifications()
-      })
-
-      // Fallback to polling if WebSocket doesn't connect within 3 seconds
-      setTimeout(() => {
-        if (!socketRef.current?.connected) {
-          console.log("WebSocket failed to connect, using polling fallback")
-          startPolling()
-        }
-      }, 3000)
+      setSocket(newSocket)
     } catch (error) {
-      console.error("Socket initialization error:", error)
+      console.error("Error initializing socket:", error)
       setIsConnected(false)
       startPolling()
     }
   }
 
   const startPolling = () => {
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current)
-    }
-
-    pollingIntervalRef.current = setInterval(() => {
-      fetchMessages(true)
-    }, 3000) // Polling ogni 3 secondi
-  }
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  const fetchMessages = async (silent = false) => {
-    try {
-      if (!silent) setIsLoading(true)
-
-      const response = await fetch(`/api/messages/${roomId}`, {
-        cache: "no-store",
-        headers: {
-          "Cache-Control": "no-cache",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to fetch messages")
+    const interval = setInterval(() => {
+      if (!isConnected) {
+        fetchMessages()
       }
+    }, 3000)
 
-      const data = await response.json()
-      setMessages(data.messages || [])
+    return () => clearInterval(interval)
+  }
 
-      // Aggiorna il counter delle notifiche dopo aver caricato i messaggi
-      if (!silent) {
-        setTimeout(() => {
-          refreshNotifications()
-        }, 500)
+  const fetchMessages = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/messages/${roomId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setMessages(data)
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
+      toast.error("Errore nel caricamento dei messaggi")
     } finally {
-      if (!silent) setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newMessage.trim() || isSending) return
+  const markMessagesAsRead = async () => {
+    try {
+      await fetch(`/api/messages/read-all`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ roomId }),
+      })
+    } catch (error) {
+      console.error("Error marking messages as read:", error)
+    }
+  }
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || sending) return
 
     const messageContent = newMessage.trim()
     setNewMessage("")
-    setIsSending(true)
+    setSending(true)
 
     try {
       const response = await fetch(`/api/messages/${roomId}`, {
@@ -191,40 +154,43 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ content: messageContent }),
+        body: JSON.stringify({
+          content: messageContent,
+          receiverId: otherUser._id,
+        }),
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to send message")
-      }
+      if (response.ok) {
+        const message = await response.json()
 
-      const sentMessage = await response.json()
-
-      // If WebSocket is connected, the message will be received via socket
-      // Otherwise, add it manually
-      if (!isConnected) {
-        setMessages((prev) => [...prev, sentMessage])
-      }
-
-      // Aggiorna il counter delle notifiche
-      setTimeout(() => {
-        refreshNotifications()
-        if (!isConnected) {
-          fetchMessages(true)
+        if (socket && isConnected) {
+          socket.emit("send-message", { roomId, message })
+        } else {
+          // Fallback: add message locally if socket not connected
+          setMessages((prev) => [...prev, message])
+          scrollToBottom()
         }
-      }, 500)
+      } else {
+        toast.error("Errore nell'invio del messaggio")
+        setNewMessage(messageContent) // Restore message on error
+      }
     } catch (error) {
       console.error("Error sending message:", error)
-      setNewMessage(messageContent)
+      toast.error("Errore nell'invio del messaggio")
+      setNewMessage(messageContent) // Restore message on error
     } finally {
-      setIsSending(false)
+      setSending(false)
     }
   }
 
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    }, 100)
+  }
+
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleTimeString("it-IT", {
+    return new Date(dateString).toLocaleTimeString("it-IT", {
       hour: "2-digit",
       minute: "2-digit",
     })
@@ -248,103 +214,111 @@ export function ChatWindow({ roomId, otherUser, onClose, initialMessage }: ChatW
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-full">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-          <p className="text-sm text-muted-foreground">Caricamento chat...</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
-    <div className="flex flex-col h-full">
-      {/* Connection Status */}
-      <div className="flex items-center justify-center py-2 px-4 bg-muted/20">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {isConnected ? (
-            <>
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span>Connesso - messaggi in tempo reale</span>
-            </>
-          ) : (
-            <>
-              <div className="w-2 h-2 bg-orange-500 rounded-full animate-pulse" />
-              <span>Modalità fallback - aggiornamento automatico</span>
-            </>
-          )}
-        </div>
-      </div>
+    <div className="flex flex-col h-screen bg-background">
+      {/* Header */}
+      <Card className="rounded-none border-x-0 border-t-0">
+        <CardHeader className="p-4">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <OptimizedAvatar src={otherUser.image} alt={otherUser.name} size={40} />
+            <div className="flex-1">
+              <h2 className="font-semibold">{otherUser.name}</h2>
+              {eventTitle && <p className="text-sm text-muted-foreground truncate">{eventTitle}</p>}
+            </div>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-orange-500"}`} />
+              <span className="text-xs text-muted-foreground">{isConnected ? "Connesso" : "Fallback attivo"}</span>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
 
       {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollAreaRef} style={{ paddingBottom: "120px" }}>
-        <div className="space-y-4">
-          {messages.length === 0 ? (
-            <div className="text-center text-muted-foreground py-8">
-              <p>Nessun messaggio ancora.</p>
-              <p className="text-sm">Inizia la conversazione con {otherUser.name}!</p>
-            </div>
-          ) : (
-            messages.map((message, index) => {
-              const isOwnMessage = message.senderId === session?.user?.email
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        style={{ paddingBottom: "120px" }}
+      >
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+        ) : messages.length > 0 ? (
+          <AnimatePresence>
+            {messages.map((message, index) => {
+              const isOwn = message.senderId === session?.user?.id
               const showDate =
-                index === 0 || formatDate(message.createdAt) !== formatDate(messages[index - 1].createdAt)
+                index === 0 || formatDate(messages[index - 1].createdAt) !== formatDate(message.createdAt)
 
               return (
                 <div key={message._id}>
                   {showDate && (
-                    <div className="text-center text-xs text-muted-foreground my-4">
-                      <span className="bg-background px-2 py-1 rounded-full border">
+                    <div className="flex justify-center my-4">
+                      <Badge variant="secondary" className="text-xs">
                         {formatDate(message.createdAt)}
-                      </span>
+                      </Badge>
                     </div>
                   )}
-                  <div className={`flex gap-3 ${isOwnMessage ? "flex-row-reverse" : "flex-row"}`}>
-                    <OptimizedAvatar
-                      src={isOwnMessage ? session?.user?.image : message.senderImage || otherUser.image}
-                      alt={isOwnMessage ? session?.user?.name || "" : message.senderName || otherUser.name}
-                      size={32}
-                      className="h-8 w-8"
-                    />
-                    <div className={`flex flex-col ${isOwnMessage ? "items-end" : "items-start"}`}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
+                  >
+                    <div className={`flex items-end gap-2 max-w-[80%] ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+                      {!isOwn && <OptimizedAvatar src={message.senderImage} alt={message.senderName} size={32} />}
                       <div
-                        className={`max-w-xs lg:max-w-md px-3 py-2 rounded-lg ${
-                          isOwnMessage ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                        className={`px-4 py-2 rounded-2xl shadow-sm ${
+                          isOwn ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                        <p className="text-sm">{message.content}</p>
+                        <p className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
+                          {formatTime(message.createdAt)}
+                        </p>
                       </div>
-                      <span className="text-xs text-muted-foreground mt-1">{formatTime(message.createdAt)}</span>
                     </div>
-                  </div>
+                  </motion.div>
                 </div>
               )
-            })
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+            })}
+          </AnimatePresence>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="bg-muted rounded-full p-4 mb-4">
+              <Send className="h-8 w-8 text-muted-foreground" />
+            </div>
+            <h3 className="font-semibold mb-2">Inizia la conversazione</h3>
+            <p className="text-sm text-muted-foreground">Invia il primo messaggio a {otherUser.name}</p>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
-      {/* Message Input - Fixed at bottom */}
-      <div className="fixed bottom-16 left-0 right-0 border-t bg-card/95 backdrop-blur-md p-4 z-20">
-        <form onSubmit={sendMessage} className="flex gap-2 max-w-4xl mx-auto">
-          <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder={`Scrivi a ${otherUser.name}...`}
-            disabled={isSending}
-            className="flex-1 bg-background"
-            maxLength={1000}
-          />
-          <Button type="submit" disabled={!newMessage.trim() || isSending} size="icon">
-            {isSending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          </Button>
-        </form>
-        <p className="text-xs text-muted-foreground mt-1 text-center">
-          Premi Invio per inviare • {newMessage.length}/1000
-        </p>
+      {/* Input */}
+      <div className="fixed bottom-16 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center gap-2">
+            <Input
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder={`Scrivi a ${otherUser.name}...`}
+              onKeyPress={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault()
+                  sendMessage()
+                }
+              }}
+              disabled={sending}
+              className="flex-1"
+            />
+            <Button onClick={sendMessage} disabled={!newMessage.trim() || sending} size="icon" className="shrink-0">
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )
