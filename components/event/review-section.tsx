@@ -219,10 +219,10 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
                             onClick={() => setRating(star)}
                             onMouseEnter={() => setHoveredStar(star)}
                             onMouseLeave={() => setHoveredStar(0)}
-                            className="p-1 hover:scale-110 transition-transform cursor-pointer"
+                            className="p-1 hover:scale-110 transition-transform"
                           >
                             <Star
-                              className={`h-8 w-8 transition-colors ${
+                              className={`h-8 w-8 ${
                                 star <= (hoveredStar || rating)
                                   ? "fill-yellow-400 text-yellow-400"
                                   : "text-gray-300 hover:text-yellow-400"
@@ -250,7 +250,6 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
                         onChange={(e) => setComment(e.target.value)}
                         rows={3}
                         maxLength={500}
-                        className="resize-none"
                       />
                       <p className="text-xs text-muted-foreground mt-1">{comment.length}/500 caratteri</p>
                     </div>
