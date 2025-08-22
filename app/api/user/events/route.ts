@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
 
@@ -15,8 +15,10 @@ export async function GET(request: NextRequest) {
 
     const { db } = await connectToDatabase()
 
-    // Find user by email
-    const user = await db.collection("users").findOne({ email: session.user.email })
+    // Find user first
+    const user = await db.collection("users").findOne({
+      email: session.user.email.toLowerCase(),
+    })
 
     if (!user) {
       console.log("❌ User not found")
@@ -25,34 +27,96 @@ export async function GET(request: NextRequest) {
 
     console.log("✅ User found:", user._id)
 
-    // Get all events created by this user (including expired ones)
+    // Forza userId come stringa per confronti robusti
+    const userIdString = user._id.toString();
+
+    // Find events created by this user with multiple matching strategies
     const events = await db
       .collection("events")
       .find({
-        hostId: user._id.toString(),
+        $or: [
+          { hostId: user._id },
+          { hostId: userIdString },
+          { createdBy: user._id },
+          { createdBy: userIdString },
+          { "host.email": session.user.email.toLowerCase() },
+        ],
       })
-      .sort({ dateStart: -1 })
-      .toArray()
+      .sort({ createdAt: -1 })
+      .toArray();
 
-    console.log("Query userId:", user._id.toString(), session.user.email)
-    console.log("Events found:", events.length)
+    console.log("Query userId:", user._id, userIdString, session.user.email.toLowerCase());
+    console.log("Events found:", events.length);
 
     console.log(`📊 Found ${events.length} events for user`)
 
-    // Add isExpired flag to each event
-    const eventsWithStatus = events.map((event) => ({
-      ...event,
-      isExpired: new Date(event.dateStart) < new Date(),
-    }))
+    // Safe date handling function
+    const safeDate = (dateValue: any): string => {
+      if (!dateValue) return new Date().toISOString()
 
-    console.log("📤 Returning transformed events array with isExpired status")
+      try {
+        if (dateValue instanceof Date) {
+          return dateValue.toISOString()
+        }
+        if (typeof dateValue === "string") {
+          const parsed = new Date(dateValue)
+          if (isNaN(parsed.getTime())) {
+            return new Date().toISOString()
+          }
+          return parsed.toISOString()
+        }
+        return new Date().toISOString()
+      } catch (error) {
+        console.warn("Date parsing error:", error)
+        return new Date().toISOString()
+      }
+    }
 
-    return NextResponse.json(eventsWithStatus)
+    // Transform events for frontend - RETURN ARRAY DIRECTLY
+    const transformedEvents = events.map((event) => {
+      const dateStart = safeDate(event.dateStart)
+
+      return {
+        _id: event._id.toString(),
+        title: event.title || "Evento senza titolo",
+        description: event.description || "",
+        category: event.category || "evento",
+        location: event.location || "Posizione non specificata",
+        price: Number(event.price) || 0,
+        dateStart: dateStart,
+        dateEnd: event.dateEnd ? safeDate(event.dateEnd) : null,
+        date: dateStart.split("T")[0], // Extract date part for compatibility
+        time: (() => {
+          try {
+            const date = new Date(dateStart)
+            return date.toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" })
+          } catch {
+            return "00:00"
+          }
+        })(),
+        totalSpots: Number(event.totalSpots) || 10,
+        availableSpots: Number(event.availableSpots) || Number(event.totalSpots) || 10,
+        maxParticipants: Number(event.totalSpots) || Number(event.maxParticipants) || 10,
+        currentParticipants: Number(event.totalSpots) - Number(event.availableSpots) || 0,
+        images: Array.isArray(event.images) ? event.images : [],
+        verified: Boolean(event.verified),
+        views: Number(event.views) || 0,
+        rating: Number(event.rating) || 0,
+        reviewCount: Number(event.reviewCount) || 0,
+        createdAt: safeDate(event.createdAt),
+        updatedAt: safeDate(event.updatedAt),
+      }
+    })
+
+    console.log("📤 Returning transformed events array")
+
+    // RETURN ARRAY DIRECTLY, NOT OBJECT
+    return NextResponse.json(transformedEvents)
   } catch (error: any) {
     console.error("💥 Error fetching user events:", error)
     return NextResponse.json(
       {
-        error: "Errore interno del server",
+        error: "Errore nel caricamento degli eventi",
         details: error.message,
       },
       { status: 500 },

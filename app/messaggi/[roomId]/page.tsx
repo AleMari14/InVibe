@@ -1,401 +1,398 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
 import { useSession } from "next-auth/react"
-import { useRouter } from "next/navigation"
-import { ArrowLeft, Send, MoreVertical, Trash2, Phone, Video, Info, Loader2 } from "lucide-react"
+import { useRouter, useParams, useSearchParams } from "next/navigation"
+import { Send, ArrowLeft, Loader2, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { motion, AnimatePresence } from "framer-motion"
+import { io, type Socket } from "socket.io-client"
 import { toast } from "sonner"
-import io, { type Socket } from "socket.io-client"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 interface Message {
   _id: string
-  content: string
+  roomId: string
   senderId: string
   senderName: string
   senderImage?: string
+  content: string
   createdAt: string
-  readBy: string[]
+}
+
+interface Participant {
+  id: string
+  name: string
+  email: string
+  image?: string
+  isOnline?: boolean
 }
 
 interface ChatRoom {
   _id: string
-  participants: Array<{
-    _id: string
-    name: string
-    image?: string
-  }>
-  event?: {
-    _id: string
-    title: string
-    category: string
-    date: string
-    location: {
-      address: string
-    }
-  }
-  messages: Message[]
+  participants: Participant[]
+  eventTitle: string
+  otherUser: Participant
 }
 
-interface OnlineUser {
-  userId: string
-  isOnline: boolean
-}
-
-export default function ChatRoomPage({ params }: { params: { roomId: string } }) {
+export default function ChatRoomPage() {
   const { data: session } = useSession()
   const router = useRouter()
-  const [room, setRoom] = useState<ChatRoom | null>(null)
+  const params = useParams()
+  const searchParams = useSearchParams()
+  const roomId = params.roomId as string
+
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
+  const [chatRoom, setChatRoom] = useState<ChatRoom | null>(null)
   const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
-  const [socket, setSocket] = useState<Socket | null>(null)
-  const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([])
+  const [isSending, setIsSending] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+  const [otherUserOnline, setOtherUserOnline] = useState(false)
+  const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const scrollAreaRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
+
+  const initialMessage = searchParams.get("initialMessage")
 
   useEffect(() => {
-    if (session && params.roomId) {
-      fetchRoom()
-      initializeSocket()
+    if (initialMessage) {
+      setNewMessage(decodeURIComponent(initialMessage))
+      router.replace(`/messaggi/${roomId}`, { scroll: false })
     }
+  }, [initialMessage, roomId, router])
 
-    return () => {
-      if (socket) {
-        socket.disconnect()
-      }
-    }
-  }, [session, params.roomId])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
-
-  const initializeSocket = () => {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
-    const newSocket = io(wsUrl, {
-      transports: ["websocket", "polling"],
-    })
-
-    newSocket.on("connect", () => {
-      console.log("🔌 Connected to WebSocket")
-      if (session?.user?.id) {
-        newSocket.emit("authenticate", {
-          userId: session.user.id,
-          userName: session.user.name,
-        })
-        newSocket.emit("joinRoom", params.roomId)
-      }
-    })
-
-    newSocket.on("newMessage", (message: Message) => {
-      setMessages((prev) => [...prev, message])
-    })
-
-    newSocket.on("userOnlineStatus", (data: OnlineUser) => {
-      setOnlineUsers((prev) => {
-        const filtered = prev.filter((user) => user.userId !== data.userId)
-        return [...filtered, data]
+  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior,
       })
-    })
+    }
+  }, [])
 
-    newSocket.on("disconnect", () => {
-      console.log("🔌 Disconnected from WebSocket")
-    })
-
-    setSocket(newSocket)
-  }
-
-  const fetchRoom = async () => {
+  const fetchChatRoomDetails = useCallback(async () => {
+    if (!roomId) return
     try {
-      setLoading(true)
-      const response = await fetch(`/api/messages/room/${params.roomId}`)
-      if (response.ok) {
-        const data = await response.json()
-        setRoom(data)
-        setMessages(data.messages || [])
-        markMessagesAsRead()
-      } else {
-        toast.error("Errore nel caricamento della chat")
-        router.push("/messaggi")
+      const response = await fetch(`/api/messages/room/${roomId}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Chat room non trovata")
       }
-    } catch (error) {
-      console.error("Error fetching room:", error)
-      toast.error("Errore nel caricamento della chat")
+      const data = await response.json()
+      setChatRoom(data)
+    } catch (error: any) {
+      console.error("Error fetching chat room details:", error)
+      toast.error(error.message)
       router.push("/messaggi")
+    }
+  }, [roomId, router])
+
+  const fetchMessages = useCallback(async () => {
+    if (!roomId) return
+    try {
+      const response = await fetch(`/api/messages/${roomId}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nel caricamento dei messaggi")
+      }
+      const data = await response.json()
+      setMessages(data.messages || [])
+      // Scroll immediato dopo il caricamento dei messaggi
+      setTimeout(() => scrollToBottom("auto"), 100)
+    } catch (error: any) {
+      console.error("Error fetching messages:", error)
+      toast.error(error.message)
     } finally {
       setLoading(false)
     }
-  }
+  }, [roomId, scrollToBottom])
 
-  const markMessagesAsRead = async () => {
-    try {
-      await fetch("/api/messages/read-all", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ roomId: params.roomId }),
-      })
-    } catch (error) {
-      console.error("Error marking messages as read:", error)
-    }
-  }
+  useEffect(() => {
+    fetchChatRoomDetails()
+    fetchMessages()
+  }, [fetchChatRoomDetails, fetchMessages])
 
-  const sendMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newMessage.trim() || sending || !session) return
+  useEffect(() => {
+    if (!session || !roomId) return
 
-    setSending(true)
-    try {
-      const response = await fetch(`/api/messages/${params.roomId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ content: newMessage.trim() }),
-      })
+    const socketUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001"
+    console.log("Connecting to WebSocket:", socketUrl)
 
-      if (response.ok) {
-        setNewMessage("")
-      } else {
-        toast.error("Errore nell'invio del messaggio")
-      }
-    } catch (error) {
-      console.error("Error sending message:", error)
-      toast.error("Errore nell'invio del messaggio")
-    } finally {
-      setSending(false)
-    }
-  }
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
-
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString("it-IT", {
-      hour: "2-digit",
-      minute: "2-digit",
+    const socket = io(socketUrl, {
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 20000,
+      transports: ["websocket", "polling"],
     })
-  }
+    socketRef.current = socket
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
+    socket.on("connect", () => {
+      console.log("Socket.IO connected successfully:", socket.id)
+      setIsConnected(true)
+      socket.emit("joinRoom", roomId)
 
-    if (date.toDateString() === today.toDateString()) {
-      return "Oggi"
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Ieri"
-    } else {
-      return date.toLocaleDateString("it-IT", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
+      // Check if other user is online
+      if (chatRoom?.otherUser?.email) {
+        socket.emit("checkUserOnline", chatRoom.otherUser.email)
+      }
+    })
+
+    socket.on("connect_error", (err) => {
+      console.error("Socket.IO connection error:", err.message)
+      setIsConnected(false)
+    })
+
+    socket.on("disconnect", () => {
+      console.log("Socket.IO disconnected")
+      setIsConnected(false)
+    })
+
+    socket.on("receiveMessage", (message: Message) => {
+      setMessages((prevMessages) => {
+        const exists = prevMessages.some((msg) => msg._id === message._id)
+        if (exists) return prevMessages
+        return [...prevMessages, message]
       })
+    })
+
+    socket.on("userOnlineStatus", (data: { email: string; isOnline: boolean }) => {
+      if (data.email === chatRoom?.otherUser?.email) {
+        setOtherUserOnline(data.isOnline)
+      }
+    })
+
+    socket.on("messageError", (data) => {
+      toast.error(data.error)
+      setIsSending(false)
+    })
+
+    return () => {
+      if (socketRef.current) {
+        console.log("Disconnecting Socket.IO")
+        socketRef.current.disconnect()
+      }
+    }
+  }, [session, roomId, chatRoom?.otherUser?.email])
+
+  // Scroll automatico quando arrivano nuovi messaggi
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom()
+    }
+  }, [messages, scrollToBottom])
+
+  const handleSendMessage = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newMessage.trim() || !session?.user || isSending) {
+      return
+    }
+
+    const messageContent = newMessage.trim()
+    setNewMessage("")
+    setIsSending(true)
+
+    if (socketRef.current?.connected) {
+      const messageData = {
+        roomId,
+        senderId: session.user.email,
+        senderName: session.user.name || "Utente",
+        senderImage: session.user.image,
+        content: messageContent,
+      }
+
+      socketRef.current.emit("sendMessage", messageData)
+      setIsSending(false)
+    } else {
+      sendMessageViaAPI(messageContent)
     }
   }
 
-  const getOtherParticipant = () => {
-    return room?.participants.find((p) => p._id !== session?.user?.id)
+  const sendMessageViaAPI = async (content: string) => {
+    try {
+      const response = await fetch(`/api/messages/${roomId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ content }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Errore nell'invio del messaggio")
+      }
+
+      const sentMessage = await response.json()
+      setMessages((prev) => {
+        const exists = prev.some((msg) => msg._id === sentMessage._id)
+        if (exists) return prev
+        return [...prev, sentMessage]
+      })
+    } catch (error: any) {
+      console.error("Error sending message:", error)
+      toast.error(error.message)
+      setNewMessage(content)
+    } finally {
+      setIsSending(false)
+    }
   }
 
-  const isUserOnline = (userId: string) => {
-    return onlineUsers.find((user) => user.userId === userId)?.isOnline || false
+  const handleDeleteChat = async () => {
+    try {
+      const response = await fetch(`/api/messages/room/${roomId}`, {
+        method: "DELETE",
+      })
+      if (!response.ok) {
+        throw new Error("Errore durante l'eliminazione della chat")
+      }
+      toast.success("Chat eliminata con successo")
+      router.push("/messaggi")
+    } catch (error) {
+      console.error("Error deleting chat:", error)
+      toast.error("Impossibile eliminare la chat.")
+    }
   }
 
-  const otherParticipant = getOtherParticipant()
-  const isOtherUserOnline = otherParticipant ? isUserOnline(otherParticipant._id) : false
-
-  if (loading) {
+  if (loading || !chatRoom) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Caricamento chat...</p>
-        </div>
+      <div className="flex items-center justify-center h-screen bg-gray-100 dark:bg-gray-900">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
 
-  if (!room || !session) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Chat non trovata</p>
-      </div>
-    )
-  }
+  const otherParticipant = chatRoom.otherUser
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Header */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="bg-card/80 backdrop-blur-md border-b border-border px-4 py-3 sticky top-0 z-10"
+    <div className="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
+      {/* Header fisso */}
+      <header className="flex items-center p-4 border-b bg-white dark:bg-gray-800 dark:border-gray-700 sticky top-0 z-10 shadow-sm">
+        <Button variant="ghost" size="icon" onClick={() => router.back()}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div className="flex items-center gap-3 ml-2 flex-1">
+          <div className="relative">
+            <OptimizedAvatar src={otherParticipant?.image} alt={otherParticipant?.name || ""} size={40} />
+            {/* Online status indicator */}
+            <div
+              className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
+                otherUserOnline ? "bg-green-500" : "bg-red-500"
+              }`}
+              title={otherUserOnline ? "Online" : "Offline"}
+            />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h2 className="font-bold text-sm truncate">{otherParticipant?.name}</h2>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Riguardo: {chatRoom.eventTitle}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
+                <Trash2 className="h-5 w-5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sei sicuro?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Questa azione non può essere annullata. Questo eliminerà permanentemente la cronologia di questa chat.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Annulla</AlertDialogCancel>
+                <AlertDialogAction onClick={handleDeleteChat} className="bg-red-600 hover:bg-red-700">
+                  Elimina
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </header>
+
+      {/* Container messaggi con scroll */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4"
+        style={{ paddingBottom: "100px" }} // Spazio per l'input fisso
       >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => router.back()}>
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <OptimizedAvatar src={otherParticipant?.image} alt={otherParticipant?.name || "Utente"} size={40} />
-                {/* Online Status Indicator */}
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div
-                        className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${
-                          isOtherUserOnline ? "bg-green-500" : "bg-red-500"
-                        }`}
-                      />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>{isOtherUserOnline ? "Online" : "Offline"}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div>
-                <h2 className="font-semibold text-foreground">{otherParticipant?.name || "Utente sconosciuto"}</h2>
-                {room.event && (
-                  <p className="text-sm text-muted-foreground truncate max-w-[200px]">{room.event.title}</p>
-                )}
+        {messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-gray-500 dark:text-gray-400">
+            <p className="text-lg font-medium">Nessun messaggio ancora</p>
+            <p className="text-sm">Inizia la conversazione!</p>
+          </div>
+        ) : (
+          messages.map((msg) => (
+            <div
+              key={msg._id}
+              className={`flex items-end gap-2 ${
+                msg.senderId === session?.user?.email ? "justify-end" : "justify-start"
+              }`}
+            >
+              {msg.senderId !== session?.user?.email && (
+                <OptimizedAvatar src={msg.senderImage || otherParticipant?.image} alt={msg.senderName} size={32} />
+              )}
+              <div
+                className={`max-w-xs md:max-w-md p-3 rounded-2xl shadow-sm ${
+                  msg.senderId === session?.user?.email
+                    ? "bg-blue-500 text-white rounded-br-lg"
+                    : "bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-bl-lg border border-gray-200 dark:border-gray-600"
+                }`}
+              >
+                <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
+                <p
+                  className={`text-xs mt-1 ${
+                    msg.senderId === session?.user?.email ? "text-blue-100" : "text-gray-500 dark:text-gray-400"
+                  }`}
+                >
+                  {new Date(msg.createdAt).toLocaleTimeString("it-IT", {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon">
-              <Phone className="h-4 w-4" />
-            </Button>
-            <Button variant="ghost" size="icon">
-              <Video className="h-4 w-4" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>
-                  <Info className="h-4 w-4 mr-2" />
-                  Info chat
-                </DropdownMenuItem>
-                <DropdownMenuItem className="text-red-600 focus:text-red-600">
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Elimina chat
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
-      </motion.div>
+          ))
+        )}
+        <div ref={messagesEndRef} />
+      </div>
 
-      {/* Event Info */}
-      {room.event && (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-4">
-          <Card className="bg-primary/5 border-primary/20">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <Badge variant="secondary" className="bg-primary/10 text-primary">
-                  {room.event.category}
-                </Badge>
-                <div className="flex-1">
-                  <h3 className="font-medium text-foreground">{room.event.title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(room.event.date).toLocaleDateString("it-IT")} • {room.event.location.address}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
-      {/* Messages */}
-      <ScrollArea className="flex-1 px-4" ref={scrollAreaRef}>
-        <div className="space-y-4 py-4">
-          <AnimatePresence>
-            {messages.map((message, index) => {
-              const isOwn = message.senderId === session.user?.id
-              const showDate =
-                index === 0 || formatDate(message.createdAt) !== formatDate(messages[index - 1].createdAt)
-
-              return (
-                <div key={message._id}>
-                  {showDate && (
-                    <div className="flex justify-center my-4">
-                      <Badge variant="outline" className="text-xs">
-                        {formatDate(message.createdAt)}
-                      </Badge>
-                    </div>
-                  )}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    className={`flex gap-3 ${isOwn ? "justify-end" : "justify-start"}`}
-                  >
-                    {!isOwn && (
-                      <OptimizedAvatar src={message.senderImage} alt={message.senderName} size={32} className="mt-1" />
-                    )}
-                    <div className={`max-w-[70%] ${isOwn ? "order-first" : ""}`}>
-                      <div
-                        className={`rounded-2xl px-4 py-2 ${
-                          isOwn ? "bg-primary text-primary-foreground ml-auto" : "bg-muted text-muted-foreground"
-                        }`}
-                      >
-                        <p className="text-sm leading-relaxed">{message.content}</p>
-                      </div>
-                      <p className={`text-xs text-muted-foreground mt-1 ${isOwn ? "text-right" : "text-left"}`}>
-                        {formatTime(message.createdAt)}
-                      </p>
-                    </div>
-                  </motion.div>
-                </div>
-              )
-            })}
-          </AnimatePresence>
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
-
-      {/* Message Input */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="border-t border-border bg-card/50 backdrop-blur-sm p-4"
-      >
-        <form onSubmit={sendMessage} className="flex gap-2">
+      {/* Input fisso in basso */}
+      <div className="fixed bottom-16 left-0 right-0 p-4 bg-white dark:bg-gray-800 border-t dark:border-gray-700 z-20 shadow-lg">
+        <form onSubmit={handleSendMessage} className="flex items-center gap-2 max-w-md mx-auto">
           <Input
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             placeholder="Scrivi un messaggio..."
-            className="flex-1"
-            disabled={sending}
+            className="flex-1 bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600 focus-visible:ring-2 focus-visible:ring-blue-500"
+            autoComplete="off"
+            disabled={isSending}
+            maxLength={500}
           />
-          <Button type="submit" disabled={!newMessage.trim() || sending} size="icon">
-            {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          <Button
+            type="submit"
+            size="icon"
+            disabled={isSending || !newMessage.trim()}
+            className="bg-blue-500 hover:bg-blue-600"
+          >
+            {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>
-      </motion.div>
+      </div>
     </div>
   )
 }

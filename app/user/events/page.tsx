@@ -41,7 +41,6 @@ interface Event {
   currentParticipants: number
   verified: boolean
   views: number
-  isExpired: boolean
 }
 
 const categoryIcons: Record<string, string> = {
@@ -107,11 +106,11 @@ export default function UserEventsPage() {
         throw new Error(errorData.error || "Errore nel caricamento")
       }
       const data = await response.json()
-      let eventsArr = []
+      let eventsArr = [];
       if (Array.isArray(data)) {
-        eventsArr = data
+        eventsArr = data;
       } else if (Array.isArray(data.events)) {
-        eventsArr = data.events
+        eventsArr = data.events;
       }
       setEvents(eventsArr)
     } catch (error) {
@@ -231,18 +230,14 @@ export default function UserEventsPage() {
             {events.map((event) => (
               <Card
                 key={event._id}
-                className={`bg-gray-800/50 backdrop-blur-sm border shadow-lg hover:shadow-blue-500/10 hover:border-blue-700 transition-all duration-300 group flex flex-col ${
-                  event.isExpired ? "border-red-700 bg-red-900/20" : "border-gray-700"
-                }`}
+                className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 shadow-lg hover:shadow-blue-500/10 hover:border-blue-700 transition-all duration-300 group flex flex-col"
               >
                 <div className="relative h-48 overflow-hidden rounded-t-lg">
                   <Image
                     src={getEventImageUrl(event.images?.[0], 400, 300) || "/placeholder.svg"}
                     alt={event.title}
                     fill
-                    className={`object-cover group-hover:scale-105 transition-transform duration-300 ${
-                      event.isExpired ? "grayscale opacity-60" : ""
-                    }`}
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
                     sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -251,48 +246,43 @@ export default function UserEventsPage() {
                       {categoryIcons[event.category] || "🎉"} {event.category}
                     </Badge>
                   </div>
-                  <div className="absolute top-3 right-3 flex gap-2">
-                    {event.verified && <Badge className="bg-green-600 text-white">Verificato</Badge>}
-                    {event.isExpired && <Badge className="bg-red-600 text-white">Scaduto</Badge>}
-                  </div>
+                  {event.verified && (
+                    <div className="absolute top-3 right-3">
+                      <Badge className="bg-green-600 text-white">Verificato</Badge>
+                    </div>
+                  )}
                 </div>
 
                 <CardContent className="p-4 flex-grow flex flex-col">
                   <div className="mb-3">
-                    <h3
-                      className={`font-semibold text-lg mb-1 line-clamp-1 ${
-                        event.isExpired ? "text-gray-400" : "text-white"
-                      }`}
-                    >
-                      {event.title}
-                    </h3>
+                    <h3 className="font-semibold text-lg mb-1 line-clamp-1 text-white">{event.title}</h3>
                     <p className="text-sm text-gray-400 line-clamp-2">{event.description}</p>
                   </div>
 
                   <div className="space-y-2 mb-4 text-sm">
                     <div className="flex items-center gap-2">
-                      <Calendar className={`h-4 w-4 ${event.isExpired ? "text-red-400" : "text-blue-400"}`} />
-                      <span className={event.isExpired ? "text-gray-400" : ""}>{formatSafeDate(event.dateStart)}</span>
+                      <Calendar className="h-4 w-4 text-blue-400" />
+                      <span>{formatSafeDate(event.dateStart)}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Clock className={`h-4 w-4 ${event.isExpired ? "text-red-400" : "text-green-400"}`} />
-                      <span className={event.isExpired ? "text-gray-400" : ""}>{formatSafeTime(event.dateStart)}</span>
+                      <Clock className="h-4 w-4 text-green-400" />
+                      <span>{formatSafeTime(event.dateStart)}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <MapPin className={`h-4 w-4 ${event.isExpired ? "text-red-400" : "text-red-400"}`} />
-                      <span className={event.isExpired ? "text-gray-400" : ""}>{event.location}</span>
+                      <MapPin className="h-4 w-4 text-red-400" />
+                      <span>{event.location}</span>
                     </div>
                   </div>
 
                   <div className="mt-auto">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <Users className={`h-4 w-4 ${event.isExpired ? "text-gray-400" : "text-purple-400"}`} />
-                        <span className={`font-medium ${event.isExpired ? "text-gray-400" : ""}`}>
+                        <Users className="h-4 w-4 text-purple-400" />
+                        <span className="font-medium">
                           {event.currentParticipants || 0}/{event.totalSpots}
                         </span>
                       </div>
-                      <div className={`text-lg font-bold ${event.isExpired ? "text-gray-400" : "text-green-400"}`}>
+                      <div className="text-lg font-bold text-green-400">
                         {event.price === 0 ? "Gratuito" : `€${event.price}`}
                       </div>
                     </div>
@@ -313,18 +303,16 @@ export default function UserEventsPage() {
                           Visualizza
                         </Link>
                       </Button>
-                      {!event.isExpired && (
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          asChild
-                          className="border-gray-600 hover:bg-gray-700 bg-transparent"
-                        >
-                          <Link href={`/evento/${event._id}/edit`}>
-                            <Edit className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        asChild
+                        className="border-gray-600 hover:bg-gray-700 bg-transparent"
+                      >
+                        <Link href={`/evento/${event._id}/edit`}>
+                          <Edit className="h-4 w-4" />
+                        </Link>
+                      </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
