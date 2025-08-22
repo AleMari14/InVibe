@@ -71,11 +71,14 @@ export default function MessaggiPage() {
       const response = await fetch("/api/messages/rooms")
       if (response.ok) {
         const data = await response.json()
-        setChatRooms(data)
+        // Ensure data is an array before setting it
+        const roomsArray = Array.isArray(data) ? data : []
+        setChatRooms(roomsArray)
       }
     } catch (error) {
       console.error("Error fetching chat rooms:", error)
       toast.error("Errore nel caricamento delle chat")
+      setChatRooms([]) // Set empty array on error
     } finally {
       setLoading(false)
     }
@@ -130,15 +133,18 @@ export default function MessaggiPage() {
     })
   }
 
-  const filteredRooms = chatRooms.filter((room) => {
-    const otherParticipant = getOtherParticipant(room)
-    const searchLower = searchQuery.toLowerCase()
+  // Ensure chatRooms is an array before filtering
+  const filteredRooms = Array.isArray(chatRooms)
+    ? chatRooms.filter((room) => {
+        const otherParticipant = getOtherParticipant(room)
+        const searchLower = searchQuery.toLowerCase()
 
-    return (
-      otherParticipant?.name.toLowerCase().includes(searchLower) ||
-      room.event?.title.toLowerCase().includes(searchLower)
-    )
-  })
+        return (
+          otherParticipant?.name.toLowerCase().includes(searchLower) ||
+          room.event?.title.toLowerCase().includes(searchLower)
+        )
+      })
+    : []
 
   if (!session) {
     return (
