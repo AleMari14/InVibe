@@ -12,6 +12,8 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
 
     const { roomId } = params
     console.log("🔍 GET - Searching for chat room with ID:", roomId)
+    console.log("🔍 GET - RoomId type:", typeof roomId)
+    console.log("🔍 GET - RoomId length:", roomId.length)
 
     const { db } = await connectToDatabase()
 
@@ -24,6 +26,15 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
       // Debug: list all chat rooms to see what's in the database
       const allRooms = await db.collection("chatRooms").find({}).toArray()
       console.log("🔍 GET - All chat rooms in DB:", allRooms.map(r => ({ _id: r._id, participants: r.participants?.map(p => p.email) })))
+      
+      // Try to find the room with a different approach
+      console.log("🔍 GET - Trying to find room with partial match...")
+      const partialMatch = allRooms.find(r => r._id.includes(roomId) || r._id.includes(session.user.email))
+      if (partialMatch) {
+        console.log("🔍 GET - Found partial match:", partialMatch._id)
+        console.log("🔍 GET - Expected vs Actual:", { expected: roomId, actual: partialMatch._id })
+      }
+      
       return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
     }
 
