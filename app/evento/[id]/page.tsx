@@ -132,8 +132,12 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
 
       const response = await fetch("/api/favorites")
       if (response.ok) {
-        const favorites = await response.json()
-        setIsFavorite(favorites.some((fav: any) => fav._id === params.id))
+        const data = await response.json()
+        // Ensure we have a valid response structure
+        const favorites = data?.favorites || data || []
+        // Ensure favorites is an array before calling .some()
+        const favoritesArray = Array.isArray(favorites) ? favorites : []
+        setIsFavorite(favoritesArray.some((fav: any) => fav._id === params.id))
       }
     } catch (error) {
       console.error("Error checking favorite status:", error)

@@ -18,9 +18,22 @@ export async function GET(request: NextRequest) {
     const client = await clientPromise
     const db = client.db("invibe")
 
-    // Build query - EXCLUDE EXPIRED EVENTS
+    // Get current user session to exclude their events from home page
+    const session = await getServerSession(authOptions)
+    let currentUserId = null
+    if (session?.user?.email) {
+      const user = await db.collection("users").findOne({ email: session.user.email })
+      currentUserId = user?._id
+    }
+
+    // Build query - EXCLUDE EXPIRED EVENTS AND USER'S OWN EVENTS
     const query: any = {
       dateStart: { $gte: new Date() }, // Only show events that haven't started yet
+    }
+
+    // Exclude current user's events from home page
+    if (currentUserId) {
+      query.hostId = { $ne: new ObjectId(currentUserId) }
     }
 
     if (category && category !== "all") {
