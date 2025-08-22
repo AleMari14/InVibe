@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
 
@@ -41,11 +41,16 @@ export async function POST(request: Request) {
     // Crea un ID univoco per la room basato sui partecipanti e l'evento
     const participantEmails = [session.user.email.toLowerCase(), hostEmail.toLowerCase()].sort()
     const roomId = `${eventId}_${participantEmails.join("_")}`
+    console.log("🏗️ Creating chat room with ID:", roomId)
+    console.log("🏗️ Event ID:", eventId)
+    console.log("🏗️ Participant emails:", participantEmails)
 
     // Verifica se esiste già una chat room
     const existingRoom = await db.collection("chatRooms").findOne({ _id: roomId })
+    console.log("🏗️ Existing room found:", existingRoom ? "YES" : "NO")
 
     if (existingRoom) {
+      console.log("🏗️ Returning existing room:", existingRoom._id)
       return NextResponse.json({
         roomId: existingRoom._id,
         isNewRoom: false,
@@ -76,7 +81,9 @@ export async function POST(request: Request) {
       lastMessageAt: null,
     }
 
-    await db.collection("chatRooms").insertOne(chatRoom)
+    console.log("🏗️ Inserting new chat room:", chatRoom)
+    const result = await db.collection("chatRooms").insertOne(chatRoom)
+    console.log("🏗️ Chat room inserted successfully:", result.insertedId)
 
     return NextResponse.json({
       roomId: chatRoom._id,

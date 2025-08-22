@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
 
@@ -11,11 +11,19 @@ export async function GET(request: Request, { params }: { params: { roomId: stri
     }
 
     const { roomId } = params
+    console.log("🔍 GET - Searching for chat room with ID:", roomId)
+
     const { db } = await connectToDatabase()
 
     // Verifica che l'utente sia partecipante della chat room
     const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
+    console.log("🔍 GET - Chat room found:", chatRoom ? "YES" : "NO")
+    
     if (!chatRoom) {
+      console.log("❌ GET - Chat room not found for ID:", roomId)
+      // Debug: list all chat rooms to see what's in the database
+      const allRooms = await db.collection("chatRooms").find({}).toArray()
+      console.log("🔍 GET - All chat rooms in DB:", allRooms.map(r => ({ _id: r._id, participants: r.participants?.map(p => p.email) })))
       return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
     }
 

@@ -1,4 +1,4 @@
-"use client"
+/*"use client"
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
@@ -158,7 +158,6 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
           </div>
         ) : (
           <>
-            {/* Rating Summary */}
             {reviews.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="text-center">
@@ -194,7 +193,6 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
               </div>
             )}
 
-            {/* Review Form */}
             {session && canReview && !hasReviewed && (
               <div className="border rounded-lg p-4 bg-muted/20">
                 {!showReviewForm ? (
@@ -287,7 +285,6 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
               </div>
             )}
 
-            {/* Reviews List */}
             {reviews.length > 0 ? (
               <div className="space-y-4">
                 <Separator />
@@ -337,4 +334,4 @@ export function ReviewSection({ eventId }: ReviewSectionProps) {
       </CardContent>
     </Card>
   )
-}
+}*/

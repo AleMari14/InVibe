@@ -25,7 +25,7 @@ import { Badge } from "@/components/ui/badge"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
 import { BookingModal } from "@/components/booking-modal"
 import { MessageHostButton } from "@/components/event/message-host-button"
-import { ReviewSection } from "@/components/event/review-section"
+//import { ReviewSection } from "@/components/event/review-section"
 import Link from "next/link"
 import Image from "next/image"
 import { toast } from "sonner"
@@ -530,7 +530,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
         )}
 
         {/* Reviews Section */}
-        <ReviewSection eventId={event._id} />
+        {/*<ReviewSection eventId={event._id} />*/}
 
         {/* Booking Section */}
         {!isOwner && event.availableSpots > 0 && (
