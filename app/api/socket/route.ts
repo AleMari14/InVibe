@@ -1,89 +1,141 @@
-import { Server } from "socket.io"
-import type { NextApiRequest, NextApiResponse } from "next"
-import type { Server as HTTPServer } from "http"
-import type { Socket as NetSocket } from "net"
+import { type NextRequest, NextResponse } from "next/server"
+import { Server as SocketIOServer } from "socket.io"
+import { createServer } from "http"
 import { connectToDatabase } from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
 
-interface SocketServer extends HTTPServer {
-  io?: Server
-}
+// Global variable to store the Socket.IO server
+let io: SocketIOServer | null = null
 
-interface SocketWithIO extends NetSocket {
-  server: SocketServer
-}
+export async function GET(req: NextRequest) {
+  if (!io) {
+    console.log("🚀 Initializing Socket.IO server...")
 
-interface NextApiResponseWithSocket extends NextApiResponse {
-  socket: SocketWithIO
-}
+    // Create HTTP server for Socket.IO
+    const httpServer = createServer()
 
-const SocketHandler = (req: NextApiRequest, res: NextApiResponseWithSocket) => {
-  if (res.socket.server.io) {
-    console.log("Socket is already running")
-  } else {
-    console.log("Socket is initializing")
-    const io = new Server(res.socket.server, {
-      path: "/socket.io",
+    io = new SocketIOServer(httpServer, {
+      path: "/api/socket",
       addTrailingSlash: false,
+      cors: {
+        origin: process.env.NEXTAUTH_URL || "*",
+        methods: ["GET", "POST"],
+        credentials: true,
+      },
+      transports: ["polling", "websocket"],
+      allowEIO3: true,
     })
-    res.socket.server.io = io
 
     io.on("connection", async (socket) => {
-      console.log("A user connected:", socket.id)
-      const userId = socket.handshake.query.userId as string
+      console.log("👤 User connected:", socket.id)
 
-      if (userId && ObjectId.isValid(userId)) {
-        socket.join(userId)
-        console.log(`User ${userId} joined their room`)
-      }
+      // Handle user authentication
+      socket.on("authenticate", (userData: { userId: string; email: string }) => {
+        console.log("🔐 User authenticated:", userData.email)
+        socket.join(userData.userId)
+      })
 
+      // Handle joining chat rooms
+      socket.on("joinRoom", (roomId: string) => {
+        socket.join(roomId)
+        console.log(`📱 User ${socket.id} joined room: ${roomId}`)
+      })
+
+      // Handle leaving chat rooms
+      socket.on("leaveRoom", (roomId: string) => {
+        socket.leave(roomId)
+        console.log(`📱 User ${socket.id} left room: ${roomId}`)
+      })
+
+      // Handle sending messages
       socket.on("sendMessage", async (data) => {
-        const { roomId, senderId, receiverId, content } = data
-        console.log("Message received on server:", data)
+        const { roomId, senderId, senderName, senderImage, content } = data
+        console.log("💬 Message received:", { roomId, senderId, content })
 
         try {
           const { db } = await connectToDatabase()
+
+          // Save message to database
           const message = {
             roomId: new ObjectId(roomId),
             senderId: new ObjectId(senderId),
+            senderName,
+            senderImage,
             content,
             createdAt: new Date(),
             read: false,
           }
-          await db.collection("messages").insertOne(message)
 
-          // Emit to receiver
-          io.to(receiverId).emit("receiveMessage", message)
+          const result = await db.collection("messages").insertOne(message)
 
-          // Create notification for receiver
-          const room = await db.collection("chatRooms").findOne({ _id: new ObjectId(roomId) })
-          if (room) {
-            const sender = room.participants.find((p: any) => p.id.toString() === senderId)
-            if (sender) {
-              const notification = {
-                userId: new ObjectId(receiverId),
-                type: "new_message",
-                content: `Nuovo messaggio da ${sender.name}`,
-                link: `/messaggi/${roomId}`,
-                read: false,
-                createdAt: new Date(),
-              }
-              await db.collection("notifications").insertOne(notification)
-              io.to(receiverId).emit("newNotification", notification)
-            }
+          // Create response message
+          const responseMessage = {
+            _id: result.insertedId.toString(),
+            roomId,
+            senderId,
+            senderName,
+            senderImage,
+            content,
+            createdAt: message.createdAt.toISOString(),
+            read: false,
           }
+
+          // Emit to all users in the room
+          io?.to(roomId).emit("receiveMessage", responseMessage)
+
+          console.log("✅ Message saved and broadcasted")
         } catch (error) {
-          console.error("Error handling message:", error)
+          console.error("❌ Error handling message:", error)
+          socket.emit("messageError", { error: "Failed to send message" })
         }
       })
 
+      // Handle marking messages as read
+      socket.on("markAsRead", async (data: { roomId: string; userId: string }) => {
+        try {
+          const { db } = await connectToDatabase()
+          await db.collection("messages").updateMany(
+            {
+              roomId: new ObjectId(data.roomId),
+              senderId: { $ne: new ObjectId(data.userId) },
+            },
+            {
+              $set: { read: true },
+            },
+          )
+          console.log("✅ Messages marked as read")
+        } catch (error) {
+          console.error("❌ Error marking messages as read:", error)
+        }
+      })
+
+      // Handle typing indicators
+      socket.on("typing", (data: { roomId: string; userName: string }) => {
+        socket.to(data.roomId).emit("userTyping", {
+          userName: data.userName,
+          isTyping: true,
+        })
+      })
+
+      socket.on("stopTyping", (data: { roomId: string; userName: string }) => {
+        socket.to(data.roomId).emit("userTyping", {
+          userName: data.userName,
+          isTyping: false,
+        })
+      })
+
+      // Handle disconnection
       socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id)
+        console.log("👋 User disconnected:", socket.id)
       })
     })
+
+    console.log("✅ Socket.IO server initialized")
   }
-  res.end()
+
+  return NextResponse.json({ message: "Socket.IO server running" })
 }
 
-export const GET = SocketHandler
-export const POST = SocketHandler
+export async function POST(req: NextRequest) {
+  return GET(req)
+}

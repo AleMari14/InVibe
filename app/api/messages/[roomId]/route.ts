@@ -1,115 +1,104 @@
-import { NextResponse } from "next/server"
+import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import clientPromise from "@/lib/mongodb"
+import { connectToDatabase } from "@/lib/mongodb"
+import { ObjectId } from "mongodb"
 
-export async function GET(request: Request, { params }: { params: { roomId: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { roomId } = params
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
+    const roomId = params.roomId
 
-    // Verifica che l'utente sia autorizzato ad accedere a questa chat
-    const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
-    if (!chatRoom) {
-      return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
+    if (!ObjectId.isValid(roomId)) {
+      return NextResponse.json({ error: "Invalid room ID" }, { status: 400 })
     }
 
-    const isParticipant = chatRoom.participants.some((p: any) => p.email === session.user.email)
-    if (!isParticipant) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
-    }
+    // Get messages for the room
+    const messages = await db
+      .collection("messages")
+      .find({ roomId: new ObjectId(roomId) })
+      .sort({ createdAt: 1 })
+      .toArray()
 
-    // Recupera i messaggi
-    const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
+    // Transform messages for client
+    const transformedMessages = messages.map((msg) => ({
+      _id: msg._id.toString(),
+      roomId: msg.roomId.toString(),
+      senderId: msg.senderId.toString(),
+      senderName: msg.senderName,
+      senderImage: msg.senderImage,
+      content: msg.content,
+      createdAt: msg.createdAt.toISOString(),
+      read: msg.read || false,
+    }))
 
-    // Segna i messaggi come letti dall'utente corrente
-    await db.collection("messages").updateMany(
-      {
-        roomId,
-        senderId: { $ne: session.user.email },
-        readBy: { $ne: session.user.email },
-      },
-      { $addToSet: { readBy: session.user.email } },
-    )
-
-    return NextResponse.json({ messages })
+    return NextResponse.json(transformedMessages)
   } catch (error) {
     console.error("Error fetching messages:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
-export async function POST(request: Request, { params }: { params: { roomId: string } }) {
+export async function POST(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { content } = await request.json()
-    if (!content?.trim()) {
-      return NextResponse.json({ error: "Contenuto messaggio richiesto" }, { status: 400 })
+    const { content, receiverId } = await request.json()
+    const { db } = await connectToDatabase()
+    const roomId = params.roomId
+
+    if (!ObjectId.isValid(roomId)) {
+      return NextResponse.json({ error: "Invalid room ID" }, { status: 400 })
     }
 
-    const { roomId } = params
-    const client = await clientPromise
-    const db = client.db("invibe")
-
-    // Verifica che la chat room esista
-    const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
-    if (!chatRoom) {
-      return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
-    }
-
-    const isParticipant = chatRoom.participants.some((p: any) => p.email === session.user.email)
-    if (!isParticipant) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
-    }
-
-    // Crea il messaggio
+    // Create message
     const message = {
-      roomId,
-      senderId: session.user.email,
-      senderName: session.user.name || "Utente",
+      roomId: new ObjectId(roomId),
+      senderId: new ObjectId(session.user.id),
+      senderName: session.user.name || "Unknown",
       senderImage: session.user.image,
-      content: content.trim(),
+      content,
       createdAt: new Date(),
-      readBy: [session.user.email],
+      read: false,
     }
 
     const result = await db.collection("messages").insertOne(message)
-    const savedMessage = { ...message, _id: result.insertedId }
 
-    // Aggiorna l'ultimo messaggio nella chat room
-    await db.collection("chatRooms").updateOne({ _id: roomId }, { $set: { lastMessageAt: new Date() } })
+    // Update chat room's last message
+    await db.collection("chatRooms").updateOne(
+      { _id: new ObjectId(roomId) },
+      {
+        $set: {
+          lastMessage: content,
+          lastMessageAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
+    )
 
-    // Crea notifica per l'altro utente
-    const recipient = chatRoom.participants.find((p: any) => p.email !== session.user.email)
-    if (recipient) {
-      const notification = {
-        userId: recipient.email,
-        type: "message",
-        title: "Nuovo messaggio",
-        message: `${session.user.name}: ${content.substring(0, 50)}${content.length > 50 ? "..." : ""}`,
-        eventId: chatRoom.eventId,
-        fromUserId: session.user.email,
-        fromUserName: session.user.name,
-        read: false,
-        createdAt: new Date(),
-      }
-
-      await db.collection("notifications").insertOne(notification)
+    // Return the created message
+    const responseMessage = {
+      _id: result.insertedId.toString(),
+      roomId,
+      senderId: session.user.id,
+      senderName: session.user.name || "Unknown",
+      senderImage: session.user.image,
+      content,
+      createdAt: message.createdAt.toISOString(),
+      read: false,
     }
 
-    return NextResponse.json(savedMessage)
+    return NextResponse.json(responseMessage)
   } catch (error) {
-    console.error("Error sending message:", error)
-    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
+    console.error("Error creating message:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
