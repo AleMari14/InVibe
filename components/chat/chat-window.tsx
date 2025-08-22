@@ -2,15 +2,13 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
-import { Send, ArrowLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardHeader } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import { OptimizedAvatar } from "@/components/ui/optimized-avatar"
-import { Badge } from "@/components/ui/badge"
-import { motion, AnimatePresence } from "framer-motion"
+import { ArrowLeft, Send, Loader2, Wifi, WifiOff } from "lucide-react"
 import { toast } from "sonner"
-import { useRouter } from "next/navigation"
 import { io, type Socket } from "socket.io-client"
 
 interface Message {
@@ -19,378 +17,328 @@ interface Message {
   senderId: string
   senderName: string
   senderImage?: string
-  createdAt: string
-}
-
-interface ChatUser {
-  _id: string
-  name: string
-  image?: string
+  timestamp: string
+  roomId: string
 }
 
 interface ChatWindowProps {
   roomId: string
-  otherUser: ChatUser
-  eventTitle?: string
+  recipientName: string
+  recipientImage?: string
+  onBack: () => void
 }
 
-export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
+export function ChatWindow({ roomId, recipientName, recipientImage, onBack }: ChatWindowProps) {
   const { data: session } = useSession()
-  const router = useRouter()
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [socket, setSocket] = useState<Socket | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
+  const [connected, setConnected] = useState(false)
+  const [connectionType, setConnectionType] = useState<"websocket" | "polling">("websocket")
+  const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const messagesContainerRef = useRef<HTMLDivElement>(null)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const reconnectAttemptsRef = useRef(0)
+  const maxReconnectAttempts = 5
 
   useEffect(() => {
-    fetchMessages()
-    initializeSocket()
-    markMessagesAsRead()
+    if (session?.user && roomId) {
+      initializeConnection()
+      fetchMessages()
+    }
 
     return () => {
-      if (socket) {
-        socket.disconnect()
-      }
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-      }
+      cleanup()
     }
-  }, [roomId])
+  }, [session, roomId])
 
   useEffect(() => {
     scrollToBottom()
   }, [messages])
 
-  const initializeSocket = () => {
+  const initializeConnection = () => {
     try {
-      // Use the configured WebSocket URL on port 3001
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
-      console.log("Connecting to WebSocket:", wsUrl)
+      // Try WebSocket connection first
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:3001"
+      console.log("🔌 Attempting WebSocket connection to:", wsUrl)
 
-      const newSocket = io(wsUrl, {
+      const socket = io(wsUrl, {
         transports: ["websocket", "polling"],
-        timeout: 10000,
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
+        timeout: 5000,
         forceNew: true,
       })
 
-      newSocket.on("connect", () => {
-        console.log("✅ Connected to WebSocket:", newSocket.id)
-        setIsConnected(true)
+      socketRef.current = socket
 
-        // Stop polling when WebSocket connects
+      socket.on("connect", () => {
+        console.log("✅ WebSocket connected")
+        setConnected(true)
+        setConnectionType("websocket")
+        reconnectAttemptsRef.current = 0
+
+        // Stop polling if it was active
         if (pollingIntervalRef.current) {
           clearInterval(pollingIntervalRef.current)
           pollingIntervalRef.current = null
         }
 
-        // Join the room
-        newSocket.emit("joinRoom", roomId)
-
-        // Authenticate user
-        if (session?.user) {
-          newSocket.emit("authenticate", {
-            userId: session.user.id,
-            email: session.user.email,
-          })
-        }
+        // Join room
+        socket.emit("joinRoom", roomId)
       })
 
-      newSocket.on("disconnect", (reason) => {
-        console.log("❌ Disconnected from WebSocket:", reason)
-        setIsConnected(false)
-
-        // Start polling as fallback
-        startPollingFallback()
+      socket.on("disconnect", () => {
+        console.log("❌ WebSocket disconnected")
+        setConnected(false)
+        attemptReconnect()
       })
 
-      newSocket.on("connect_error", (error) => {
-        console.error("❌ WebSocket connection error:", error)
-        setIsConnected(false)
-
-        // Start polling as fallback
-        startPollingFallback()
+      socket.on("connect_error", (error) => {
+        console.error("🚫 WebSocket connection error:", error)
+        setConnected(false)
+        attemptReconnect()
       })
 
-      newSocket.on("receiveMessage", (message: Message) => {
-        console.log("📨 Received message:", message)
+      socket.on("receiveMessage", (message: Message) => {
+        console.log("📨 Received message via WebSocket:", message)
         setMessages((prev) => {
-          // Avoid duplicates
-          const exists = prev.some((m) => m._id === message._id)
-          if (exists) return prev
+          // Prevent duplicates
+          if (prev.some((m) => m._id === message._id)) {
+            return prev
+          }
           return [...prev, message]
         })
-        scrollToBottom()
       })
 
-      newSocket.on("newMessage", (message: Message) => {
-        console.log("📨 New message:", message)
+      socket.on("newMessage", (message: Message) => {
+        console.log("📨 Received new message via WebSocket:", message)
         setMessages((prev) => {
-          // Avoid duplicates
-          const exists = prev.some((m) => m._id === message._id)
-          if (exists) return prev
+          // Prevent duplicates
+          if (prev.some((m) => m._id === message._id)) {
+            return prev
+          }
           return [...prev, message]
         })
-        scrollToBottom()
       })
-
-      setSocket(newSocket)
     } catch (error) {
-      console.error("❌ Error initializing socket:", error)
-      setIsConnected(false)
-      startPollingFallback()
+      console.error("🚫 Failed to initialize WebSocket:", error)
+      startPolling()
     }
   }
 
-  const startPollingFallback = () => {
-    if (pollingIntervalRef.current) return // Already polling
+  const attemptReconnect = () => {
+    if (reconnectAttemptsRef.current < maxReconnectAttempts) {
+      reconnectAttemptsRef.current++
+      const delay = Math.pow(2, reconnectAttemptsRef.current) * 1000 // Exponential backoff
 
-    console.log("🔄 Starting polling fallback")
-    pollingIntervalRef.current = setInterval(() => {
-      if (!isConnected) {
-        fetchMessages()
-      }
-    }, 3000)
+      console.log(`🔄 Attempting reconnect ${reconnectAttemptsRef.current}/${maxReconnectAttempts} in ${delay}ms`)
+
+      setTimeout(() => {
+        if (socketRef.current) {
+          socketRef.current.connect()
+        }
+      }, delay)
+    } else {
+      console.log("🔄 Max reconnect attempts reached, falling back to polling")
+      startPolling()
+    }
   }
 
-  const fetchMessages = async () => {
-    try {
-      if (!loading) {
-        // Silent fetch for updates
-      } else {
-        setLoading(true)
-      }
+  const startPolling = () => {
+    console.log("🔄 Starting polling fallback")
+    setConnectionType("polling")
+    setConnected(true) // Consider polling as "connected"
 
-      const response = await fetch(`/api/messages/${roomId}`)
+    // Clear any existing polling
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+    }
+
+    // Poll every 2 seconds
+    pollingIntervalRef.current = setInterval(() => {
+      fetchMessages(true)
+    }, 2000)
+  }
+
+  const cleanup = () => {
+    if (socketRef.current) {
+      socketRef.current.disconnect()
+      socketRef.current = null
+    }
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+  }
+
+  const fetchMessages = async (isPolling = false) => {
+    try {
+      if (!isPolling) setLoading(true)
+
+      const response = await fetch(`/api/messages/room/${roomId}`)
       if (response.ok) {
         const data = await response.json()
-        const messagesArray = Array.isArray(data) ? data : []
-        setMessages(messagesArray)
-      } else {
-        console.error("Failed to fetch messages:", response.status)
-        if (loading) {
-          toast.error("Errore nel caricamento dei messaggi")
+        // Ensure we have a valid array
+        const messagesArray = Array.isArray(data?.messages) ? data.messages : Array.isArray(data) ? data : []
+
+        if (!isPolling) {
+          setMessages(messagesArray)
+        } else {
+          // For polling, only add new messages
+          setMessages((prev) => {
+            const newMessages = messagesArray.filter((msg: Message) => !prev.some((p) => p._id === msg._id))
+            return newMessages.length > 0 ? [...prev, ...newMessages] : prev
+          })
         }
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
-      if (loading) {
+      if (!isPolling) {
         toast.error("Errore nel caricamento dei messaggi")
       }
     } finally {
-      if (loading) {
-        setLoading(false)
-      }
-    }
-  }
-
-  const markMessagesAsRead = async () => {
-    try {
-      await fetch(`/api/messages/read-all`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ roomId }),
-      })
-    } catch (error) {
-      console.error("Error marking messages as read:", error)
+      if (!isPolling) setLoading(false)
     }
   }
 
   const sendMessage = async () => {
     if (!newMessage.trim() || sending) return
 
-    const messageContent = newMessage.trim()
-    setNewMessage("")
     setSending(true)
-
     try {
-      const response = await fetch(`/api/messages/${roomId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          content: messageContent,
-          receiverId: otherUser._id,
-        }),
-      })
+      const messageData = {
+        roomId,
+        content: newMessage.trim(),
+        recipientName,
+      }
 
-      if (response.ok) {
-        const message = await response.json()
-
-        if (socket && isConnected) {
-          // Send via WebSocket
-          socket.emit("sendMessage", {
-            roomId,
-            senderId: session?.user?.id,
-            senderName: session?.user?.name,
-            senderImage: session?.user?.image,
-            content: messageContent,
-          })
-        } else {
-          // Fallback: add message locally
-          setMessages((prev) => [...prev, message])
-          scrollToBottom()
-        }
+      // Try WebSocket first
+      if (socketRef.current?.connected) {
+        socketRef.current.emit("sendMessage", messageData)
+        setNewMessage("")
       } else {
-        toast.error("Errore nell'invio del messaggio")
-        setNewMessage(messageContent)
+        // Fallback to HTTP
+        const response = await fetch(`/api/messages/room/${roomId}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(messageData),
+        })
+
+        if (response.ok) {
+          setNewMessage("")
+          // Immediately fetch new messages for HTTP fallback
+          setTimeout(() => fetchMessages(true), 100)
+        } else {
+          throw new Error("Failed to send message")
+        }
       }
     } catch (error) {
       console.error("Error sending message:", error)
       toast.error("Errore nell'invio del messaggio")
-      setNewMessage(messageContent)
     } finally {
       setSending(false)
     }
   }
 
   const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-    }, 100)
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString("it-IT", {
+  const formatTime = (timestamp: string) => {
+    return new Date(timestamp).toLocaleTimeString("it-IT", {
       hour: "2-digit",
       minute: "2-digit",
     })
   }
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-
-    if (date.toDateString() === today.toDateString()) {
-      return "Oggi"
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return "Ieri"
-    } else {
-      return date.toLocaleDateString("it-IT", {
-        day: "numeric",
-        month: "short",
-      })
-    }
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
   }
 
   return (
-    <div className="flex flex-col h-screen bg-background">
-      {/* Header */}
-      <Card className="rounded-none border-x-0 border-t-0">
-        <CardHeader className="p-4">
+    <Card className="h-[600px] flex flex-col">
+      <CardHeader className="flex-shrink-0 pb-3">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/messaggi")}>
+            <Button variant="ghost" size="icon" onClick={onBack}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <OptimizedAvatar src={otherUser.image} alt={otherUser.name} size={40} />
-            <div className="flex-1">
-              <h2 className="font-semibold">{otherUser.name}</h2>
-              {eventTitle && <p className="text-sm text-muted-foreground truncate">{eventTitle}</p>}
-            </div>
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-orange-500"}`} />
-              <span className="text-xs text-muted-foreground">{isConnected ? "WebSocket" : "Fallback"}</span>
-            </div>
+            <OptimizedAvatar src={recipientImage} alt={recipientName} size={32} />
+            <CardTitle className="text-lg">{recipientName}</CardTitle>
           </div>
-        </CardHeader>
-      </Card>
-
-      {/* Messages */}
-      <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4"
-        style={{ paddingBottom: "120px" }}
-      >
-        {loading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin" />
+          <div className="flex items-center gap-2">
+            {connected ? (
+              <div className="flex items-center gap-1 text-green-600">
+                <Wifi className="h-4 w-4" />
+                <span className="text-xs">{connectionType === "websocket" ? "WebSocket" : "Fallback"}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1 text-red-600">
+                <WifiOff className="h-4 w-4" />
+                <span className="text-xs">Disconnesso</span>
+              </div>
+            )}
           </div>
-        ) : Array.isArray(messages) && messages.length > 0 ? (
-          <AnimatePresence>
-            {messages.map((message, index) => {
-              const isOwn = message.senderId === session?.user?.id
-              const showDate =
-                index === 0 || formatDate(messages[index - 1].createdAt) !== formatDate(message.createdAt)
+        </div>
+      </CardHeader>
 
-              return (
-                <div key={message._id}>
-                  {showDate && (
-                    <div className="flex justify-center my-4">
-                      <Badge variant="secondary" className="text-xs">
-                        {formatDate(message.createdAt)}
-                      </Badge>
-                    </div>
-                  )}
-                  <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className={`flex ${isOwn ? "justify-end" : "justify-start"}`}
-                  >
-                    <div className={`flex items-end gap-2 max-w-[80%] ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
+      <CardContent className="flex-1 flex flex-col p-0">
+        <ScrollArea className="flex-1 px-4">
+          <div className="space-y-4 py-4">
+            {messages.length === 0 ? (
+              <div className="text-center text-muted-foreground py-8">
+                <p>Nessun messaggio ancora.</p>
+                <p className="text-sm">Inizia la conversazione!</p>
+              </div>
+            ) : (
+              messages.map((message) => {
+                const isOwn = message.senderId === session?.user?.id
+                return (
+                  <div key={message._id} className={`flex ${isOwn ? "justify-end" : "justify-start"}`}>
+                    <div className={`flex gap-2 max-w-[70%] ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
                       {!isOwn && <OptimizedAvatar src={message.senderImage} alt={message.senderName} size={32} />}
                       <div
-                        className={`px-4 py-2 rounded-2xl shadow-sm ${
-                          isOwn ? "bg-primary text-primary-foreground rounded-br-md" : "bg-muted rounded-bl-md"
+                        className={`rounded-lg px-3 py-2 ${
+                          isOwn ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                         }`}
                       >
                         <p className="text-sm">{message.content}</p>
-                        <p className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/70" : "text-muted-foreground"}`}>
-                          {formatTime(message.createdAt)}
+                        <p
+                          className={`text-xs mt-1 ${isOwn ? "text-primary-foreground/70" : "text-muted-foreground/70"}`}
+                        >
+                          {formatTime(message.timestamp)}
                         </p>
                       </div>
                     </div>
-                  </motion.div>
-                </div>
-              )
-            })}
-          </AnimatePresence>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="bg-muted rounded-full p-4 mb-4">
-              <Send className="h-8 w-8 text-muted-foreground" />
-            </div>
-            <h3 className="font-semibold mb-2">Inizia la conversazione</h3>
-            <p className="text-sm text-muted-foreground">Invia il primo messaggio a {otherUser.name}</p>
+                  </div>
+                )
+              })
+            )}
+            <div ref={messagesEndRef} />
           </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
+        </ScrollArea>
 
-      {/* Input */}
-      <div className="fixed bottom-16 left-0 right-0 p-4 bg-background/95 backdrop-blur-sm border-t">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center gap-2">
+        <div className="border-t p-4">
+          <div className="flex gap-2">
             <Input
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder={`Scrivi a ${otherUser.name}...`}
-              onKeyPress={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault()
-                  sendMessage()
-                }
-              }}
+              placeholder="Scrivi un messaggio..."
+              onKeyPress={(e) => e.key === "Enter" && sendMessage()}
               disabled={sending}
-              className="flex-1"
             />
-            <Button onClick={sendMessage} disabled={!newMessage.trim() || sending} size="icon" className="shrink-0">
+            <Button onClick={sendMessage} disabled={sending || !newMessage.trim()}>
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </Button>
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
