@@ -1,167 +1,156 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { connectToDatabase } from "@/lib/mongodb"
-import { getServerSession } from "next-auth/next"
+import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
+import clientPromise from "@/lib/mongodb"
 import { ObjectId } from "mongodb"
-import { z } from "zod"
-
-export const dynamic = "force-dynamic";
-
-const eventSchema = z.object({
-  title: z.string().min(5),
-  description: z.string().min(20),
-  category: z.string().min(1),
-  location: z.string().min(5),
-  locationCoords: z.object({ lat: z.number(), lng: z.number() }),
-  dateStart: z.string(),
-  timeStart: z.string(),
-  price: z.number(),
-  totalSpots: z.number(),
-  images: z.array(z.string()).optional(),
-});
 
 export async function GET(request: NextRequest) {
   try {
-    const { db } = await connectToDatabase()
     const { searchParams } = new URL(request.url)
-    const session = await getServerSession(authOptions)
-    const userSession = session as any
-
     const category = searchParams.get("category")
-    // RIMUOVO il filtro di ricerca testuale
-    // const searchQuery = searchParams.get("search")
-    const lat = searchParams.get("lat")
-    const lng = searchParams.get("lng")
-    const radius = searchParams.get("radius") // in km
-    // Nuovi filtri
+    const location = searchParams.get("location")
     const priceMin = searchParams.get("priceMin")
     const priceMax = searchParams.get("priceMax")
-    const guestsMin = searchParams.get("guestsMin")
-    const guestsMax = searchParams.get("guestsMax")
-    const amenities = searchParams.get("amenities") // comma separated
-    const dateFrom = searchParams.get("dateFrom")
-    const dateTo = searchParams.get("dateTo")
+    const search = searchParams.get("search")
+    const limit = Number.parseInt(searchParams.get("limit") || "20")
+    const skip = Number.parseInt(searchParams.get("skip") || "0")
 
-    const query: any = {}
+    const client = await clientPromise
+    const db = client.db("invibe")
 
-    if (userSession?.user?.id) {
-      try {
-        query.hostId = { $ne: new ObjectId(userSession.user.id) }
-      } catch (error) {
-        console.warn("Invalid user ID format for filtering:", userSession.user.id)
-      }
+    // Build query - EXCLUDE EXPIRED EVENTS
+    const query: any = {
+      dateStart: { $gte: new Date() }, // Only show events that haven't started yet
     }
 
     if (category && category !== "all") {
       query.category = category
     }
 
-    // RIMUOVO il filtro di ricerca testuale
-    // if (searchQuery) {
-    //   query.$or = [
-    //     { title: { $regex: searchQuery, $options: "i" } },
-    //     { description: { $regex: searchQuery, $options: "i" } },
-    //     { location: { $regex: searchQuery, $options: "i" } },
-    //   ]
-    // }
+    if (location) {
+      query.location = { $regex: location, $options: "i" }
+    }
 
-    // Nuovi filtri avanzati
     if (priceMin || priceMax) {
       query.price = {}
-      if (priceMin) query.price.$gte = Number(priceMin)
-      if (priceMax) query.price.$lte = Number(priceMax)
-    }
-    if (guestsMin || guestsMax) {
-      query.totalSpots = {}
-      if (guestsMin) query.totalSpots.$gte = Number(guestsMin)
-      if (guestsMax) query.totalSpots.$lte = Number(guestsMax)
-    }
-    if (amenities) {
-      const amenitiesArr = amenities.split(",").map((a) => a.trim()).filter(Boolean)
-      if (amenitiesArr.length > 0) {
-        query.amenities = { $all: amenitiesArr }
-      }
-    }
-    if (dateFrom || dateTo) {
-      query.dateStart = {}
-      if (dateFrom) query.dateStart.$gte = new Date(dateFrom)
-      if (dateTo) query.dateStart.$lte = new Date(dateTo)
+      if (priceMin) query.price.$gte = Number.parseFloat(priceMin)
+      if (priceMax) query.price.$lte = Number.parseFloat(priceMax)
     }
 
-    let sort: any = { createdAt: -1 }
-
-    if (lat && lng && radius) {
-      const latitude = Number.parseFloat(lat)
-      const longitude = Number.parseFloat(lng)
-      const radiusInMeters = Number.parseInt(radius, 10) * 1000
-
-      if (!Number.isNaN(latitude) && !Number.isNaN(longitude) && radiusInMeters > 0) {
-        query.locationCoords = {
-          $nearSphere: {
-            $geometry: {
-              type: "Point",
-              coordinates: [longitude, latitude],
-            },
-            $maxDistance: radiusInMeters,
-          },
-        }
-        sort = {}
-      }
+    if (search) {
+      query.$or = [
+        { title: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+        { location: { $regex: search, $options: "i" } },
+      ]
     }
 
-    const events = await db.collection("events").find(query).sort(sort).limit(50).toArray()
+    console.log("🔍 Events query:", JSON.stringify(query, null, 2))
 
-    return NextResponse.json({ events })
-  } catch (error: any) {
+    const events = await db.collection("events").find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).toArray()
+
+    const totalCount = await db.collection("events").countDocuments(query)
+
+    // Transform events for response
+    const transformedEvents = events.map((event) => ({
+      ...event,
+      _id: event._id.toString(),
+      hostId: event.hostId?.toString(),
+      participants: event.participants?.map((p: ObjectId) => p.toString()) || [],
+      dateStart: event.dateStart?.toISOString(),
+      dateEnd: event.dateEnd?.toISOString(),
+      createdAt: event.createdAt?.toISOString(),
+      updatedAt: event.updatedAt?.toISOString(),
+    }))
+
+    return NextResponse.json({
+      events: transformedEvents,
+      totalCount,
+      hasMore: skip + events.length < totalCount,
+    })
+  } catch (error) {
     console.error("Error fetching events:", error)
-    return NextResponse.json({ error: "Errore nel caricamento degli eventi" }, { status: 500 })
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const { db } = await connectToDatabase();
-    const session = await getServerSession(authOptions);
-    const userSession = session as any
-    if (!userSession?.user?.id) {
-      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 });
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
-    const body = await request.json();
-    const parsed = eventSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json({ error: "Dati non validi", details: parsed.error.flatten() }, { status: 400 });
+
+    const body = await request.json()
+    const {
+      title,
+      description,
+      category,
+      location,
+      coordinates,
+      price,
+      dateStart,
+      dateEnd,
+      totalSpots,
+      amenities,
+      images,
+      bookingLink,
+    } = body
+
+    // Validation
+    if (!title || !description || !category || !location || !dateStart || !totalSpots) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
-    const data = parsed.data;
-    // Conversione in GeoJSON Point
-    const locationCoords = {
-      type: "Point",
-      coordinates: [data.locationCoords.lng, data.locationCoords.lat],
-    };
-    const event = {
-      title: data.title,
-      description: data.description,
-      category: data.category,
-      location: data.location,
-      locationCoords,
-      dateStart: new Date(data.dateStart),
-      timeStart: data.timeStart,
-      price: data.price,
-      totalSpots: data.totalSpots,
-      availableSpots: data.totalSpots,
-      images: data.images || [],
-      hostId: new ObjectId(userSession.user.id),
+
+    // Check if event date is in the future
+    const eventDate = new Date(dateStart)
+    const now = new Date()
+    if (eventDate <= now) {
+      return NextResponse.json({ error: "Event date must be in the future" }, { status: 400 })
+    }
+
+    const client = await clientPromise
+    const db = client.db("invibe")
+
+    // Get user info
+    const user = await db.collection("users").findOne({ email: session.user.email })
+    if (!user) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 })
+    }
+
+    const newEvent = {
+      title,
+      description,
+      category,
+      location,
+      coordinates: coordinates || null,
+      price: Number.parseFloat(price) || 0,
+      dateStart: new Date(dateStart),
+      dateEnd: dateEnd ? new Date(dateEnd) : null,
+      totalSpots: Number.parseInt(totalSpots),
+      availableSpots: Number.parseInt(totalSpots),
+      amenities: amenities || [],
+      images: images || [],
+      bookingLink: bookingLink || "",
       verified: false,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      hostId: new ObjectId(user._id),
+      participants: [],
       views: 0,
       rating: 0,
       reviewCount: 0,
-      participants: [],
-    };
-    const result = await db.collection("events").insertOne(event);
-    return NextResponse.json({ eventId: result.insertedId });
-  } catch (error: any) {
-    console.error("Error creating event:", error);
-    return NextResponse.json({ error: "Errore nella creazione dell'evento" }, { status: 500 });
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }
+
+    const result = await db.collection("events").insertOne(newEvent)
+
+    return NextResponse.json({
+      success: true,
+      eventId: result.insertedId.toString(),
+      message: "Event created successfully",
+    })
+  } catch (error) {
+    console.error("Error creating event:", error)
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

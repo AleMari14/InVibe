@@ -9,7 +9,6 @@ import {
   Settings,
   Heart,
   Calendar,
-  MessageCircle,
   Bell,
   LogOut,
   Edit3,
@@ -544,7 +543,7 @@ export default function ProfilePage() {
     {
       label: "Recensioni",
       value: userStats?.totalReviews?.toString() || "0",
-      icon: MessageCircle,
+      icon: Star,
       color: "from-purple-500 to-pink-500",
     },
   ]
@@ -553,7 +552,8 @@ export default function ProfilePage() {
     { label: "I miei eventi", href: "/user/events", icon: Calendar, color: "text-blue-500" },
     { label: "Prenotazioni", href: "/prenotazioni", icon: Calendar, color: "text-green-500" },
     { label: "Preferiti", href: "/preferiti", icon: Heart, color: "text-red-500" },
-    { label: "Messaggi", href: "/messaggi", icon: MessageCircle, color: "text-purple-500" },
+    // Messaggi section hidden
+    // { label: "Messaggi", href: "/messaggi", icon: MessageCircle, color: "text-purple-500" },
     { label: "Notifiche", href: "/notifiche", icon: Bell, color: "text-yellow-500" },
   ]
 
@@ -1225,7 +1225,7 @@ export default function ProfilePage() {
                       )}
                       {key === "allowMessages" && (
                         <>
-                          <MessageCircle className="h-4 w-4" />
+                          <Bell className="h-4 w-4" />
                           Consenti messaggi
                         </>
                       )}
@@ -1345,13 +1345,13 @@ export default function ProfilePage() {
                       <div className="flex items-start gap-3">
                         <OptimizedAvatar
                           src={review.host?.image || "/placeholder.svg"}
-                          alt={review.host?.name || "Host"}
+                          alt={review.host?.name || "Utente"}
                           size={40}
                           className="h-10 w-10"
                         />
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium">Host: {review.host?.name}</span>
+                            <span className="font-medium">{review.host?.name}</span>
                             <div className="flex items-center">
                               {Array.from({ length: 5 }).map((_, i) => (
                                 <Star

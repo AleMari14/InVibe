@@ -37,6 +37,7 @@ interface Participant {
   name: string
   email: string
   image?: string
+  isOnline?: boolean
 }
 
 interface ChatRoom {
@@ -59,6 +60,7 @@ export default function ChatRoomPage() {
   const [loading, setLoading] = useState(true)
   const [isSending, setIsSending] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
+  const [otherUserOnline, setOtherUserOnline] = useState(false)
   const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -141,6 +143,11 @@ export default function ChatRoomPage() {
       console.log("Socket.IO connected successfully:", socket.id)
       setIsConnected(true)
       socket.emit("joinRoom", roomId)
+
+      // Check if other user is online
+      if (chatRoom?.otherUser?.email) {
+        socket.emit("checkUserOnline", chatRoom.otherUser.email)
+      }
     })
 
     socket.on("connect_error", (err) => {
@@ -161,6 +168,12 @@ export default function ChatRoomPage() {
       })
     })
 
+    socket.on("userOnlineStatus", (data: { email: string; isOnline: boolean }) => {
+      if (data.email === chatRoom?.otherUser?.email) {
+        setOtherUserOnline(data.isOnline)
+      }
+    })
+
     socket.on("messageError", (data) => {
       toast.error(data.error)
       setIsSending(false)
@@ -172,7 +185,7 @@ export default function ChatRoomPage() {
         socketRef.current.disconnect()
       }
     }
-  }, [session, roomId])
+  }, [session, roomId, chatRoom?.otherUser?.email])
 
   // Scroll automatico quando arrivano nuovi messaggi
   useEffect(() => {
@@ -271,18 +284,22 @@ export default function ChatRoomPage() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex items-center gap-3 ml-2 flex-1">
-          <OptimizedAvatar src={otherParticipant?.image} alt={otherParticipant?.name || ""} size={40} />
+          <div className="relative">
+            <OptimizedAvatar src={otherParticipant?.image} alt={otherParticipant?.name || ""} size={40} />
+            {/* Online status indicator */}
+            <div
+              className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
+                otherUserOnline ? "bg-green-500" : "bg-red-500"
+              }`}
+              title={otherUserOnline ? "Online" : "Offline"}
+            />
+          </div>
           <div className="flex-1 min-w-0">
             <h2 className="font-bold text-sm truncate">{otherParticipant?.name}</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">Riguardo: {chatRoom.eventTitle}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {/* Indicatore connessione */}
-          <div
-            className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-red-500"}`}
-            title={isConnected ? "Connesso" : "Disconnesso"}
-          />
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" className="text-red-500 hover:text-red-600">
@@ -375,11 +392,6 @@ export default function ChatRoomPage() {
             {isSending ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
           </Button>
         </form>
-        {!isConnected && (
-          <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2 text-center">
-            Modalità offline - i messaggi potrebbero non essere istantanei
-          </p>
-        )}
       </div>
     </div>
   )
