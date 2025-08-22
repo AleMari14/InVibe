@@ -45,6 +45,7 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
   const [isConnected, setIsConnected] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     fetchMessages()
@@ -55,6 +56,9 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
       if (socket) {
         socket.disconnect()
       }
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+      }
     }
   }, [roomId])
 
@@ -64,66 +68,126 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
 
   const initializeSocket = () => {
     try {
+      // Use the configured WebSocket URL on port 3001
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001"
+      console.log("Connecting to WebSocket:", wsUrl)
+
       const newSocket = io(wsUrl, {
         transports: ["websocket", "polling"],
-        timeout: 5000,
+        timeout: 10000,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        forceNew: true,
       })
 
       newSocket.on("connect", () => {
-        console.log("Connected to WebSocket")
+        console.log("✅ Connected to WebSocket:", newSocket.id)
         setIsConnected(true)
-        newSocket.emit("join-room", roomId)
+
+        // Stop polling when WebSocket connects
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current)
+          pollingIntervalRef.current = null
+        }
+
+        // Join the room
+        newSocket.emit("joinRoom", roomId)
+
+        // Authenticate user
+        if (session?.user) {
+          newSocket.emit("authenticate", {
+            userId: session.user.id,
+            email: session.user.email,
+          })
+        }
       })
 
-      newSocket.on("disconnect", () => {
-        console.log("Disconnected from WebSocket")
+      newSocket.on("disconnect", (reason) => {
+        console.log("❌ Disconnected from WebSocket:", reason)
         setIsConnected(false)
+
+        // Start polling as fallback
+        startPollingFallback()
       })
 
       newSocket.on("connect_error", (error) => {
-        console.error("WebSocket connection error:", error)
+        console.error("❌ WebSocket connection error:", error)
         setIsConnected(false)
-        // Fallback to polling every 3 seconds
-        startPolling()
+
+        // Start polling as fallback
+        startPollingFallback()
       })
 
-      newSocket.on("new-message", (message: Message) => {
-        setMessages((prev) => [...prev, message])
+      newSocket.on("receiveMessage", (message: Message) => {
+        console.log("📨 Received message:", message)
+        setMessages((prev) => {
+          // Avoid duplicates
+          const exists = prev.some((m) => m._id === message._id)
+          if (exists) return prev
+          return [...prev, message]
+        })
+        scrollToBottom()
+      })
+
+      newSocket.on("newMessage", (message: Message) => {
+        console.log("📨 New message:", message)
+        setMessages((prev) => {
+          // Avoid duplicates
+          const exists = prev.some((m) => m._id === message._id)
+          if (exists) return prev
+          return [...prev, message]
+        })
         scrollToBottom()
       })
 
       setSocket(newSocket)
     } catch (error) {
-      console.error("Error initializing socket:", error)
+      console.error("❌ Error initializing socket:", error)
       setIsConnected(false)
-      startPolling()
+      startPollingFallback()
     }
   }
 
-  const startPolling = () => {
-    const interval = setInterval(() => {
+  const startPollingFallback = () => {
+    if (pollingIntervalRef.current) return // Already polling
+
+    console.log("🔄 Starting polling fallback")
+    pollingIntervalRef.current = setInterval(() => {
       if (!isConnected) {
         fetchMessages()
       }
     }, 3000)
-
-    return () => clearInterval(interval)
   }
 
   const fetchMessages = async () => {
     try {
-      setLoading(true)
+      if (!loading) {
+        // Silent fetch for updates
+      } else {
+        setLoading(true)
+      }
+
       const response = await fetch(`/api/messages/${roomId}`)
       if (response.ok) {
         const data = await response.json()
-        setMessages(data)
+        const messagesArray = Array.isArray(data) ? data : []
+        setMessages(messagesArray)
+      } else {
+        console.error("Failed to fetch messages:", response.status)
+        if (loading) {
+          toast.error("Errore nel caricamento dei messaggi")
+        }
       }
     } catch (error) {
       console.error("Error fetching messages:", error)
-      toast.error("Errore nel caricamento dei messaggi")
+      if (loading) {
+        toast.error("Errore nel caricamento dei messaggi")
+      }
     } finally {
-      setLoading(false)
+      if (loading) {
+        setLoading(false)
+      }
     }
   }
 
@@ -164,20 +228,27 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
         const message = await response.json()
 
         if (socket && isConnected) {
-          socket.emit("send-message", { roomId, message })
+          // Send via WebSocket
+          socket.emit("sendMessage", {
+            roomId,
+            senderId: session?.user?.id,
+            senderName: session?.user?.name,
+            senderImage: session?.user?.image,
+            content: messageContent,
+          })
         } else {
-          // Fallback: add message locally if socket not connected
+          // Fallback: add message locally
           setMessages((prev) => [...prev, message])
           scrollToBottom()
         }
       } else {
         toast.error("Errore nell'invio del messaggio")
-        setNewMessage(messageContent) // Restore message on error
+        setNewMessage(messageContent)
       }
     } catch (error) {
       console.error("Error sending message:", error)
       toast.error("Errore nell'invio del messaggio")
-      setNewMessage(messageContent) // Restore message on error
+      setNewMessage(messageContent)
     } finally {
       setSending(false)
     }
@@ -220,7 +291,7 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
       <Card className="rounded-none border-x-0 border-t-0">
         <CardHeader className="p-4">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => router.back()}>
+            <Button variant="ghost" size="icon" onClick={() => router.push("/messaggi")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <OptimizedAvatar src={otherUser.image} alt={otherUser.name} size={40} />
@@ -230,7 +301,7 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
             </div>
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-orange-500"}`} />
-              <span className="text-xs text-muted-foreground">{isConnected ? "Connesso" : "Fallback attivo"}</span>
+              <span className="text-xs text-muted-foreground">{isConnected ? "WebSocket" : "Fallback"}</span>
             </div>
           </div>
         </CardHeader>
@@ -246,7 +317,7 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
-        ) : messages.length > 0 ? (
+        ) : Array.isArray(messages) && messages.length > 0 ? (
           <AnimatePresence>
             {messages.map((message, index) => {
               const isOwn = message.senderId === session?.user?.id
