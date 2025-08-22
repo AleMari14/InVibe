@@ -2,34 +2,36 @@ import { type NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
 
 export async function GET(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { db } = await connectToDatabase()
     const roomId = params.roomId
 
-    if (!ObjectId.isValid(roomId)) {
-      return NextResponse.json({ error: "Invalid room ID" }, { status: 400 })
+    // Verifica che l'utente sia partecipante della chat room
+    const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
+    if (!chatRoom) {
+      return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
+    }
+
+    const userEmails = chatRoom.participants.map((p: any) => p.email.toLowerCase())
+    if (!userEmails.includes(session.user.email.toLowerCase())) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
     }
 
     // Get messages for the room
-    const messages = await db
-      .collection("messages")
-      .find({ roomId: new ObjectId(roomId) })
-      .sort({ createdAt: 1 })
-      .toArray()
+    const messages = await db.collection("messages").find({ roomId }).sort({ createdAt: 1 }).toArray()
 
     // Transform messages for client
     const transformedMessages = messages.map((msg) => ({
       _id: msg._id.toString(),
-      roomId: msg.roomId.toString(),
-      senderId: msg.senderId.toString(),
+      roomId: msg.roomId,
+      senderId: msg.senderId?.toString() || msg.senderId,
       senderName: msg.senderName,
       senderImage: msg.senderImage,
       content: msg.content,
@@ -47,25 +49,45 @@ export async function GET(request: NextRequest, { params }: { params: { roomId: 
 export async function POST(request: NextRequest, { params }: { params: { roomId: string } }) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { content, receiverId } = await request.json()
+    const { content } = await request.json()
     const { db } = await connectToDatabase()
     const roomId = params.roomId
 
-    if (!ObjectId.isValid(roomId)) {
-      return NextResponse.json({ error: "Invalid room ID" }, { status: 400 })
+    if (!content?.trim()) {
+      return NextResponse.json({ error: "Contenuto messaggio richiesto" }, { status: 400 })
+    }
+
+    // Verifica che l'utente sia partecipante della chat room
+    const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
+    if (!chatRoom) {
+      return NextResponse.json({ error: "Chat room non trovata" }, { status: 404 })
+    }
+
+    const userEmails = chatRoom.participants.map((p: any) => p.email.toLowerCase())
+    if (!userEmails.includes(session.user.email.toLowerCase())) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 403 })
+    }
+
+    // Trova l'utente corrente
+    const currentUser = await db.collection("users").findOne({
+      email: session.user.email.toLowerCase(),
+    })
+
+    if (!currentUser) {
+      return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
     // Create message
     const message = {
-      roomId: new ObjectId(roomId),
-      senderId: new ObjectId(session.user.id),
-      senderName: session.user.name || "Unknown",
-      senderImage: session.user.image,
-      content,
+      roomId,
+      senderId: currentUser._id.toString(),
+      senderName: currentUser.name || session.user.name || "Unknown",
+      senderImage: currentUser.image || session.user.image,
+      content: content.trim(),
       createdAt: new Date(),
       read: false,
     }
@@ -74,10 +96,10 @@ export async function POST(request: NextRequest, { params }: { params: { roomId:
 
     // Update chat room's last message
     await db.collection("chatRooms").updateOne(
-      { _id: new ObjectId(roomId) },
+      { _id: roomId },
       {
         $set: {
-          lastMessage: content,
+          lastMessage: content.trim(),
           lastMessageAt: new Date(),
           updatedAt: new Date(),
         },
@@ -88,10 +110,10 @@ export async function POST(request: NextRequest, { params }: { params: { roomId:
     const responseMessage = {
       _id: result.insertedId.toString(),
       roomId,
-      senderId: session.user.id,
-      senderName: session.user.name || "Unknown",
-      senderImage: session.user.image,
-      content,
+      senderId: currentUser._id.toString(),
+      senderName: message.senderName,
+      senderImage: message.senderImage,
+      content: message.content,
       createdAt: message.createdAt.toISOString(),
       read: false,
     }

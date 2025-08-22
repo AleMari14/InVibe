@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
-import clientPromise from "@/lib/mongodb"
 import { authOptions } from "@/lib/auth"
+import { connectToDatabase } from "@/lib/mongodb"
 
 export async function POST(request: Request, { params }: { params: { roomId: string } }) {
   try {
@@ -13,23 +13,22 @@ export async function POST(request: Request, { params }: { params: { roomId: str
     const { roomId } = params
     console.log("Archiving/Unarchiving chat room:", roomId)
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
     // Check if user is participant
-    const chatRoom = await db.collection("chatRooms").findOne({ roomId })
+    const chatRoom = await db.collection("chatRooms").findOne({ _id: roomId })
     if (!chatRoom) {
       return NextResponse.json({ error: "Chat room not found" }, { status: 404 })
     }
 
-    const userEmails = chatRoom.participants.map((p: any) => p.email)
-    if (!userEmails.includes(session.user.email)) {
+    const userEmails = chatRoom.participants.map((p: any) => p.email.toLowerCase())
+    if (!userEmails.includes(session.user.email.toLowerCase())) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     // Toggle archived status
     const newArchivedStatus = !chatRoom.archived
-    await db.collection("chatRooms").updateOne({ roomId }, { $set: { archived: newArchivedStatus } })
+    await db.collection("chatRooms").updateOne({ _id: roomId }, { $set: { archived: newArchivedStatus } })
 
     console.log("Chat room archived status updated:", roomId, newArchivedStatus)
     return NextResponse.json({ success: true, archived: newArchivedStatus })

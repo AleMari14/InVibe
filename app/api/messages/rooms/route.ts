@@ -1,10 +1,9 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { connectToDatabase } from "@/lib/mongodb"
-import { ObjectId } from "mongodb"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
@@ -18,123 +17,48 @@ export async function GET(request: NextRequest) {
       .collection("chatRooms")
       .find({
         "participants.email": session.user.email.toLowerCase(),
+        archived: { $ne: true },
       })
       .sort({ updatedAt: -1 })
       .toArray()
 
-    const roomsWithDetails = await Promise.all(
+    // Trasforma i dati per il frontend
+    const transformedRooms = await Promise.all(
       chatRooms.map(async (room) => {
-        // Trova l'ultimo messaggio
-        const lastMessage = await db.collection("messages").findOne({ roomId: room._id }, { sort: { createdAt: -1 } })
+        // Trova l'altro partecipante
+        const otherParticipant = room.participants.find(
+          (p: any) => p.email.toLowerCase() !== session.user.email.toLowerCase(),
+        )
 
         // Conta i messaggi non letti
         const unreadCount = await db.collection("messages").countDocuments({
           roomId: room._id,
-          senderId: { $ne: session.user.email },
-          readBy: { $ne: session.user.email },
+          senderId: { $ne: session.user.id },
+          read: { $ne: true },
         })
 
-        // Trova l'altro utente
-        const otherUser = room.participants.find((p: any) => p.email !== session.user.email)
+        // Ottieni l'ultimo messaggio
+        const lastMessage = await db.collection("messages").findOne({ roomId: room._id }, { sort: { createdAt: -1 } })
 
         return {
           _id: room._id,
-          eventTitle: room.eventTitle,
+          eventTitle: room.eventTitle || "Chat",
           lastMessage: lastMessage?.content || "",
-          lastMessageAt: lastMessage?.createdAt || room.createdAt,
-          otherUser: otherUser || { name: "Utente sconosciuto", email: "", image: null },
+          lastMessageAt: lastMessage?.createdAt?.toISOString() || room.updatedAt?.toISOString() || "",
+          otherUser: {
+            name: otherParticipant?.name || "Utente",
+            image: otherParticipant?.image,
+            email: otherParticipant?.email,
+          },
           unreadCount,
-          updatedAt: room.updatedAt,
+          updatedAt: room.updatedAt?.toISOString() || "",
         }
       }),
     )
 
-    return NextResponse.json(roomsWithDetails)
+    return NextResponse.json(transformedRooms)
   } catch (error) {
     console.error("Error fetching chat rooms:", error)
     return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
-  }
-}
-
-export async function POST(request: NextRequest) {
-  try {
-    const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const { participantId, eventTitle } = await request.json()
-    const { db } = await connectToDatabase()
-
-    if (!ObjectId.isValid(participantId)) {
-      return NextResponse.json({ error: "Invalid participant ID" }, { status: 400 })
-    }
-
-    // Check if a chat room already exists between these users
-    const existingRoom = await db.collection("chatRooms").findOne({
-      $and: [{ "participants.id": new ObjectId(session.user.id) }, { "participants.id": new ObjectId(participantId) }],
-    })
-
-    if (existingRoom) {
-      return NextResponse.json({
-        _id: existingRoom._id.toString(),
-        participants: existingRoom.participants.map((p: any) => ({
-          id: p.id.toString(),
-          name: p.name,
-          image: p.image,
-        })),
-        eventTitle: existingRoom.eventTitle,
-        lastMessage: existingRoom.lastMessage,
-        lastMessageAt: existingRoom.lastMessageAt?.toISOString(),
-      })
-    }
-
-    // Get participant details
-    const participant = await db.collection("users").findOne({
-      _id: new ObjectId(participantId),
-    })
-
-    if (!participant) {
-      return NextResponse.json({ error: "Participant not found" }, { status: 404 })
-    }
-
-    // Create new chat room
-    const newRoom = {
-      participants: [
-        {
-          id: new ObjectId(session.user.id),
-          name: session.user.name,
-          image: session.user.image,
-          email: session.user.email.toLowerCase(),
-        },
-        {
-          id: new ObjectId(participantId),
-          name: participant.name,
-          image: participant.image,
-          email: participant.email.toLowerCase(),
-        },
-      ],
-      eventTitle,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-
-    const result = await db.collection("chatRooms").insertOne(newRoom)
-
-    return NextResponse.json({
-      _id: result.insertedId.toString(),
-      participants: newRoom.participants.map((p) => ({
-        id: p.id.toString(),
-        name: p.name,
-        image: p.image,
-        email: p.email,
-      })),
-      eventTitle: newRoom.eventTitle,
-      createdAt: newRoom.createdAt.toISOString(),
-      updatedAt: newRoom.updatedAt.toISOString(),
-    })
-  } catch (error) {
-    console.error("Error creating chat room:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

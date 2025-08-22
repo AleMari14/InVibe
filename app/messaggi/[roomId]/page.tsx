@@ -9,14 +9,14 @@ import { toast } from "sonner"
 
 interface ChatRoom {
   _id: string
-  participants: Array<{
-    id: string
-    name: string
-    image?: string
-  }>
   eventTitle?: string
   lastMessage?: string
   lastMessageAt?: string
+  otherUser: {
+    name: string
+    image?: string
+    email: string
+  }
 }
 
 export default function ChatRoomPage() {
@@ -99,31 +99,13 @@ export default function ChatRoomPage() {
     )
   }
 
-  // Find the other participant
-  const otherUser = chatRoom.participants.find((p) => p.id !== session.user.id)
-
-  if (!otherUser) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen">
-        <h1 className="text-2xl font-bold mb-4">Errore</h1>
-        <p className="text-muted-foreground mb-4">Partecipante non trovato</p>
-        <button
-          onClick={() => router.push("/messaggi")}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-        >
-          Torna ai messaggi
-        </button>
-      </div>
-    )
-  }
-
   return (
     <ChatWindow
       roomId={roomId}
       otherUser={{
-        _id: otherUser.id,
-        name: otherUser.name,
-        image: otherUser.image,
+        _id: chatRoom.otherUser.email, // Using email as fallback ID
+        name: chatRoom.otherUser.name,
+        image: chatRoom.otherUser.image,
       }}
       eventTitle={chatRoom.eventTitle}
     />

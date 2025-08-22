@@ -190,7 +190,7 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
     try {
       if (!isPolling) setLoading(true)
 
-      const response = await fetch(`/api/messages/${roomId}`)
+      const response = await fetch(`/api/messages/room/${roomId}`)
       if (response.ok) {
         const data = await response.json()
         const messagesArray = Array.isArray(data) ? data : []
@@ -245,14 +245,13 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
 
     try {
       // Always use HTTP API for sending messages (more reliable)
-      const response = await fetch(`/api/messages/${roomId}`, {
+      const response = await fetch(`/api/messages/room/${roomId}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           content: messageContent,
-          receiverId: otherUser._id,
         }),
       })
 
@@ -274,7 +273,8 @@ export function ChatWindow({ roomId, otherUser, eventTitle }: ChatWindowProps) {
           scrollToBottom()
         }
       } else {
-        toast.error("Errore nell'invio del messaggio")
+        const errorData = await response.json()
+        toast.error(errorData.error || "Errore nell'invio del messaggio")
         setNewMessage(messageContent)
       }
     } catch (error) {
