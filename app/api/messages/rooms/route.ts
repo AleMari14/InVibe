@@ -7,40 +7,52 @@ import { ObjectId } from "mongodb"
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Non autorizzato" }, { status: 401 })
     }
 
     const { db } = await connectToDatabase()
 
-    // Get all chat rooms for the current user
+    // Trova tutte le chat rooms dell'utente
     const chatRooms = await db
       .collection("chatRooms")
       .find({
-        "participants.id": new ObjectId(session.user.id),
+        "participants.email": session.user.email.toLowerCase(),
       })
       .sort({ updatedAt: -1 })
       .toArray()
 
-    // Transform the data for the client
-    const transformedRooms = chatRooms.map((room) => ({
-      _id: room._id.toString(),
-      participants: room.participants.map((p: any) => ({
-        id: p.id.toString(),
-        name: p.name,
-        image: p.image,
-      })),
-      eventTitle: room.eventTitle,
-      lastMessage: room.lastMessage,
-      lastMessageAt: room.lastMessageAt?.toISOString(),
-      createdAt: room.createdAt?.toISOString(),
-      updatedAt: room.updatedAt?.toISOString(),
-    }))
+    const roomsWithDetails = await Promise.all(
+      chatRooms.map(async (room) => {
+        // Trova l'ultimo messaggio
+        const lastMessage = await db.collection("messages").findOne({ roomId: room._id }, { sort: { createdAt: -1 } })
 
-    return NextResponse.json(transformedRooms)
+        // Conta i messaggi non letti
+        const unreadCount = await db.collection("messages").countDocuments({
+          roomId: room._id,
+          senderId: { $ne: session.user.email },
+          readBy: { $ne: session.user.email },
+        })
+
+        // Trova l'altro utente
+        const otherUser = room.participants.find((p: any) => p.email !== session.user.email)
+
+        return {
+          _id: room._id,
+          eventTitle: room.eventTitle,
+          lastMessage: lastMessage?.content || "",
+          lastMessageAt: lastMessage?.createdAt || room.createdAt,
+          otherUser: otherUser || { name: "Utente sconosciuto", email: "", image: null },
+          unreadCount,
+          updatedAt: room.updatedAt,
+        }
+      }),
+    )
+
+    return NextResponse.json(roomsWithDetails)
   } catch (error) {
     console.error("Error fetching chat rooms:", error)
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
+    return NextResponse.json({ error: "Errore interno del server" }, { status: 500 })
   }
 }
 
@@ -93,11 +105,13 @@ export async function POST(request: NextRequest) {
           id: new ObjectId(session.user.id),
           name: session.user.name,
           image: session.user.image,
+          email: session.user.email.toLowerCase(),
         },
         {
           id: new ObjectId(participantId),
           name: participant.name,
           image: participant.image,
+          email: participant.email.toLowerCase(),
         },
       ],
       eventTitle,
@@ -113,6 +127,7 @@ export async function POST(request: NextRequest) {
         id: p.id.toString(),
         name: p.name,
         image: p.image,
+        email: p.email,
       })),
       eventTitle: newRoom.eventTitle,
       createdAt: newRoom.createdAt.toISOString(),

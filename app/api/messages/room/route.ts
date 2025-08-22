@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import clientPromise from "@/lib/mongodb"
+import { connectToDatabase } from "@/lib/mongodb"
 
 export async function POST(request: Request) {
   try {
@@ -12,27 +12,34 @@ export async function POST(request: Request) {
 
     const { hostId, hostEmail, hostName, eventId, eventTitle } = await request.json()
 
+    // Validazione parametri
     if (!hostEmail || !eventId || !eventTitle) {
+      console.error("Missing parameters:", { hostEmail, eventId, eventTitle })
       return NextResponse.json({ error: "Parametri mancanti" }, { status: 400 })
     }
 
-    const client = await clientPromise
-    const db = client.db("invibe")
+    const { db } = await connectToDatabase()
 
     // Trova l'utente corrente
-    const currentUser = await db.collection("users").findOne({ email: session.user.email })
+    const currentUser = await db.collection("users").findOne({
+      email: session.user.email.toLowerCase(),
+    })
+
     if (!currentUser) {
       return NextResponse.json({ error: "Utente non trovato" }, { status: 404 })
     }
 
     // Trova l'host
-    const hostUser = await db.collection("users").findOne({ email: hostEmail })
+    const hostUser = await db.collection("users").findOne({
+      email: hostEmail.toLowerCase(),
+    })
+
     if (!hostUser) {
       return NextResponse.json({ error: "Host non trovato" }, { status: 404 })
     }
 
     // Crea un ID univoco per la room basato sui partecipanti e l'evento
-    const participantEmails = [session.user.email, hostEmail].sort()
+    const participantEmails = [session.user.email.toLowerCase(), hostEmail.toLowerCase()].sort()
     const roomId = `${eventId}_${participantEmails.join("_")}`
 
     // Verifica se esiste già una chat room
@@ -58,13 +65,14 @@ export async function POST(request: Request) {
         {
           id: hostUser._id.toString(),
           email: hostUser.email,
-          name: hostUser.name || hostName,
+          name: hostUser.name || hostName || "Host",
           image: hostUser.image,
         },
       ],
       eventId,
       eventTitle,
       createdAt: new Date(),
+      updatedAt: new Date(),
       lastMessageAt: null,
     }
 

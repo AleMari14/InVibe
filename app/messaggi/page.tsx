@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
-import { MessageCircle, Search, MoreVertical, Trash2, Calendar, MapPin, Loader2, Users } from "lucide-react"
+import { MessageCircle, Search, MoreVertical, Trash2, Loader2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
@@ -26,24 +26,13 @@ import { useLanguage } from "@/contexts/language-context"
 
 interface ChatRoom {
   _id: string
-  participants: Array<{
-    _id: string
+  eventTitle: string
+  lastMessage: string
+  lastMessageAt: string
+  otherUser: {
     name: string
     image?: string
-  }>
-  event?: {
-    _id: string
-    title: string
-    category: string
-    date: string
-    location: {
-      address: string
-    }
-  }
-  lastMessage?: {
-    content: string
-    createdAt: string
-    senderId: string
+    email: string
   }
   unreadCount: number
   updatedAt: string
@@ -71,6 +60,7 @@ export default function MessaggiPage() {
       const response = await fetch("/api/messages/rooms")
       if (response.ok) {
         const data = await response.json()
+        console.log("Chat rooms data:", data)
         // Ensure data is an array before setting it
         const roomsArray = Array.isArray(data) ? data : []
         setChatRooms(roomsArray)
@@ -109,42 +99,36 @@ export default function MessaggiPage() {
     }
   }
 
-  const getOtherParticipant = (room: ChatRoom) => {
-    return room.participants.find((p) => p._id !== session?.user?.id)
-  }
-
   const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+    if (!dateString) return ""
 
-    if (diffInHours < 1) {
-      return "Ora"
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h fa`
-    } else if (diffInHours < 48) {
-      return "Ieri"
-    } else {
-      return date.toLocaleDateString("it-IT", { day: "numeric", month: "short" })
+    try {
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
+
+      if (diffInHours < 1) {
+        return "Ora"
+      } else if (diffInHours < 24) {
+        return `${Math.floor(diffInHours)}h fa`
+      } else if (diffInHours < 48) {
+        return "Ieri"
+      } else {
+        return date.toLocaleDateString("it-IT", { day: "numeric", month: "short" })
+      }
+    } catch (error) {
+      return ""
     }
-  }
-
-  const formatEventDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString("it-IT", {
-      day: "numeric",
-      month: "short",
-    })
   }
 
   // Ensure chatRooms is an array before filtering
   const filteredRooms = Array.isArray(chatRooms)
     ? chatRooms.filter((room) => {
-        const otherParticipant = getOtherParticipant(room)
         const searchLower = searchQuery.toLowerCase()
 
         return (
-          otherParticipant?.name.toLowerCase().includes(searchLower) ||
-          room.event?.title.toLowerCase().includes(searchLower)
+          room.otherUser?.name.toLowerCase().includes(searchLower) ||
+          room.eventTitle?.toLowerCase().includes(searchLower)
         )
       })
     : []
@@ -171,7 +155,7 @@ export default function MessaggiPage() {
         <div className="flex items-center gap-3 max-w-6xl mx-auto">
           <MessageCircle className="h-6 w-6 text-primary" />
           <h1 className="text-xl font-semibold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            {t("messages")}
+            Messaggi
           </h1>
         </div>
       </motion.div>
@@ -197,110 +181,87 @@ export default function MessaggiPage() {
           </div>
         ) : filteredRooms.length > 0 ? (
           <div className="space-y-3">
-            {filteredRooms.map((room, index) => {
-              const otherParticipant = getOtherParticipant(room)
-
-              return (
-                <motion.div
-                  key={room._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                >
-                  <Card className="bg-card/90 backdrop-blur-sm border-border/50 hover:bg-card/95 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 cursor-pointer group">
-                    <CardContent className="p-4">
-                      <div className="flex items-center gap-4">
-                        {/* Avatar with unread badge */}
-                        <div className="relative">
-                          <OptimizedAvatar
-                            src={otherParticipant?.image}
-                            alt={otherParticipant?.name || "Utente"}
-                            size={48}
-                            className="ring-2 ring-primary/10 group-hover:ring-primary/20 transition-all"
-                          />
-                          {room.unreadCount > 0 && (
-                            <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
-                              {room.unreadCount > 9 ? "9+" : room.unreadCount}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Chat Info */}
-                        <div
-                          className="flex-1 min-w-0 cursor-pointer"
-                          onClick={() => router.push(`/messaggi/${room._id}`)}
-                        >
-                          <div className="flex items-center justify-between mb-1">
-                            <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
-                              {otherParticipant?.name || "Utente sconosciuto"}
-                            </h3>
-                            <span className="text-xs text-muted-foreground">
-                              {room.lastMessage ? formatTime(room.lastMessage.createdAt) : formatTime(room.updatedAt)}
-                            </span>
+            {filteredRooms.map((room, index) => (
+              <motion.div
+                key={room._id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.05 }}
+              >
+                <Card className="bg-card/90 backdrop-blur-sm border-border/50 hover:bg-card/95 transition-all duration-200 hover:shadow-lg hover:shadow-primary/5 cursor-pointer group">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-4">
+                      {/* Avatar with unread badge */}
+                      <div className="relative">
+                        <OptimizedAvatar
+                          src={room.otherUser?.image}
+                          alt={room.otherUser?.name || "Utente"}
+                          size={48}
+                          className="ring-2 ring-primary/10 group-hover:ring-primary/20 transition-all"
+                        />
+                        {room.unreadCount > 0 && (
+                          <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground text-xs rounded-full h-5 w-5 flex items-center justify-center font-medium">
+                            {room.unreadCount > 9 ? "9+" : room.unreadCount}
                           </div>
+                        )}
+                      </div>
 
-                          {/* Event info */}
-                          {room.event && (
-                            <div className="flex items-center gap-2 mb-2">
-                              <Badge
-                                variant="secondary"
-                                className="text-xs bg-primary/10 text-primary border-primary/20"
-                              >
-                                {room.event.category}
-                              </Badge>
-                              <span className="text-sm text-muted-foreground truncate">{room.event.title}</span>
-                            </div>
-                          )}
-
-                          {/* Last message or event details */}
-                          {room.lastMessage ? (
-                            <p className="text-sm text-muted-foreground truncate">
-                              {room.lastMessage.senderId === session.user?.id ? "Tu: " : ""}
-                              {room.lastMessage.content}
-                            </p>
-                          ) : room.event ? (
-                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {formatEventDate(room.event.date)}
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <MapPin className="h-3 w-3" />
-                                <span className="truncate">{room.event.location.address}</span>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Nessun messaggio ancora</p>
-                          )}
+                      {/* Chat Info */}
+                      <div
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => router.push(`/messaggi/${room._id}`)}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors truncate">
+                            {room.otherUser?.name || "Utente sconosciuto"}
+                          </h3>
+                          <span className="text-xs text-muted-foreground">{formatTime(room.lastMessageAt)}</span>
                         </div>
 
-                        {/* Actions */}
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="opacity-0 group-hover:opacity-100 transition-opacity"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => setDeleteRoomId(room._id)}
-                              className="text-red-600 focus:text-red-600"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Elimina chat
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                        {/* Event info */}
+                        {room.eventTitle && (
+                          <div className="flex items-center gap-2 mb-2">
+                            <Badge variant="secondary" className="text-xs bg-primary/10 text-primary border-primary/20">
+                              Evento
+                            </Badge>
+                            <span className="text-sm text-muted-foreground truncate">{room.eventTitle}</span>
+                          </div>
+                        )}
+
+                        {/* Last message */}
+                        {room.lastMessage ? (
+                          <p className="text-sm text-muted-foreground truncate">{room.lastMessage}</p>
+                        ) : (
+                          <p className="text-sm text-muted-foreground">Nessun messaggio ancora</p>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              )
-            })}
+
+                      {/* Actions */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setDeleteRoomId(room._id)}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Elimina chat
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
           </div>
         ) : (
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-center py-12">

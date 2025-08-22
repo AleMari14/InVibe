@@ -51,6 +51,11 @@ export function MessageHostButton({
         eventTitle,
       })
 
+      // Validate required parameters before sending
+      if (!hostEmail || !eventId || !eventTitle) {
+        throw new Error("Parametri mancanti per la creazione della chat")
+      }
+
       const response = await fetch("/api/messages/room", {
         method: "POST",
         headers: {
